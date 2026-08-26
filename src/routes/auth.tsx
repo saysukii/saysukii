@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { Aura, Wordmark } from "@/components/portal/bits";
-import smallLogo from "@/assets/say-sukii-black.png.asset.json";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -92,17 +91,8 @@ function AuthPage() {
 
       <div className="relative z-10 flex w-full max-w-[420px] flex-col items-center">
         {/* Wordmark */}
-        <div className="mb-6 text-center">
+        <div className="mb-4 text-center">
           <Wordmark className="mx-auto max-w-[8.5rem]" />
-          <div className="mt-3 flex items-center justify-center gap-3">
-            <span className="h-px w-6 bg-border" />
-            <img
-              src={smallLogo.url}
-              alt="Say Sukii"
-              className="h-3.5 w-auto select-none object-contain opacity-80"
-            />
-            <span className="h-px w-6 bg-border" />
-          </div>
         </div>
 
         {/* Glass card */}
