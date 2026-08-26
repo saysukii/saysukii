@@ -237,6 +237,31 @@
   animation: aura-drift 26s ease-in-out infinite alternate;
 }
 
+/* Flower-shaped bloom: six petals (conic rays) + round heart, blurred into a soft aura */
+@utility aura-flower {
+  background-image:
+    radial-gradient(circle, currentColor 0 24%, transparent 25%),
+    conic-gradient(
+      currentColor 0 34deg,
+      transparent 34deg 60deg,
+      currentColor 60deg 94deg,
+      transparent 94deg 120deg,
+      currentColor 120deg 154deg,
+      transparent 154deg 180deg,
+      currentColor 180deg 214deg,
+      transparent 214deg 240deg,
+      currentColor 240deg 274deg,
+      transparent 274deg 300deg,
+      currentColor 300deg 334deg,
+      transparent 334deg 360deg
+    );
+  border-radius: 9999px;
+  filter: blur(64px) saturate(135%);
+  mix-blend-mode: multiply;
+  opacity: 0.85;
+  animation: aura-spin 90s linear infinite, aura-drift 26s ease-in-out infinite alternate;
+}
+
 @utility aura-grain {
   opacity: 0.5;
   background-image: radial-gradient(oklch(0 0 0 / 0.16) 0.5px, transparent 0.5px);
@@ -246,10 +271,21 @@
 
 @keyframes aura-drift {
   from {
-    transform: translate3d(0, 0, 0) scale(1);
+    translate: 0 0;
+    scale: 1;
   }
   to {
-    transform: translate3d(2.5%, -3%, 0) scale(1.12);
+    translate: 2.5% -3%;
+    scale: 1.12;
+  }
+}
+
+@keyframes aura-spin {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
   }
 }
 
