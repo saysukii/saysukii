@@ -93,7 +93,6 @@ function AuthPage() {
             <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Email</span>
             <input
               type="email"
-              required
               autoComplete="email"
               className={cn(
                 "mt-1.5 w-full rounded-2xl border bg-white/50 px-4 py-3 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40",
