@@ -175,7 +175,7 @@ function ProposalDetailPage() {
         {agreement ? (
           <Pill>
             {AGREEMENT_TYPE_LABEL[
-              agreement.agreement_type as keyof typeof AGREEMENT_TYPE_LABEL
+              agreement.type as keyof typeof AGREEMENT_TYPE_LABEL
             ]}
           </Pill>
         ) : null}
