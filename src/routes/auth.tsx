@@ -86,133 +86,131 @@ function AuthPage() {
   }
 
   return (
-    <div className="relative flex h-screen items-center justify-center overflow-hidden px-6 py-4">
+    <div className="relative flex h-screen items-center justify-center overflow-hidden px-6">
       <Aura />
 
-      <div className="relative z-10 flex w-full max-w-[420px] flex-col items-center">
+      <div className="relative z-10 flex h-full max-h-[844px] w-full max-w-[400px] flex-col px-6 py-12 sm:px-10">
+        <div className="flex-1" />
 
-        {/* Glass card */}
-        <div className="w-full rounded-3xl border border-white/40 bg-white/30 p-6 shadow-[0_8px_32px_rgba(235,188,188,0.15)] backdrop-blur-xl sm:p-8">
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-light tracking-tight text-foreground">Welcome</h1>
-            <p className="mt-1 text-[13px] font-light leading-relaxed text-muted-foreground">
-              Sign in to the studio portal
-            </p>
-          </div>
+        <div className="mb-14 text-center sm:mb-20">
+          <h1 className="text-[11px] font-bold uppercase tracking-[0.7em] text-foreground/90">
+            Welcome
+          </h1>
+        </div>
 
-          <form onSubmit={submit} className="space-y-8">
-            <div className="space-y-6">
-              {/* Email */}
-              <label className="group block">
-                <span
-                  className={cn(
-                    "block text-[10px] font-semibold uppercase tracking-[0.2em] transition-colors",
-                    emailError ? "text-destructive" : "text-muted-foreground group-focus-within:text-foreground",
-                  )}
-                >
-                  Email
-                </span>
+        <form onSubmit={submit} className="w-full space-y-10">
+          <div className="space-y-8">
+            {/* Email */}
+            <label className="group flex flex-col space-y-3">
+              <span
+                className={cn(
+                  "ml-0.5 text-[9px] font-bold uppercase tracking-[0.25em] transition-colors",
+                  emailError ? "text-destructive" : "text-muted-foreground/70",
+                )}
+              >
+                Email Address
+              </span>
+              <input
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (emailError) setEmailError(validateEmail(event.target.value));
+                }}
+                onBlur={(event) => setEmailError(validateEmail(event.target.value))}
+                placeholder="studio@saysukii.com"
+                className={cn(
+                  "w-full border-b bg-transparent px-0.5 py-2 text-xs text-foreground outline-none transition-all placeholder:text-foreground/25",
+                  emailError ? "border-destructive" : "border-border focus:border-foreground/60",
+                )}
+              />
+              {emailError ? (
+                <span className="text-[10px] leading-tight text-destructive">{emailError}</span>
+              ) : null}
+            </label>
+
+            {/* Password */}
+            <label className="group flex flex-col space-y-3">
+              <span
+                className={cn(
+                  "ml-0.5 text-[9px] font-bold uppercase tracking-[0.25em] transition-colors",
+                  passwordError ? "text-destructive" : "text-muted-foreground/70",
+                )}
+              >
+                Password
+              </span>
+              <div className="relative">
                 <input
-                  type="email"
-                  autoComplete="email"
-                  value={email}
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
                   onChange={(event) => {
-                    setEmail(event.target.value);
-                    if (emailError) setEmailError(validateEmail(event.target.value));
+                    setPassword(event.target.value);
+                    if (passwordError) setPasswordError(validatePassword(event.target.value));
                   }}
-                  onBlur={(event) => setEmailError(validateEmail(event.target.value))}
-                  placeholder="info@saysukii.com"
+                  onBlur={(event) => setPasswordError(validatePassword(event.target.value))}
+                  placeholder="••••••••"
                   className={cn(
-                    "mt-2 w-full bg-transparent border-b py-2 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/60 focus:border-foreground",
-                    emailError ? "border-destructive" : "border-border",
+                    "w-full border-b bg-transparent px-0.5 py-2 pr-12 text-xs text-foreground outline-none transition-all placeholder:text-foreground/25",
+                    passwordError ? "border-destructive" : "border-border focus:border-foreground/60",
                   )}
                 />
-                {emailError ? (
-                  <span className="mt-1.5 block text-[11px] leading-tight text-destructive">{emailError}</span>
-                ) : null}
-              </label>
-
-              {/* Password */}
-              <label className="group block">
-                <span
-                  className={cn(
-                    "block text-[10px] font-semibold uppercase tracking-[0.2em] transition-colors",
-                    passwordError ? "text-destructive" : "text-muted-foreground group-focus-within:text-foreground",
-                  )}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute bottom-2 right-0 text-[9px] uppercase tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  Password
-                </span>
-                <div className="relative mt-2">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(event) => {
-                      setPassword(event.target.value);
-                      if (passwordError) setPasswordError(validatePassword(event.target.value));
-                    }}
-                    onBlur={(event) => setPasswordError(validatePassword(event.target.value))}
-                    placeholder="••••••••"
-                    className={cn(
-                      "w-full bg-transparent border-b py-2 pr-10 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/60 focus:border-foreground",
-                      passwordError ? "border-destructive" : "border-border",
-                    )}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {passwordError ? (
-                  <span className="mt-1.5 block text-[11px] leading-tight text-destructive">{passwordError}</span>
-                ) : null}
-              </label>
-            </div>
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+              {passwordError ? (
+                <span className="text-[10px] leading-tight text-destructive">{passwordError}</span>
+              ) : null}
+            </label>
+          </div>
 
-            <label className="flex cursor-pointer items-center gap-2 py-1">
+          <div className="flex items-center justify-between px-0.5">
+            <label className="flex cursor-pointer items-center gap-2.5">
               <Checkbox
                 id="remember"
                 checked={rememberMe}
                 onCheckedChange={(checked) => setRememberMe(checked === true)}
               />
-              <span className="text-xs text-muted-foreground">Remember me</span>
+              <span className="text-[10px] uppercase tracking-tight text-muted-foreground">
+                Remember me
+              </span>
             </label>
+          </div>
 
-            <div className="space-y-3 pt-2">
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full rounded-full bg-primary py-3.5 text-xs font-semibold uppercase tracking-[0.2em] text-primary-foreground transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
-              >
-                {busy ? "One moment" : "Enter the studio"}
-              </button>
+          <div className="space-y-4 pt-2">
+            <button
+              type="submit"
+              disabled={busy}
+              className="flex w-full items-center justify-center rounded-full bg-primary py-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+            >
+              {busy ? "One moment" : "Enter Studio"}
+            </button>
 
-              <button
-                type="button"
-                onClick={google}
-                disabled={busy}
-                className="flex w-full items-center justify-center gap-2 rounded-full border border-white/60 bg-white/40 py-3.5 text-xs font-semibold uppercase tracking-wider text-foreground transition-all hover:bg-white/70 disabled:opacity-50"
-              >
-                <GoogleIcon className="h-4 w-4" />
-                Continue with Google
-              </button>
-            </div>
-          </form>
-        </div>
+            <button
+              type="button"
+              onClick={google}
+              disabled={busy}
+              className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-card py-4 text-[11px] font-medium uppercase tracking-wider text-foreground transition-all hover:bg-secondary active:scale-[0.98] disabled:opacity-50"
+            >
+              <GoogleIcon className="h-4 w-4" />
+              Continue with Google
+            </button>
+          </div>
+        </form>
 
-        {/* Decorative tail */}
-        <div className="mt-8 flex flex-col items-center gap-2">
-          <div className="h-6 w-px bg-gradient-to-b from-border to-transparent" />
-          <div className="h-1 w-1 rounded-full bg-border" />
-        </div>
+        <div className="flex-1" />
       </div>
     </div>
   );
 }
+
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
