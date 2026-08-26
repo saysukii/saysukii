@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+import { Wordmark } from "@/components/portal/bits";
 
 
 export const Route = createFileRoute("/auth")({
@@ -94,10 +95,8 @@ function AuthPage() {
       <div className="relative z-10 flex h-full max-h-[844px] w-full max-w-[400px] flex-col px-6 py-12 sm:px-10">
         <div className="flex-1" />
 
-        <div className="mb-14 text-center sm:mb-20">
-          <h1 className="text-[11px] font-bold uppercase tracking-[0.7em] text-foreground/90">
-            Welcome
-          </h1>
+        <div className="mb-10 sm:mb-14">
+          <Wordmark className="block w-32" />
         </div>
 
         <form onSubmit={submit} className="w-full space-y-10">
