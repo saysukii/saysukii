@@ -120,7 +120,7 @@ function AuthPage() {
                   if (emailError) setEmailError(validateEmail(event.target.value));
                 }}
                 onBlur={(event) => setEmailError(validateEmail(event.target.value))}
-                placeholder="studio@saysukii.com"
+                placeholder="you@saysukii.com"
                 className={cn(
                   "w-full border-b bg-transparent px-0.5 py-2 text-xs text-foreground outline-none transition-all placeholder:text-foreground/25",
                   emailError ? "border-destructive" : "border-foreground/40 focus:border-foreground",
