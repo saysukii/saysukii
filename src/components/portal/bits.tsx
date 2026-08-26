@@ -69,22 +69,22 @@ export function Aura() {
           {/* leaves */}
           <ellipse
             cx="258"
-            cy="560"
+            cy="1090"
             rx="70"
             ry="20"
             fill="var(--rose)"
-            opacity="0.24"
-            transform="rotate(-38 258 560)"
+            opacity="0.3"
+            transform="rotate(-38 258 1090)"
             filter="url(#auraSoft)"
           />
           <ellipse
             cx="142"
-            cy="760"
+            cy="1230"
             rx="58"
             ry="17"
             fill="var(--petal)"
-            opacity="0.22"
-            transform="rotate(36 142 760)"
+            opacity="0.28"
+            transform="rotate(36 142 1230)"
             filter="url(#auraSoft)"
           />
 
