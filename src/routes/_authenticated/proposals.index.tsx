@@ -6,7 +6,7 @@ import { listProposals } from "@/lib/portal.functions";
 import { EmptyState, GlassCard, PageHeader, Pill } from "@/components/portal/bits";
 import { SERVICE_LINE_LABEL, formatDate, formatMoney } from "@/lib/money";
 
-export const Route = createFileRoute("/_authenticated/proposals")({
+export const Route = createFileRoute("/_authenticated/proposals/")({
   head: () => ({
     meta: [
       { title: "Documents — Say Sukii Portal" },
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/proposals")({
   component: DocumentsPage,
 });
 
-const STATUS_TONE: Record<string, "rose" | "default"> = {
+const STATUS_TONE: Record<string, "rose" | "neutral"> = {
   accepted: "rose",
   sent: "rose",
 };
@@ -84,7 +84,7 @@ function DocumentsPage() {
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Pill tone={STATUS_TONE[proposal.status] ?? "default"}>{proposal.status}</Pill>
+                  <Pill tone={STATUS_TONE[proposal.status] ?? "neutral"}>{proposal.status}</Pill>
                   {project?.service_line ? (
                     <Pill>
                       {
