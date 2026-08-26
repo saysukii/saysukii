@@ -31,17 +31,17 @@ export function Aura() {
       <div className="absolute inset-0 bg-surface-alt" />
       <div className="absolute inset-0 flex justify-center">
         <svg
-          className="h-full w-[min(32rem,82vw)] animate-[aura-drift_30s_ease-in-out_infinite_alternate]"
-          viewBox="0 0 400 900"
-          preserveAspectRatio="xMidYMid slice"
+          className="h-full w-[min(30rem,84vw)] animate-[aura-drift_30s_ease-in-out_infinite_alternate]"
+          viewBox="0 0 400 1400"
+          preserveAspectRatio="xMidYMin meet"
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
             <filter id="auraSoft" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="18" />
+              <feGaussianBlur in="SourceGraphic" stdDeviation="9" />
             </filter>
             <filter id="auraStem" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="7" />
+              <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
             </filter>
             <linearGradient id="petalFill" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="var(--bloom)" stopOpacity="0.85" />
@@ -58,7 +58,7 @@ export function Aura() {
 
           {/* stem */}
           <path
-            d="M200 250 Q194 480 200 660 T202 900"
+            d="M200 250 Q194 560 200 860 T202 1400"
             stroke="var(--rose)"
             strokeWidth="7"
             strokeLinecap="round"
@@ -69,34 +69,34 @@ export function Aura() {
           {/* leaves */}
           <ellipse
             cx="258"
-            cy="470"
+            cy="560"
             rx="70"
             ry="20"
             fill="var(--rose)"
             opacity="0.24"
-            transform="rotate(-38 258 470)"
+            transform="rotate(-38 258 560)"
             filter="url(#auraSoft)"
           />
           <ellipse
             cx="142"
-            cy="600"
+            cy="760"
             rx="58"
             ry="17"
             fill="var(--petal)"
             opacity="0.22"
-            transform="rotate(36 142 600)"
+            transform="rotate(36 142 760)"
             filter="url(#auraSoft)"
           />
 
           {/* bloom */}
-          <g filter="url(#auraSoft)" opacity="0.62">
+          <g filter="url(#auraSoft)" opacity="0.8">
             {[0, 72, 144, 216, 288].map((angle) => (
               <ellipse
                 key={angle}
                 cx="0"
                 cy="-88"
-                rx="52"
-                ry="96"
+                rx="44"
+                ry="94"
                 fill="url(#petalFill)"
                 transform={`translate(200,235) rotate(${angle})`}
               />
