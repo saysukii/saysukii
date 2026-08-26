@@ -186,7 +186,7 @@ function AuthPage() {
           </div>
 
           <div className="pt-2">
-            <div className="liquid-glass liquid-glass-peri relative flex items-center rounded-full p-1 shadow-lg">
+            <div className="glass-soft relative flex items-center rounded-full p-1 shadow-lg">
               <button
                 type="submit"
                 disabled={busy}
