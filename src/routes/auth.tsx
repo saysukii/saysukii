@@ -87,18 +87,28 @@ function AuthPage() {
         <Wordmark className="max-w-[7.5rem]" />
         <h1 className="mt-8 text-3xl font-light tracking-tight">Welcome</h1>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <form onSubmit={submit} className="mt-8 space-y-3">
           <label className="block">
             <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Email</span>
             <input
               type="email"
               required
               autoComplete="email"
-              className="mt-1.5 w-full rounded-2xl border border-white/60 bg-white/50 px-4 py-3 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40"
+              className={cn(
+                "mt-1.5 w-full rounded-2xl border bg-white/50 px-4 py-3 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40",
+                emailError ? "border-destructive/70 focus:ring-destructive/30" : "border-white/60",
+              )}
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (emailError) setEmailError(validateEmail(event.target.value));
+              }}
+              onBlur={(event) => setEmailError(validateEmail(event.target.value))}
               placeholder="info@saysukii.com"
             />
+            {emailError ? (
+              <span className="mt-1.5 block text-[11px] leading-tight text-destructive">{emailError}</span>
+            ) : null}
           </label>
           <label className="block">
             <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Password</span>
@@ -107,11 +117,21 @@ function AuthPage() {
               required
               minLength={8}
               autoComplete="current-password"
-              className="mt-1.5 w-full rounded-2xl border border-white/60 bg-white/50 px-4 py-3 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40"
+              className={cn(
+                "mt-1.5 w-full rounded-2xl border bg-white/50 px-4 py-3 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40",
+                passwordError ? "border-destructive/70 focus:ring-destructive/30" : "border-white/60",
+              )}
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (passwordError) setPasswordError(validatePassword(event.target.value));
+              }}
+              onBlur={(event) => setPasswordError(validatePassword(event.target.value))}
               placeholder="••••••••"
             />
+            {passwordError ? (
+              <span className="mt-1.5 block text-[11px] leading-tight text-destructive">{passwordError}</span>
+            ) : null}
           </label>
           <button
             type="submit"
