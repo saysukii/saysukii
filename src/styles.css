@@ -69,8 +69,8 @@
 :root {
   --radius: 1.5rem;
 
-  --cream: oklch(0.9444 0.0128 63.92);
-  --surface-alt: oklch(0.9784 0.0059 59.65);
+  --cream: #fcfcfc;
+  --surface-alt: #fcfcfc;
   --petal: oklch(0.8921 0.0328 8.33);
   --rose: oklch(0.7792 0.0667 10.39);
   --bloom: oklch(0.6715 0.0912 12.67);
@@ -78,47 +78,46 @@
   --glow-pink: oklch(0.9103 0.0403 352.19);
   --glow-peri: oklch(0.9021 0.0344 278.47);
 
-  --background: var(--cream);
+  --background: #fcfcfc;
   --foreground: var(--ink);
-  --card: oklch(0.9784 0.0059 59.65);
+  --card: #fcfcfc;
   --card-foreground: var(--ink);
-  --popover: oklch(0.9784 0.0059 59.65);
+  --popover: #fcfcfc;
   --popover-foreground: var(--ink);
   --primary: var(--ink);
-  --primary-foreground: oklch(0.9784 0.0059 59.65);
-  --secondary: oklch(0.9351 0.0198 30);
+  --primary-foreground: #fcfcfc;
+  --secondary: oklch(0.965 0 0);
   --secondary-foreground: var(--ink);
-  --muted: oklch(0.9351 0.0136 45);
-  --muted-foreground: oklch(0.6045 0.0162 50.66);
-  --accent: var(--petal);
+  --muted: oklch(0.965 0 0);
+  --muted-foreground: oklch(0.58 0.005 60);
+  --accent: oklch(0.955 0 0);
   --accent-foreground: var(--ink);
   --destructive: oklch(0.577 0.16 22);
-  --destructive-foreground: oklch(0.9784 0.0059 59.65);
-  --border: oklch(0.8921 0.0148 40);
-  --input: oklch(0.8921 0.0148 40);
-  --ring: var(--rose);
+  --destructive-foreground: #fcfcfc;
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.9 0 0);
+  --ring: oklch(0.72 0.005 60);
 
-  --chart-1: oklch(0.6715 0.0912 12.67);
-  --chart-2: oklch(0.7792 0.0667 10.39);
-  --chart-3: oklch(0.8921 0.0328 8.33);
-  --chart-4: oklch(0.9021 0.0344 278.47);
-  --chart-5: oklch(0.6045 0.0162 50.66);
+  --chart-1: oklch(0.35 0 0);
+  --chart-2: oklch(0.5 0 0);
+  --chart-3: oklch(0.65 0 0);
+  --chart-4: oklch(0.78 0 0);
+  --chart-5: oklch(0.88 0 0);
 
-  --sidebar: oklch(0.9784 0.0059 59.65);
+  --sidebar: #fcfcfc;
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--ink);
-  --sidebar-primary-foreground: oklch(0.9784 0.0059 59.65);
-  --sidebar-accent: var(--petal);
+  --sidebar-primary-foreground: #fcfcfc;
+  --sidebar-accent: oklch(0.965 0 0);
   --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: oklch(0.8921 0.0148 40);
-  --sidebar-ring: var(--rose);
+  --sidebar-border: oklch(0.9 0 0);
+  --sidebar-ring: oklch(0.72 0.005 60);
 
-  /* Soft-UI shadows */
-  --shadow-neu:
-    -6px -6px 14px oklch(1 0 0 / 0.85), 6px 6px 16px oklch(0.6715 0.0912 12.67 / 0.16);
-  --shadow-neu-pressed:
-    inset -3px -3px 8px oklch(1 0 0 / 0.7), inset 3px 3px 8px oklch(0.6715 0.0912 12.67 / 0.18);
-  --shadow-glass: 0 18px 40px -20px oklch(0.6715 0.0912 12.67 / 0.28);
+  /* Flat base: no soft-UI shadows */
+  --shadow-neu: none;
+  --shadow-neu-pressed: none;
+  --shadow-glass: none;
+
 }
 
 .dark {
@@ -164,71 +163,44 @@
   }
 }
 
-/* Frosted glass surface */
+/* Flat surfaces: hairline borders only, no blur or glow */
 @utility glass {
-  background-color: oklch(1 0 0 / 0.6);
-  backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid oklch(1 0 0 / 0.65);
-  box-shadow: var(--shadow-glass);
+  background-color: var(--background);
+  border: 1px solid var(--border);
 }
 
 @utility glass-soft {
-  background-color: oklch(1 0 0 / 0.42);
-  backdrop-filter: blur(16px) saturate(130%);
-  border: 1px solid oklch(1 0 0 / 0.5);
+  background-color: var(--background);
+  border: 1px solid var(--border);
 }
 
-/* Liquid-glass aurora buttons inspired by soft app-icon tiles */
 @utility liquid-glass {
-  backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid oklch(1 0 0 / 0.65);
-  box-shadow:
-    0 10px 28px -10px oklch(0.6715 0.0912 12.67 / 0.2),
-    inset 0 1px 1px oklch(1 0 0 / 0.8);
+  background-color: var(--background);
+  border: 1px solid var(--border);
 }
 
 @utility liquid-glass-rose {
-  background:
-    linear-gradient(135deg, color-mix(in oklch, var(--glow-pink) 55%, transparent), color-mix(in oklch, var(--rose) 45%, transparent)),
-    linear-gradient(180deg, oklch(1 0 0 / 0.52), oklch(1 0 0 / 0.12));
+  background-color: var(--background);
 }
 
 @utility liquid-glass-peri {
-  background:
-    linear-gradient(135deg, color-mix(in oklch, var(--glow-peri) 55%, transparent), color-mix(in oklch, var(--petal) 45%, transparent)),
-    linear-gradient(180deg, oklch(1 0 0 / 0.52), oklch(1 0 0 / 0.12));
+  background-color: var(--background);
 }
 
-/* Neumorphic soft-UI base */
 @utility neu {
-  background-color: var(--surface-alt);
-  box-shadow: var(--shadow-neu);
+  background-color: var(--background);
+  border: 1px solid var(--border);
 }
 
 @utility neu-pressed {
-  background-color: var(--surface-alt);
-  box-shadow: var(--shadow-neu-pressed);
+  background-color: var(--background);
+  border: 1px solid var(--border);
 }
 
-/* Iridescent bloom used on hover / active states only */
 @utility bloom-glow {
-  position: relative;
-  isolation: isolate;
-  &::before {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    z-index: -1;
-    opacity: 0;
-    background: linear-gradient(115deg, var(--glow-pink), var(--glow-peri));
-    transition: opacity 320ms ease;
-  }
-  &:hover::before,
-  &:focus-visible::before {
-    opacity: 1;
-  }
+  transition: background-color 200ms ease, color 200ms ease;
 }
+
 
 @utility display-number {
   font-family: var(--font-display);
@@ -243,112 +215,6 @@
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--muted-foreground);
-}
-
-@utility dotted-ground {
-  background-image: radial-gradient(oklch(0.6715 0.0912 12.67 / 0.14) 1px, transparent 1px);
-  background-size: 22px 22px;
-}
-
-/* Aura background: heavily diffused colour blooms with a fine grain veil */
-@utility aura-bloom {
-  filter: blur(120px) saturate(130%);
-  mix-blend-mode: multiply;
-  opacity: 0.85;
-  animation: aura-drift 26s ease-in-out infinite alternate;
-}
-
-/* Flower-shaped bloom: six petal lobes + round heart, blurred into a soft daisy aura */
-@utility aura-flower {
-  background-image:
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 68%, transparent 69%);
-  background-size:
-    44% 44%,
-    44% 44%,
-    44% 44%,
-    44% 44%,
-    44% 44%,
-    44% 44%,
-    34% 34%;
-  background-position:
-    50% 2%,
-    92% 26%,
-    92% 74%,
-    50% 98%,
-    8% 74%,
-    8% 26%,
-    50% 50%;
-  background-repeat: no-repeat;
-  filter: blur(24px) saturate(150%);
-  mix-blend-mode: multiply;
-  opacity: 0.95;
-  animation: aura-spin 90s linear infinite, aura-drift 26s ease-in-out infinite alternate;
-}
-
-/* Calmer flower bloom without rotation, for minimal pages */
-@utility aura-flower-minimal {
-  background-image:
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 62%, transparent 63%),
-    radial-gradient(circle, currentColor 0 68%, transparent 69%);
-  background-size:
-    44% 44%,
-    44% 44%,
-    44% 44%,
-    44% 44%,
-    44% 44%,
-    44% 44%,
-    34% 34%;
-  background-position:
-    50% 2%,
-    92% 26%,
-    92% 74%,
-    50% 98%,
-    8% 74%,
-    8% 26%,
-    50% 50%;
-  background-repeat: no-repeat;
-  filter: blur(18px) saturate(140%);
-  mix-blend-mode: multiply;
-  opacity: 0.85;
-  animation: aura-drift 30s ease-in-out infinite alternate;
-}
-
-@utility aura-grain {
-  opacity: 0.5;
-  background-image: radial-gradient(oklch(0 0 0 / 0.16) 0.5px, transparent 0.5px);
-  background-size: 3px 3px;
-  mix-blend-mode: soft-light;
-}
-
-@keyframes aura-drift {
-  from {
-    translate: 0 0;
-    scale: 1;
-  }
-  to {
-    translate: 2.5% -3%;
-    scale: 1.12;
-  }
-}
-
-@keyframes aura-spin {
-  from {
-    rotate: 0deg;
-  }
-  to {
-    rotate: 360deg;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import blackLogo from "@/assets/say-sukii-black.png.asset.json";
 
@@ -12,82 +11,6 @@ export function Wordmark({ className }: { className?: string }) {
     />
   );
 }
-
-export function Ground() {
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className="absolute inset-0 bg-background" />
-      <div className="dotted-ground absolute inset-0 opacity-70" />
-      <div className="absolute -left-40 -top-32 size-[34rem] rounded-full bg-petal/50 blur-3xl" />
-      <div className="absolute -right-32 top-1/3 size-[30rem] rounded-full bg-rose/30 blur-3xl" />
-      <div className="absolute bottom-[-12rem] left-1/3 size-[32rem] rounded-full bg-secondary/70 blur-3xl" />
-    </div>
-  );
-}
-
-/** Soft blurred aura background with gentle cursor parallax. */
-export function Aura() {
-  const [pos, setPos] = useState({ x: 0.5, y: 0.5 });
-
-  useEffect(() => {
-    let frame = 0;
-    const onMove = (event: PointerEvent) => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        setPos({
-          x: event.clientX / window.innerWidth,
-          y: event.clientY / window.innerHeight,
-        });
-      });
-    };
-    window.addEventListener("pointermove", onMove);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, []);
-
-  const shift = (depth: number) => ({
-    transform: `translate3d(${(pos.x - 0.5) * depth}px, ${(pos.y - 0.5) * depth}px, 0)`,
-    transition: "transform 900ms cubic-bezier(0.22, 1, 0.36, 1)",
-  });
-
-  return (
-    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className="absolute inset-0 bg-surface-alt" />
-      <div
-        className="absolute -left-32 top-[-10%] size-[46rem] rounded-full bg-petal/70 blur-[130px]"
-        style={shift(70)}
-      />
-      <div
-        className="absolute right-[-14%] top-[8%] size-[40rem] rounded-full bg-rose/55 blur-[140px]"
-        style={shift(-110)}
-      />
-      <div
-        className="absolute bottom-[-22%] right-[6%] size-[52rem] rounded-full bg-bloom/40 blur-[160px]"
-        style={shift(140)}
-      />
-      <div
-        className="absolute bottom-[-18%] left-[10%] size-[38rem] rounded-full bg-petal/55 blur-[150px]"
-        style={shift(-60)}
-      />
-      <div
-        className="absolute left-1/2 top-1/2 size-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-rose/25 blur-[120px]"
-        style={shift(40)}
-      />
-      <div className="aura-grain absolute inset-0 opacity-20" />
-      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/40 via-transparent to-surface-alt/50" />
-    </div>
-  );
-}
-
-
-
-
-
-
-
 
 export function GlassCard({
   children,
@@ -187,7 +110,7 @@ export function Pill({
       className={cn(
         "inline-flex items-center rounded-full px-3 py-1 text-[0.65rem] font-semibold tracking-[0.14em] uppercase",
         tone === "neutral" && "bg-secondary text-secondary-foreground",
-        tone === "rose" && "bg-petal text-accent-foreground",
+        tone === "rose" && "bg-muted text-foreground",
         tone === "ink" && "bg-primary text-primary-foreground",
       )}
     >
