@@ -30,10 +30,32 @@ function AuthPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  function validateEmail(value: string) {
+    if (!value.trim()) return "Email is required";
+    if (!emailRegex.test(value.trim())) return "Please enter a valid email address";
+    return null;
+  }
+
+  function validatePassword(value: string) {
+    if (!value) return "Password is required";
+    if (value.length < 8) return "Password must be at least 8 characters";
+    return null;
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    const emailErr = validateEmail(email);
+    const passwordErr = validatePassword(password);
+    setEmailError(emailErr);
+    setPasswordError(passwordErr);
+    if (emailErr || passwordErr) return;
+
     setBusy(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
