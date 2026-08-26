@@ -39,7 +39,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <Ground />
 
       {/* Top bar */}
-      <header className="glass sticky top-4 z-50 mx-auto flex h-16 max-w-[100rem] items-center justify-between gap-4 rounded-3xl px-5 sm:px-7">
+      <header className="glass sticky top-4 z-50 mx-auto mt-4 flex h-16 max-w-[100rem] items-center justify-between gap-4 rounded-3xl px-5 sm:px-7">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setOpen((value) => !value)}
