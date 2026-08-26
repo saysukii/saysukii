@@ -189,7 +189,7 @@ function AuthPage() {
             <button
               type="submit"
               disabled={busy}
-              className="flex w-full items-center justify-center rounded-full bg-primary py-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-foreground shadow-sm transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+              className="liquid-glass liquid-glass-rose flex w-full items-center justify-center rounded-3xl py-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-foreground transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
             >
               {busy ? "One moment" : "Enter Studio"}
             </button>
@@ -198,7 +198,7 @@ function AuthPage() {
               type="button"
               onClick={google}
               disabled={busy}
-              className="flex w-full items-center justify-center gap-3 rounded-full border border-border bg-card py-4 text-[11px] font-medium uppercase tracking-wider text-foreground transition-all hover:bg-secondary active:scale-[0.98] disabled:opacity-50"
+              className="liquid-glass liquid-glass-peri flex w-full items-center justify-center gap-3 rounded-3xl py-4 text-[11px] font-medium uppercase tracking-wider text-foreground transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
             >
               <GoogleIcon className="h-4 w-4" />
               Continue with Google
