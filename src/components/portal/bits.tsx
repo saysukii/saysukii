@@ -24,6 +24,21 @@ export function Ground() {
   );
 }
 
+/** Soft blurred aura field — dreamy gradient blooms on a pale ground. */
+export function Aura() {
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+      <div className="absolute inset-0 bg-surface-alt" />
+      <div className="aura-bloom absolute left-[8%] top-[6%] size-[46rem] rounded-full bg-rose/70" />
+      <div className="aura-bloom absolute -right-[10%] top-[22%] size-[40rem] rounded-full bg-bloom/55" />
+      <div className="aura-bloom absolute bottom-[-14%] left-[26%] size-[52rem] rounded-full bg-petal/80" />
+      <div className="aura-bloom absolute bottom-[4%] right-[14%] size-[30rem] rounded-full bg-secondary" />
+      <div className="aura-grain absolute inset-0" />
+      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/40 via-transparent to-surface-alt/70" />
+    </div>
+  );
+}
+
 export function GlassCard({
   children,
   className,
