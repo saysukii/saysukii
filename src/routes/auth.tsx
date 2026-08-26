@@ -185,24 +185,28 @@ function AuthPage() {
             </label>
           </div>
 
-          <div className="space-y-4 pt-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="liquid-glass liquid-glass-peri flex w-full items-center justify-center rounded-3xl py-4 text-[11px] font-medium uppercase tracking-wider text-foreground transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
-            >
-              {busy ? "One moment" : "Enter Studio"}
-            </button>
+          <div className="pt-2">
+            <div className="liquid-glass liquid-glass-peri relative flex items-center rounded-full p-1 shadow-lg">
+              <button
+                type="submit"
+                disabled={busy}
+                className="flex-[2] rounded-full bg-foreground py-4 text-[11px] font-medium uppercase tracking-wider text-background transition-colors hover:bg-foreground/90 active:scale-[0.98] disabled:opacity-50"
+              >
+                {busy ? "One moment" : "Enter Studio"}
+              </button>
 
-            <button
-              type="button"
-              onClick={google}
-              disabled={busy}
-              className="liquid-glass liquid-glass-peri flex w-full items-center justify-center gap-3 rounded-3xl py-4 text-[11px] font-medium uppercase tracking-wider text-foreground transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
-            >
-              <GoogleIcon className="h-4 w-4" />
-              Continue with Google
-            </button>
+              <div className="mx-2 h-6 w-px bg-border/50" />
+
+              <button
+                type="button"
+                onClick={google}
+                disabled={busy}
+                aria-label="Continue with Google"
+                className="flex-1 rounded-full py-4 text-foreground transition-all hover:bg-white/50 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
+              >
+                <GoogleIcon className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </form>
 
