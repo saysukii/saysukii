@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { Ground, Wordmark, Field, inputClass, SoftButton } from "@/components/portal/bits";
+import { Aura, Wordmark, Field, inputClass, SoftButton } from "@/components/portal/bits";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -71,7 +71,7 @@ function AuthPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-16">
-      <Ground />
+      <Aura />
       <div className="glass w-full max-w-md rounded-[2.5rem] p-10">
         <Wordmark className="mx-auto max-w-[11rem]" />
         <p className="mt-6 text-center text-[0.65rem] font-semibold tracking-[0.24em] text-muted-foreground uppercase">
