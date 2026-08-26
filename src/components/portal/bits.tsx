@@ -110,7 +110,7 @@ export function Pill({
       className={cn(
         "inline-flex items-center rounded-full px-3 py-1 text-[0.65rem] font-semibold tracking-[0.14em] uppercase",
         tone === "neutral" && "bg-secondary text-secondary-foreground",
-        tone === "rose" && "bg-petal text-accent-foreground",
+        tone === "rose" && "bg-muted text-foreground",
         tone === "ink" && "bg-primary text-primary-foreground",
       )}
     >
