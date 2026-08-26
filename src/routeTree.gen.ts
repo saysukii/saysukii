@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedRateCardRouteImport } from './routes/_authenticated/rate-card'
 
 const IndexRoute = IndexRouteImport.update({
@@ -40,6 +41,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedRateCardRoute = AuthenticatedRateCardRouteImport.update({
   id: '/rate-card',
   path: '/rate-card',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/accounts': typeof AuthenticatedAccountsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/pipeline': typeof AuthenticatedPipelineRoute
   '/rate-card': typeof AuthenticatedRateCardRoute
 }
 export interface FileRoutesByTo {
@@ -58,6 +65,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/accounts': typeof AuthenticatedAccountsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/pipeline': typeof AuthenticatedPipelineRoute
   '/rate-card': typeof AuthenticatedRateCardRoute
 }
 export interface FileRoutesById {
@@ -67,13 +75,15 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/rate-card': typeof AuthenticatedRateCardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/accounts' | '/dashboard' | '/rate-card'
+  fullPaths:
+    '/' | '/auth' | '/accounts' | '/dashboard' | '/pipeline' | '/rate-card'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/accounts' | '/dashboard' | '/rate-card'
+  to: '/' | '/auth' | '/accounts' | '/dashboard' | '/pipeline' | '/rate-card'
   id:
     | '__root__'
     | '/'
@@ -81,6 +91,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/accounts'
     | '/_authenticated/dashboard'
+    | '/_authenticated/pipeline'
     | '/_authenticated/rate-card'
   fileRoutesById: FileRoutesById
 }
@@ -127,6 +138,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/pipeline': {
+      id: '/_authenticated/pipeline'
+      path: '/pipeline'
+      fullPath: '/pipeline'
+      preLoaderRoute: typeof AuthenticatedPipelineRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/rate-card': {
       id: '/_authenticated/rate-card'
       path: '/rate-card'
@@ -140,12 +158,14 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedRateCardRoute: typeof AuthenticatedRateCardRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedRateCardRoute: AuthenticatedRateCardRoute,
 }
 
