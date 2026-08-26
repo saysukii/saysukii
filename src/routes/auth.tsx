@@ -1,7 +1,9 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
@@ -31,6 +33,8 @@ function AuthPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -84,18 +88,18 @@ function AuthPage() {
   return (
     <div className="flex h-screen items-center justify-center overflow-hidden px-4 py-4">
       <Aura />
-      <div className="w-full max-w-sm rounded-[2.5rem] border border-white/60 bg-white/40 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.04)] backdrop-blur-2xl sm:p-8 md:p-10">
-        <Wordmark className="max-w-[7.5rem]" />
-        <h1 className="mt-8 text-3xl font-light tracking-tight">Welcome</h1>
+      <div className="w-full max-w-sm rounded-[2.5rem] border border-white/60 bg-white/40 p-5 shadow-[0_20px_50px_rgba(0,0,0,0.04)] backdrop-blur-2xl sm:p-7 md:p-8">
+        <Wordmark className="max-w-[6.5rem]" />
+        <h1 className="mt-4 text-3xl font-light tracking-tight">Welcome</h1>
 
-        <form onSubmit={submit} className="mt-8 space-y-3">
+        <form onSubmit={submit} className="mt-5 space-y-2.5">
           <label className="block">
             <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Email</span>
             <input
               type="email"
               autoComplete="email"
               className={cn(
-                "mt-1.5 w-full rounded-2xl border bg-white/50 px-4 py-3 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40",
+                "mt-1.5 w-full rounded-2xl border bg-white/50 px-4 py-2.5 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40",
                 emailError ? "border-destructive/70 focus:ring-destructive/30" : "border-white/60",
               )}
               value={email}
@@ -112,35 +116,55 @@ function AuthPage() {
           </label>
           <label className="block">
             <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Password</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              className={cn(
-                "mt-1.5 w-full rounded-2xl border bg-white/50 px-4 py-3 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40",
-                passwordError ? "border-destructive/70 focus:ring-destructive/30" : "border-white/60",
-              )}
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-                if (passwordError) setPasswordError(validatePassword(event.target.value));
-              }}
-              onBlur={(event) => setPasswordError(validatePassword(event.target.value))}
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                className={cn(
+                  "mt-1.5 w-full rounded-2xl border bg-white/50 px-4 py-2.5 pr-11 text-sm text-foreground outline-none ring-0 transition-all placeholder:text-muted-foreground/70 focus:border-white/80 focus:ring-1 focus:ring-ring/40",
+                  passwordError ? "border-destructive/70 focus:ring-destructive/30" : "border-white/60",
+                )}
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (passwordError) setPasswordError(validatePassword(event.target.value));
+                }}
+                onBlur={(event) => setPasswordError(validatePassword(event.target.value))}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {passwordError ? (
               <span className="mt-1.5 block text-[11px] leading-tight text-destructive">{passwordError}</span>
             ) : null}
           </label>
+
+          <label className="flex cursor-pointer items-center gap-2 py-1">
+            <Checkbox
+              id="remember"
+              checked={rememberMe}
+              onCheckedChange={(checked) => setRememberMe(checked === true)}
+            />
+            <span className="text-xs text-muted-foreground">Remember me</span>
+          </label>
+
           <button
             type="submit"
             disabled={busy}
-            className="mt-2 w-full rounded-2xl bg-primary py-3.5 text-sm font-medium tracking-wide text-primary-foreground transition-colors hover:brightness-110 disabled:opacity-50"
+            className="w-full rounded-2xl bg-primary py-3 text-sm font-medium tracking-wide text-primary-foreground transition-colors hover:brightness-110 disabled:opacity-50"
           >
             {busy ? "One moment" : "Enter the studio"}
           </button>
         </form>
 
-        <div className="relative my-8 flex items-center">
+        <div className="relative my-5 flex items-center">
           <span className="h-px flex-1 bg-border/60" />
           <span className="px-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">or</span>
           <span className="h-px flex-1 bg-border/60" />
