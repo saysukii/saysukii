@@ -57,27 +57,27 @@ export function Aura() {
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div className="absolute inset-0 bg-surface-alt" />
       <div
-        className="absolute -left-32 top-[-10%] size-[46rem] rounded-full bg-petal/70 blur-[130px]"
-        style={shift(70)}
+        className="absolute -left-24 top-[-12%] size-[48rem] rounded-full bg-glow-pink/80 blur-[140px]"
+        style={shift(60)}
       />
       <div
-        className="absolute right-[-14%] top-[8%] size-[40rem] rounded-full bg-rose/55 blur-[140px]"
-        style={shift(-110)}
+        className="absolute right-[-16%] top-[4%] size-[44rem] rounded-full bg-petal/75 blur-[150px]"
+        style={shift(-90)}
       />
       <div
-        className="absolute bottom-[-22%] right-[6%] size-[52rem] rounded-full bg-bloom/40 blur-[160px]"
-        style={shift(140)}
+        className="absolute bottom-[-26%] right-[10%] size-[54rem] rounded-full bg-glow-pink/70 blur-[170px]"
+        style={shift(120)}
       />
       <div
-        className="absolute bottom-[-18%] left-[10%] size-[38rem] rounded-full bg-petal/55 blur-[150px]"
-        style={shift(-60)}
+        className="absolute bottom-[-16%] left-[6%] size-[42rem] rounded-full bg-rose/40 blur-[150px]"
+        style={shift(-50)}
       />
       <div
-        className="absolute left-1/2 top-1/2 size-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-rose/25 blur-[120px]"
-        style={shift(40)}
+        className="absolute left-[55%] top-[42%] size-[38rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-petal/35 blur-[130px]"
+        style={shift(35)}
       />
       <div className="aura-grain absolute inset-0 opacity-20" />
-      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/40 via-transparent to-surface-alt/50" />
+      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/30 via-transparent to-surface-alt/40" />
     </div>
   );
 }
