@@ -34,21 +34,21 @@ export function Aura() {
         viewBox="0 0 100 100"
         preserveAspectRatio="xMidYMid meet"
         xmlns="http://www.w3.org/2000/svg"
-        style={{ opacity: 0.9, overflow: "visible" }}
+        style={{ opacity: 0.95, overflow: "visible" }}
       >
         <defs>
           <filter id="auraBlur" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" />
           </filter>
-          <radialGradient id="bloomGlow" cx="50%" cy="28%" r="55%">
-            <stop offset="0%" stopColor="var(--rose)" stopOpacity="0.45" />
-            <stop offset="60%" stopColor="var(--petal)" stopOpacity="0.2" />
+          <radialGradient id="bloomGlow" cx="50%" cy="26%" r="58%">
+            <stop offset="0%" stopColor="var(--rose)" stopOpacity="0.5" />
+            <stop offset="55%" stopColor="var(--petal)" stopOpacity="0.22" />
             <stop offset="100%" stopColor="var(--surface-alt)" stopOpacity="0" />
           </radialGradient>
         </defs>
 
         {/* Soft aura field behind the flower */}
-        <circle cx="50" cy="30" r="40" fill="url(#bloomGlow)" opacity="0.9" filter="url(#auraBlur)" />
+        <circle cx="50" cy="28" r="42" fill="url(#bloomGlow)" opacity="0.9" filter="url(#auraBlur)" />
 
         <g
           className="animate-[aura-drift_28s_ease-in-out_infinite_alternate]"
@@ -56,33 +56,33 @@ export function Aura() {
         >
           {/* Stem */}
           <path
-            d="M50 44 Q49.5 64 50 80 T50 104"
+            d="M50 42 Q49.2 62 50 78 T50 104"
             stroke="var(--rose)"
-            strokeWidth="1.6"
+            strokeWidth="1.8"
             fill="none"
             strokeLinecap="round"
-            opacity="0.65"
+            opacity="0.68"
             filter="url(#auraBlur)"
           />
           {/* Leaves */}
           <ellipse
-            cx="64"
-            cy="58"
-            rx="12"
-            ry="4.5"
+            cx="66"
+            cy="56"
+            rx="14"
+            ry="5"
             fill="var(--rose)"
-            opacity="0.38"
-            transform="rotate(-52 64 58)"
+            opacity="0.4"
+            transform="rotate(-55 66 56)"
             filter="url(#auraBlur)"
           />
           <ellipse
-            cx="36"
-            cy="78"
-            rx="10"
-            ry="4"
+            cx="34"
+            cy="76"
+            rx="12"
+            ry="4.5"
             fill="var(--petal)"
-            opacity="0.32"
-            transform="rotate(42 36 78)"
+            opacity="0.35"
+            transform="rotate(45 34 76)"
             filter="url(#auraBlur)"
           />
           {/* Petals */}
@@ -90,24 +90,25 @@ export function Aura() {
             <ellipse
               key={angle}
               cx="0"
-              cy="-15"
-              rx="12"
-              ry="30"
+              cy="-16"
+              rx="15"
+              ry="42"
               fill={i % 2 === 0 ? "var(--petal)" : "var(--rose)"}
-              opacity="0.62"
-              transform={`translate(50,30) rotate(${angle})`}
+              opacity="0.72"
+              transform={`translate(50,28) rotate(${angle})`}
               filter="url(#auraBlur)"
             />
           ))}
           {/* Heart */}
-          <circle cx="50" cy="30" r="6.5" fill="var(--bloom)" opacity="0.5" filter="url(#auraBlur)" />
+          <circle cx="50" cy="28" r="7" fill="var(--bloom)" opacity="0.55" filter="url(#auraBlur)" />
         </g>
       </svg>
-      <div className="aura-grain absolute inset-0 opacity-30" />
-      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/35 via-transparent to-surface-alt/45" />
+      <div className="aura-grain absolute inset-0 opacity-25" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-surface-alt/30" />
     </div>
   );
 }
+
 
 
 
