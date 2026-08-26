@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import blackLogo from "@/assets/say-sukii-black.png.asset.json";
 
@@ -24,92 +25,63 @@ export function Ground() {
   );
 }
 
-/** Soft blurred aura background: one full flower with stem, centered and calm. */
+/** Soft blurred aura background with gentle cursor parallax. */
 export function Aura() {
+  const [pos, setPos] = useState({ x: 0.5, y: 0.5 });
+
+  useEffect(() => {
+    let frame = 0;
+    const onMove = (event: PointerEvent) => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        setPos({
+          x: event.clientX / window.innerWidth,
+          y: event.clientY / window.innerHeight,
+        });
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  const shift = (depth: number) => ({
+    transform: `translate3d(${(pos.x - 0.5) * depth}px, ${(pos.y - 0.5) * depth}px, 0)`,
+    transition: "transform 900ms cubic-bezier(0.22, 1, 0.36, 1)",
+  });
+
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div className="absolute inset-0 bg-surface-alt" />
-      <div className="absolute inset-0 flex justify-center">
-        <svg
-          className="h-full w-[min(30rem,84vw)] animate-[aura-drift_30s_ease-in-out_infinite_alternate]"
-          viewBox="0 0 400 1400"
-          preserveAspectRatio="xMidYMin meet"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <filter id="auraSoft" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="9" />
-            </filter>
-            <filter id="auraStem" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
-            </filter>
-            <linearGradient id="petalFill" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="var(--bloom)" stopOpacity="0.85" />
-              <stop offset="100%" stopColor="var(--rose)" stopOpacity="0.55" />
-            </linearGradient>
-            <radialGradient id="haze" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="var(--petal)" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="var(--petal)" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-
-          {/* soft halo */}
-          <circle cx="200" cy="235" r="215" fill="url(#haze)" />
-
-          {/* stem */}
-          <path
-            d="M200 250 Q194 560 200 860 T202 1400"
-            stroke="var(--rose)"
-            strokeWidth="7"
-            strokeLinecap="round"
-            fill="none"
-            opacity="0.3"
-            filter="url(#auraStem)"
-          />
-          {/* leaves */}
-          <ellipse
-            cx="258"
-            cy="1090"
-            rx="70"
-            ry="20"
-            fill="var(--rose)"
-            opacity="0.3"
-            transform="rotate(-38 258 1090)"
-            filter="url(#auraSoft)"
-          />
-          <ellipse
-            cx="142"
-            cy="1230"
-            rx="58"
-            ry="17"
-            fill="var(--petal)"
-            opacity="0.28"
-            transform="rotate(36 142 1230)"
-            filter="url(#auraSoft)"
-          />
-
-          {/* bloom */}
-          <g filter="url(#auraSoft)" opacity="0.8">
-            {[0, 72, 144, 216, 288].map((angle) => (
-              <ellipse
-                key={angle}
-                cx="0"
-                cy="-88"
-                rx="44"
-                ry="94"
-                fill="url(#petalFill)"
-                transform={`translate(200,235) rotate(${angle})`}
-              />
-            ))}
-            <circle cx="200" cy="235" r="34" fill="var(--bloom)" opacity="0.5" />
-          </g>
-        </svg>
-      </div>
+      <div
+        className="absolute -left-32 top-[-10%] size-[46rem] rounded-full bg-petal/70 blur-[130px]"
+        style={shift(70)}
+      />
+      <div
+        className="absolute right-[-14%] top-[8%] size-[40rem] rounded-full bg-rose/55 blur-[140px]"
+        style={shift(-110)}
+      />
+      <div
+        className="absolute bottom-[-22%] right-[6%] size-[52rem] rounded-full bg-bloom/40 blur-[160px]"
+        style={shift(140)}
+      />
+      <div
+        className="absolute bottom-[-18%] left-[10%] size-[38rem] rounded-full bg-petal/55 blur-[150px]"
+        style={shift(-60)}
+      />
+      <div
+        className="absolute left-1/2 top-1/2 size-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-rose/25 blur-[120px]"
+        style={shift(40)}
+      />
       <div className="aura-grain absolute inset-0 opacity-20" />
-      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/40 via-transparent to-surface-alt/60" />
+      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/40 via-transparent to-surface-alt/50" />
     </div>
   );
 }
+
 
 
 
