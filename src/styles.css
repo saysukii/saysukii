@@ -264,7 +264,7 @@
     8% 26%,
     50% 50%;
   background-repeat: no-repeat;
-  filter: blur(40px) saturate(150%);
+  filter: blur(24px) saturate(150%);
   mix-blend-mode: multiply;
   opacity: 0.95;
   animation: aura-spin 90s linear infinite, aura-drift 26s ease-in-out infinite alternate;
