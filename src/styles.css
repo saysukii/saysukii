@@ -270,6 +270,39 @@
   animation: aura-spin 90s linear infinite, aura-drift 26s ease-in-out infinite alternate;
 }
 
+/* Calmer flower bloom without rotation, for minimal pages */
+@utility aura-flower-minimal {
+  background-image:
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 68%, transparent 69%);
+  background-size:
+    44% 44%,
+    44% 44%,
+    44% 44%,
+    44% 44%,
+    44% 44%,
+    44% 44%,
+    34% 34%;
+  background-position:
+    50% 2%,
+    92% 26%,
+    92% 74%,
+    50% 98%,
+    8% 74%,
+    8% 26%,
+    50% 50%;
+  background-repeat: no-repeat;
+  filter: blur(18px) saturate(140%);
+  mix-blend-mode: multiply;
+  opacity: 0.85;
+  animation: aura-drift 30s ease-in-out infinite alternate;
+}
+
 @utility aura-grain {
   opacity: 0.5;
   background-image: radial-gradient(oklch(0 0 0 / 0.16) 0.5px, transparent 0.5px);
