@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { Aura, Wordmark } from "@/components/portal/bits";
+import { Aura } from "@/components/portal/bits";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -90,10 +90,6 @@ function AuthPage() {
       <Aura />
 
       <div className="relative z-10 flex w-full max-w-[420px] flex-col items-center">
-        {/* Wordmark */}
-        <div className="mb-4 text-center">
-          <Wordmark className="mx-auto max-w-[8.5rem]" />
-        </div>
 
         {/* Glass card */}
         <div className="w-full rounded-3xl border border-white/40 bg-white/30 p-6 shadow-[0_8px_32px_rgba(235,188,188,0.15)] backdrop-blur-xl sm:p-8">
