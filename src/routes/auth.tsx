@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
