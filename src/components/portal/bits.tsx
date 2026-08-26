@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import blackLogo from "@/assets/say-sukii-black.png";
+import blackLogo from "@/assets/say-sukii-black.png.asset.json";
 
 export function Wordmark({ className }: { className?: string }) {
   return (
     <img
-      src={blackLogo}
+      src={blackLogo.url}
       alt="Say Sukii"
       className={cn("h-auto w-full select-none object-contain", className)}
     />
