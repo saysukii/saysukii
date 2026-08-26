@@ -187,11 +187,8 @@ function ProposalDetailPage() {
                 <div key={item.id} className="flex items-start justify-between gap-4 border-b border-border/40 pb-3 last:border-0">
                   <div>
                     <p className="text-sm">{item.name}</p>
-                    {item.description ? (
-                      <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
-                    ) : null}
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {item.quantity} × {formatMoneyExact(item.unit_price_cents)}
+                      {item.qty} × {formatMoneyExact(item.unit_price_cents)}
                     </p>
                   </div>
                   <p className="display-number text-sm">{formatMoneyExact(item.line_total_cents)}</p>
@@ -201,12 +198,6 @@ function ProposalDetailPage() {
 
             <dl className="mt-6 space-y-2 text-sm">
               <Row label="Subtotal" value={formatMoneyExact(proposal.subtotal_cents)} />
-              {proposal.discount_cents ? (
-                <Row label="Discount" value={`− ${formatMoneyExact(proposal.discount_cents)}`} />
-              ) : null}
-              {proposal.tax_cents ? (
-                <Row label="Tax" value={formatMoneyExact(proposal.tax_cents)} />
-              ) : null}
               <div className="flex items-baseline justify-between border-t border-border/50 pt-3">
                 <dt className="eyebrow">Total</dt>
                 <dd className="display-number text-xl">{formatMoneyExact(proposal.total_cents)}</dd>
@@ -214,11 +205,11 @@ function ProposalDetailPage() {
             </dl>
           </GlassCard>
 
-          {essence?.urls?.length ? (
+          {essenceUrls.length > 0 ? (
             <GlassCard className="p-6">
               <h2 className="text-lg font-light">Essence images</h2>
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {essence.urls.map((url, index) => (
+                {essenceUrls.map((url, index) => (
                   <img
                     key={url}
                     src={url}
@@ -228,15 +219,6 @@ function ProposalDetailPage() {
                   />
                 ))}
               </div>
-            </GlassCard>
-          ) : null}
-
-          {proposal.notes ? (
-            <GlassCard className="p-6">
-              <h2 className="text-lg font-light">Notes</h2>
-              <p className="mt-3 text-sm whitespace-pre-wrap text-muted-foreground">
-                {proposal.notes}
-              </p>
             </GlassCard>
           ) : null}
         </div>
