@@ -300,12 +300,6 @@ export const generateProposalSet = createServerFn({ method: "POST" })
       }
     }
 
-    const { data: customPrices, error: customError } = await supabase
-      .from("rate_card_items")
-      .select("id")
-      .limit(1);
-    if (customError) throw new Error(customError.message);
-    void customPrices;
 
     const priced = data.line_items.map((item, index) => {
       const fromCard = item.rate_card_item_id ? priceById.get(item.rate_card_item_id) : undefined;
