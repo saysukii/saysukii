@@ -24,20 +24,22 @@ export function Ground() {
   );
 }
 
-/** Soft blurred aura field — dreamy gradient blooms on a pale ground. */
+/** Soft blurred aura field — dreamy gradient blooms on a pale ground.
+ *  Minimal + equal: two mirrored flower sentinels frame the card with a calm centre glow.
+ */
 export function Aura() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div className="absolute inset-0 bg-surface-alt" />
-      <div className="aura-flower absolute left-[6%] top-[4%] size-[44rem] text-rose/70" />
-      <div className="aura-flower absolute -right-[8%] top-[20%] size-[38rem] text-bloom/55" />
-      <div className="aura-flower absolute bottom-[-16%] left-[24%] size-[50rem] text-petal/90" />
-      <div className="aura-bloom absolute bottom-[4%] right-[14%] size-[30rem] rounded-full bg-secondary" />
+      <div className="aura-flower-minimal absolute -left-[8%] top-[26%] size-[30rem] text-petal/55" />
+      <div className="aura-flower-minimal absolute -right-[8%] top-[26%] size-[30rem] text-petal/55" />
+      <div className="aura-bloom absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[24rem] rounded-full bg-rose/20" />
       <div className="aura-grain absolute inset-0" />
-      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/40 via-transparent to-surface-alt/70" />
+      <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/55 via-transparent to-surface-alt/65" />
     </div>
   );
 }
+
 
 export function GlassCard({
   children,
