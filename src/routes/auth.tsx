@@ -28,7 +28,6 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,18 +36,8 @@ function AuthPage() {
     event.preventDefault();
     setBusy(true);
     try {
-      if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
-        toast.success("Studio account created. You're in.");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       await router.navigate({ to: "/dashboard" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not sign in");
@@ -72,16 +61,11 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-16">
       <Aura />
-      <div className="glass w-full max-w-md rounded-[2.5rem] p-10">
-        <Wordmark className="mx-auto max-w-[11rem]" />
-        <p className="mt-6 text-center text-[0.65rem] font-semibold tracking-[0.24em] text-muted-foreground uppercase">
-          Studio Operating System
-        </p>
-        <h1 className="mt-4 text-center text-3xl font-light">
-          {mode === "signin" ? "Welcome back" : "Create studio access"}
-        </h1>
+      <div className="glass w-full max-w-sm rounded-[2rem] p-8">
+        <Wordmark className="max-w-[7.5rem]" />
+        <h1 className="mt-8 text-2xl font-light tracking-tight">Welcome</h1>
 
-        <form onSubmit={submit} className="mt-8 space-y-5">
+        <form onSubmit={submit} className="mt-7 space-y-4">
           <Field label="Email">
             <input
               type="email"
@@ -98,7 +82,7 @@ function AuthPage() {
               type="password"
               required
               minLength={8}
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              autoComplete="current-password"
               className={inputClass}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -106,7 +90,7 @@ function AuthPage() {
             />
           </Field>
           <SoftButton type="submit" variant="primary" disabled={busy} className="w-full py-3">
-            {busy ? "One moment" : mode === "signin" ? "Enter the studio" : "Create access"}
+            {busy ? "One moment" : "Enter the studio"}
           </SoftButton>
         </form>
 
@@ -119,13 +103,6 @@ function AuthPage() {
         <SoftButton onClick={google} className="w-full py-3">
           Continue with Google
         </SoftButton>
-
-        <button
-          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="mt-6 w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {mode === "signin" ? "Need studio access? Create an account" : "Already have access? Sign in"}
-        </button>
       </div>
     </div>
   );
