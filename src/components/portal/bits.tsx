@@ -24,21 +24,82 @@ export function Ground() {
   );
 }
 
-/** Soft blurred aura field — dreamy gradient blooms on a pale ground.
- *  Minimal + equal: two mirrored flower sentinels frame the card with a calm centre glow.
- */
+/** Soft blurred aura background: one full flower with stem, centered and calm. */
 export function Aura() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div className="absolute inset-0 bg-surface-alt" />
-      <div className="aura-flower-minimal absolute -left-[8%] top-[26%] size-[30rem] text-petal/55" />
-      <div className="aura-flower-minimal absolute -right-[8%] top-[26%] size-[30rem] text-petal/55" />
-      <div className="aura-bloom absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[24rem] rounded-full bg-rose/20" />
+      <svg
+        className="absolute inset-0 size-full"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="xMidYMid meet"
+        xmlns="http://www.w3.org/2000/svg"
+        style={{ mixBlendMode: "multiply", opacity: 0.85 }}
+      >
+        <defs>
+          <filter id="auraBlur" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
+          </filter>
+        </defs>
+        <g
+          className="animate-[aura-drift_28s_ease-in-out_infinite_alternate]"
+          style={{ transformOrigin: "50px 50px", transformBox: "fill-box" }}
+        >
+          {/* Stem */}
+          <path
+            d="M50 50 Q49 68 50 84 T50 98"
+            stroke="var(--rose)"
+            strokeWidth="1.2"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.55"
+            filter="url(#auraBlur)"
+          />
+          {/* Leaves */}
+          <ellipse
+            cx="53"
+            cy="74"
+            rx="7"
+            ry="3"
+            fill="var(--rose)"
+            opacity="0.32"
+            transform="rotate(-35 53 74)"
+            filter="url(#auraBlur)"
+          />
+          <ellipse
+            cx="48"
+            cy="86"
+            rx="5.5"
+            ry="2.4"
+            fill="var(--petal)"
+            opacity="0.28"
+            transform="rotate(28 48 86)"
+            filter="url(#auraBlur)"
+          />
+          {/* Petals */}
+          {[0, 72, 144, 216, 288].map((angle, i) => (
+            <ellipse
+              key={angle}
+              cx="0"
+              cy="-9"
+              rx="6.5"
+              ry="14"
+              fill={i % 2 === 0 ? "var(--petal)" : "var(--rose)"}
+              opacity="0.5"
+              transform={`translate(50,38) rotate(${angle})`}
+              filter="url(#auraBlur)"
+            />
+          ))}
+          {/* Heart */}
+          <circle cx="50" cy="38" r="4.5" fill="var(--bloom)" opacity="0.4" filter="url(#auraBlur)" />
+        </g>
+      </svg>
       <div className="aura-grain absolute inset-0" />
       <div className="absolute inset-0 bg-gradient-to-b from-surface-alt/55 via-transparent to-surface-alt/65" />
     </div>
   );
 }
+
 
 
 export function GlassCard({
