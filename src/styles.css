@@ -237,26 +237,34 @@
   animation: aura-drift 26s ease-in-out infinite alternate;
 }
 
-/* Flower-shaped bloom: six petals (conic rays) + round heart, blurred into a soft aura */
+/* Flower-shaped bloom: six petal lobes + round heart, blurred into a soft daisy aura */
 @utility aura-flower {
   background-image:
-    radial-gradient(circle, currentColor 0 24%, transparent 25%),
-    conic-gradient(
-      currentColor 0 34deg,
-      transparent 34deg 60deg,
-      currentColor 60deg 94deg,
-      transparent 94deg 120deg,
-      currentColor 120deg 154deg,
-      transparent 154deg 180deg,
-      currentColor 180deg 214deg,
-      transparent 214deg 240deg,
-      currentColor 240deg 274deg,
-      transparent 274deg 300deg,
-      currentColor 300deg 334deg,
-      transparent 334deg 360deg
-    );
-  border-radius: 9999px;
-  filter: blur(34px) saturate(150%);
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 62%, transparent 63%),
+    radial-gradient(circle, currentColor 0 68%, transparent 69%);
+  background-size:
+    44% 44%,
+    44% 44%,
+    44% 44%,
+    44% 44%,
+    44% 44%,
+    44% 44%,
+    34% 34%;
+  background-position:
+    50% 2%,
+    92% 26%,
+    92% 74%,
+    50% 98%,
+    8% 74%,
+    8% 26%,
+    50% 50%;
+  background-repeat: no-repeat;
+  filter: blur(40px) saturate(150%);
   mix-blend-mode: multiply;
   opacity: 0.95;
   animation: aura-spin 90s linear infinite, aura-drift 26s ease-in-out infinite alternate;
