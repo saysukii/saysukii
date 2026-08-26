@@ -229,6 +229,30 @@
   background-size: 22px 22px;
 }
 
+/* Aura background: heavily diffused colour blooms with a fine grain veil */
+@utility aura-bloom {
+  filter: blur(120px) saturate(130%);
+  mix-blend-mode: multiply;
+  opacity: 0.85;
+  animation: aura-drift 26s ease-in-out infinite alternate;
+}
+
+@utility aura-grain {
+  opacity: 0.5;
+  background-image: radial-gradient(oklch(0 0 0 / 0.16) 0.5px, transparent 0.5px);
+  background-size: 3px 3px;
+  mix-blend-mode: soft-light;
+}
+
+@keyframes aura-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2.5%, -3%, 0) scale(1.12);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
