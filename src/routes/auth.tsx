@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { Aura, Wordmark } from "@/components/portal/bits";
-import smallLogo from "@/assets/say-sukii-black.png.asset.json";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
