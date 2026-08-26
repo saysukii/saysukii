@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { Aura } from "@/components/portal/bits";
+
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -86,8 +86,10 @@ function AuthPage() {
   }
 
   return (
-    <div className="relative flex h-screen items-center justify-center overflow-hidden px-6">
-      <Aura />
+    <div
+      className="flex h-screen items-center justify-center overflow-hidden px-6"
+      style={{ backgroundColor: "#FCFCFC" }}
+    >
 
       <div className="relative z-10 flex h-full max-h-[844px] w-full max-w-[400px] flex-col px-6 py-12 sm:px-10">
         <div className="flex-1" />
