@@ -70,8 +70,8 @@ function ProposalDetailPage() {
     setPaymentLink(invoice?.stripe_payment_link ?? "");
   }, [invoice?.stripe_payment_link]);
 
-  const essencePaths: string[] = Array.isArray(proposal?.essence_image_paths)
-    ? (proposal.essence_image_paths as string[])
+  const essencePaths: string[] = Array.isArray(proposal?.essence_image_urls)
+    ? proposal.essence_image_urls
     : [];
 
   const { data: essence } = useQuery({
@@ -79,6 +79,10 @@ function ProposalDetailPage() {
     queryFn: () => signEssence({ data: { paths: essencePaths } }),
     enabled: essencePaths.length > 0,
   });
+
+  const essenceUrls: string[] = (essence?.urls ?? []).filter(
+    (url): url is string => typeof url === "string" && url.length > 0,
+  );
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["proposal", id] });
