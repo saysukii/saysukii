@@ -82,7 +82,7 @@ export function buildAgreementContent(type: AgreementType, ctx: AgreementContext
       "2. FEES AND PAYMENT",
       `Total engagement fee: ${dollars(ctx.totalCents)}.`,
       ctx.depositCents > 0 && ctx.depositCents < ctx.totalCents
-        ? `A non-refundable retainer of ${dollars(ctx.depositCents)} (50%) reserves the date. The remaining balance of ${dollars(ctx.totalCents - ctx.depositCents)} is due no later than fourteen (14) (14) days before the engagement date.`
+        ? `A non-refundable retainer of ${dollars(ctx.depositCents)} (50%) reserves the date. The remaining balance of ${dollars(ctx.totalCents - ctx.depositCents)} is due no later than fourteen (14) days before the engagement date.`
         : `Payment in full of ${dollars(ctx.totalCents)} is due on the invoice due date. The date is reserved on receipt of payment.`,
       "Invoices are payable through the payment link issued with the invoice.",
       "",
