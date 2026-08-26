@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { Wordmark } from "@/components/portal/bits";
+import { Wordmark, Aura } from "@/components/portal/bits";
 
 
 export const Route = createFileRoute("/auth")({
