@@ -106,7 +106,7 @@ function AuthPage() {
               <span
                 className={cn(
                   "ml-0.5 text-[9px] font-bold uppercase tracking-[0.25em] transition-colors",
-                  emailError ? "text-destructive" : "text-muted-foreground/70",
+                  emailError ? "text-destructive" : "text-foreground",
                 )}
               >
                 Email Address
@@ -123,7 +123,7 @@ function AuthPage() {
                 placeholder="studio@saysukii.com"
                 className={cn(
                   "w-full border-b bg-transparent px-0.5 py-2 text-xs text-foreground outline-none transition-all placeholder:text-foreground/25",
-                  emailError ? "border-destructive" : "border-border focus:border-foreground/60",
+                  emailError ? "border-destructive" : "border-foreground/40 focus:border-foreground",
                 )}
               />
               {emailError ? (
@@ -136,7 +136,7 @@ function AuthPage() {
               <span
                 className={cn(
                   "ml-0.5 text-[9px] font-bold uppercase tracking-[0.25em] transition-colors",
-                  passwordError ? "text-destructive" : "text-muted-foreground/70",
+                  passwordError ? "text-destructive" : "text-foreground",
                 )}
               >
                 Password
@@ -152,10 +152,10 @@ function AuthPage() {
                   }}
                   onBlur={(event) => setPasswordError(validatePassword(event.target.value))}
                   placeholder="••••••••"
-                  className={cn(
-                    "w-full border-b bg-transparent px-0.5 py-2 pr-12 text-xs text-foreground outline-none transition-all placeholder:text-foreground/25",
-                    passwordError ? "border-destructive" : "border-border focus:border-foreground/60",
-                  )}
+                className={cn(
+                  "w-full border-b bg-transparent px-0.5 py-2 pr-12 text-xs text-foreground outline-none transition-all placeholder:text-foreground/25",
+                  passwordError ? "border-destructive" : "border-foreground/40 focus:border-foreground",
+                )}
                 />
                 <button
                   type="button"
@@ -189,7 +189,7 @@ function AuthPage() {
             <button
               type="submit"
               disabled={busy}
-              className="liquid-glass liquid-glass-rose flex w-full items-center justify-center rounded-3xl py-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-foreground transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
+              className="liquid-glass liquid-glass-peri flex w-full items-center justify-center rounded-3xl py-4 text-[11px] font-medium uppercase tracking-wider text-foreground transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-50"
             >
               {busy ? "One moment" : "Enter Studio"}
             </button>
