@@ -59,13 +59,13 @@ function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-16">
+    <div className="flex h-screen items-center justify-center overflow-hidden px-4 py-4">
       <Aura />
-      <div className="glass w-full max-w-sm rounded-[2rem] p-8">
-        <Wordmark className="max-w-[7.5rem]" />
-        <h1 className="mt-8 text-2xl font-light tracking-tight">Welcome</h1>
+      <div className="glass w-full max-w-[22rem] rounded-[1.75rem] p-6">
+        <Wordmark className="max-w-[6.5rem]" />
+        <h1 className="mt-4 text-xl font-light tracking-tight">Welcome</h1>
 
-        <form onSubmit={submit} className="mt-7 space-y-4">
+        <form onSubmit={submit} className="mt-4 space-y-3">
           <Field label="Email">
             <input
               type="email"
@@ -89,18 +89,18 @@ function AuthPage() {
               placeholder="••••••••"
             />
           </Field>
-          <SoftButton type="submit" variant="primary" disabled={busy} className="w-full py-3">
+          <SoftButton type="submit" variant="primary" disabled={busy} className="w-full py-2.5">
             {busy ? "One moment" : "Enter the studio"}
           </SoftButton>
         </form>
 
-        <div className="my-6 flex items-center gap-4">
+        <div className="my-4 flex items-center gap-3">
           <span className="h-px flex-1 bg-border" />
           <span className="text-[0.6rem] tracking-[0.2em] text-muted-foreground uppercase">or</span>
           <span className="h-px flex-1 bg-border" />
         </div>
 
-        <SoftButton onClick={google} className="w-full py-3">
+        <SoftButton onClick={google} className="w-full py-2.5">
           Continue with Google
         </SoftButton>
       </div>
