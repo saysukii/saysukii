@@ -95,12 +95,12 @@ function AuthPage() {
       <div className="relative z-10 flex h-full max-h-[844px] w-full max-w-[400px] flex-col px-6 py-12 sm:px-10">
         <div className="flex-1" />
 
-        <div className="mb-10 sm:mb-14">
+        <div className="mb-5">
           <Wordmark className="block w-32" />
         </div>
 
-        <form onSubmit={submit} className="w-full space-y-10">
-          <div className="space-y-8">
+        <form onSubmit={submit} className="w-full space-y-8">
+          <div className="space-y-6">
             {/* Email */}
             <label className="group flex flex-col space-y-3">
               <span
