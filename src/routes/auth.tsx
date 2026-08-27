@@ -40,14 +40,20 @@ function AuthPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Fluid cursor-follow motion: the aura drifts toward the pointer with soft easing.
+  // Multi-layer cursor parallax: deeper layers drift slowly, surface accents drift faster.
+  const auraDeepRef = useRef<HTMLDivElement>(null);
   const auraMainRef = useRef<HTMLDivElement>(null);
+  const auraHazeRef = useRef<HTMLDivElement>(null);
   const auraSoftRef = useRef<HTMLDivElement>(null);
+  const auraBloomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const target = { x: 0, y: 0 };
+    const deep = { x: 0, y: 0 };
     const main = { x: 0, y: 0 };
+    const haze = { x: 0, y: 0 };
     const soft = { x: 0, y: 0 };
+    const bloom = { x: 0, y: 0 };
     let raf = 0;
 
     const onMove = (event: PointerEvent) => {
@@ -56,15 +62,32 @@ function AuthPage() {
     };
 
     const tick = () => {
+      // deeper / heavier = slower, closer / smaller = quicker
+      deep.x += (target.x - deep.x) * 0.015;
+      deep.y += (target.y - deep.y) * 0.015;
       main.x += (target.x - main.x) * 0.035;
       main.y += (target.y - main.y) * 0.035;
+      haze.x += (target.x - haze.x) * 0.025;
+      haze.y += (target.y - haze.y) * 0.025;
       soft.x += (target.x - soft.x) * 0.06;
       soft.y += (target.y - soft.y) * 0.06;
+      bloom.x += (target.x - bloom.x) * 0.085;
+      bloom.y += (target.y - bloom.y) * 0.085;
+
+      if (auraDeepRef.current) {
+        auraDeepRef.current.style.transform = `translate3d(${deep.x * 4}vw, ${deep.y * 3}vh, 0) scale(${1 + Math.abs(deep.x) * 0.04})`;
+      }
       if (auraMainRef.current) {
-        auraMainRef.current.style.transform = `translate3d(${main.x * 7}vw, ${main.y * 5}vh, 0) scale(${1 + Math.abs(main.x) * 0.05})`;
+        auraMainRef.current.style.transform = `translate3d(${main.x * 8}vw, ${main.y * 6}vh, 0) scale(${1 + Math.abs(main.x) * 0.06})`;
+      }
+      if (auraHazeRef.current) {
+        auraHazeRef.current.style.transform = `translate3d(${haze.x * 10}vw, ${haze.y * 7}vh, 0)`;
       }
       if (auraSoftRef.current) {
-        auraSoftRef.current.style.transform = `translate3d(${soft.x * 14}vw, ${soft.y * 10}vh, 0)`;
+        auraSoftRef.current.style.transform = `translate3d(${soft.x * 16}vw, ${soft.y * 12}vh, 0)`;
+      }
+      if (auraBloomRef.current) {
+        auraBloomRef.current.style.transform = `translate3d(${bloom.x * 22}vw, ${bloom.y * 16}vh, 0) scale(${1 + bloom.y * 0.08})`;
       }
       raf = requestAnimationFrame(tick);
     };
@@ -128,7 +151,16 @@ function AuthPage() {
       className="relative flex h-screen items-center justify-center overflow-hidden px-6"
       style={{ background: "linear-gradient(160deg, #FCFCFC 0%, #F8F7FF 52%, #FDF2F8 100%)" }}
     >
-      {/* soft periwinkle-pink aura — lower-left like the reference */}
+      {/* multi-layer aura field — deeper layers move slower, lighter accents move faster */}
+      <div
+        ref={auraDeepRef}
+        className="pointer-events-none absolute -left-[18vw] -bottom-[28vh] -z-20 h-[110vh] w-[110vh] rounded-full will-change-transform"
+        style={{
+          background:
+            "radial-gradient(circle at 38% 38%, rgba(244, 114, 182, 0.55) 0%, rgba(196, 181, 253, 0.38) 30%, rgba(224, 231, 255, 0.22) 56%, transparent 82%)",
+          filter: "blur(28px)",
+        }}
+      />
       <div
         ref={auraMainRef}
         className="pointer-events-none absolute -left-[10vw] -bottom-[16vh] -z-10 h-[84vh] w-[84vh] rounded-full will-change-transform"
@@ -139,11 +171,29 @@ function AuthPage() {
         }}
       />
       <div
+        ref={auraHazeRef}
+        className="pointer-events-none absolute right-[2vw] top-[8vh] -z-10 h-[42vh] w-[42vh] rounded-full will-change-transform"
+        style={{
+          background:
+            "radial-gradient(circle at 40% 40%, rgba(199, 210, 254, 0.5) 0%, rgba(224, 231, 255, 0.3) 44%, transparent 78%)",
+          filter: "blur(24px)",
+        }}
+      />
+      <div
         ref={auraSoftRef}
         className="pointer-events-none absolute left-[6vw] bottom-[6vh] -z-10 h-[34vh] w-[34vh] rounded-full will-change-transform"
         style={{
           background: "radial-gradient(circle at center, rgba(255, 228, 230, 0.65) 0%, transparent 64%)",
           filter: "blur(20px)",
+        }}
+      />
+      <div
+        ref={auraBloomRef}
+        className="pointer-events-none absolute left-[14vw] bottom-[18vh] -z-10 h-[18vh] w-[18vh] rounded-full will-change-transform"
+        style={{
+          background:
+            "radial-gradient(circle at 35% 35%, rgba(251, 113, 133, 0.62) 0%, rgba(244, 114, 182, 0.32) 45%, transparent 72%)",
+          filter: "blur(10px)",
         }}
       />
 
