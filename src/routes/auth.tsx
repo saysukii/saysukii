@@ -130,7 +130,8 @@ function AuthPage() {
     >
       {/* soft periwinkle-pink aura — lower-left like the reference */}
       <div
-        className="pointer-events-none absolute -left-[10vw] -bottom-[16vh] -z-10 h-[84vh] w-[84vh] rounded-full"
+        ref={auraMainRef}
+        className="pointer-events-none absolute -left-[10vw] -bottom-[16vh] -z-10 h-[84vh] w-[84vh] rounded-full will-change-transform"
         style={{
           background:
             "radial-gradient(circle at 42% 42%, rgba(236, 72, 133, 0.95) 0%, rgba(168, 85, 247, 0.78) 26%, rgba(165, 180, 252, 0.48) 54%, transparent 80%)",
