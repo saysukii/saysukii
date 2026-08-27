@@ -184,11 +184,14 @@ function AuthPage() {
           </div>
 
           <div className="flex justify-center pt-2">
-            <div className="inline-flex items-center rounded-full border border-foreground/10 bg-[#F5F5F5] p-1 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.06),inset_-2px_-2px_6px_rgba(255,255,255,0.9)]">
+            <div className="relative inline-flex items-center rounded-full border border-white/70 bg-gradient-to-r from-rose-50/40 via-pink-50/30 to-rose-50/40 p-1 shadow-[0_8px_32px_rgba(236,72,153,0.18),0_2px_8px_rgba(0,0,0,0.04),inset_0_1px_1px_rgba(255,255,255,0.8)] backdrop-blur-xl">
+              {/* soft pink aura glow behind the capsule */}
+              <span className="pointer-events-none absolute -inset-4 -z-10 rounded-full bg-[radial-gradient(circle_at_center,_rgba(244,114,182,0.35),_transparent_70%)] blur-2xl" />
+
               <button
                 type="submit"
                 disabled={busy}
-                className="inline-flex h-10 items-center rounded-full bg-[#FCFCFC] px-6 text-[11px] font-semibold uppercase tracking-widest text-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.04),-2px_-2px_5px_rgba(255,255,255,1)] transition-all hover:translate-y-[-1px] hover:shadow-[3px_3px_8px_rgba(0,0,0,0.05),-3px_-3px_8px_rgba(255,255,255,1)] active:translate-y-[1px] active:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.05)] disabled:opacity-50"
+                className="relative inline-flex h-10 items-center rounded-full bg-white/40 px-6 text-[11px] font-semibold uppercase tracking-widest text-foreground transition-all hover:bg-white/70 hover:shadow-[0_0_20px_rgba(244,114,182,0.25)] active:scale-[0.98] disabled:opacity-50"
               >
                 {busy ? "One moment" : "Enter Studio"}
               </button>
@@ -200,7 +203,7 @@ function AuthPage() {
                 onClick={google}
                 disabled={busy}
                 aria-label="Continue with Google"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#FCFCFC] text-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.04),-2px_-2px_5px_rgba(255,255,255,1)] transition-all hover:translate-y-[-1px] hover:shadow-[3px_3px_8px_rgba(0,0,0,0.05),-3px_-3px_8px_rgba(255,255,255,1)] active:translate-y-[1px] active:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.05)] disabled:opacity-50"
+                className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/40 text-foreground transition-all hover:bg-white/70 hover:shadow-[0_0_20px_rgba(244,114,182,0.25)] active:scale-[0.98] disabled:opacity-50"
               >
                 <GoogleIcon className="h-4 w-4" />
               </button>
