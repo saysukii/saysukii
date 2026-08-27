@@ -40,14 +40,20 @@ function AuthPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Fluid cursor-follow motion: the aura drifts toward the pointer with soft easing.
+  // Multi-layer cursor parallax: deeper layers drift slowly, surface accents drift faster.
+  const auraDeepRef = useRef<HTMLDivElement>(null);
   const auraMainRef = useRef<HTMLDivElement>(null);
+  const auraHazeRef = useRef<HTMLDivElement>(null);
   const auraSoftRef = useRef<HTMLDivElement>(null);
+  const auraBloomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const target = { x: 0, y: 0 };
+    const deep = { x: 0, y: 0 };
     const main = { x: 0, y: 0 };
+    const haze = { x: 0, y: 0 };
     const soft = { x: 0, y: 0 };
+    const bloom = { x: 0, y: 0 };
     let raf = 0;
 
     const onMove = (event: PointerEvent) => {
@@ -56,15 +62,32 @@ function AuthPage() {
     };
 
     const tick = () => {
+      // deeper / heavier = slower, closer / smaller = quicker
+      deep.x += (target.x - deep.x) * 0.015;
+      deep.y += (target.y - deep.y) * 0.015;
       main.x += (target.x - main.x) * 0.035;
       main.y += (target.y - main.y) * 0.035;
+      haze.x += (target.x - haze.x) * 0.025;
+      haze.y += (target.y - haze.y) * 0.025;
       soft.x += (target.x - soft.x) * 0.06;
       soft.y += (target.y - soft.y) * 0.06;
+      bloom.x += (target.x - bloom.x) * 0.085;
+      bloom.y += (target.y - bloom.y) * 0.085;
+
+      if (auraDeepRef.current) {
+        auraDeepRef.current.style.transform = `translate3d(${deep.x * 4}vw, ${deep.y * 3}vh, 0) scale(${1 + Math.abs(deep.x) * 0.04})`;
+      }
       if (auraMainRef.current) {
-        auraMainRef.current.style.transform = `translate3d(${main.x * 7}vw, ${main.y * 5}vh, 0) scale(${1 + Math.abs(main.x) * 0.05})`;
+        auraMainRef.current.style.transform = `translate3d(${main.x * 8}vw, ${main.y * 6}vh, 0) scale(${1 + Math.abs(main.x) * 0.06})`;
+      }
+      if (auraHazeRef.current) {
+        auraHazeRef.current.style.transform = `translate3d(${haze.x * 10}vw, ${haze.y * 7}vh, 0)`;
       }
       if (auraSoftRef.current) {
-        auraSoftRef.current.style.transform = `translate3d(${soft.x * 14}vw, ${soft.y * 10}vh, 0)`;
+        auraSoftRef.current.style.transform = `translate3d(${soft.x * 16}vw, ${soft.y * 12}vh, 0)`;
+      }
+      if (auraBloomRef.current) {
+        auraBloomRef.current.style.transform = `translate3d(${bloom.x * 22}vw, ${bloom.y * 16}vh, 0) scale(${1 + bloom.y * 0.08})`;
       }
       raf = requestAnimationFrame(tick);
     };
