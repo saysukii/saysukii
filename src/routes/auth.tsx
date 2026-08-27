@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,43 @@ function AuthPage() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Fluid cursor-follow motion: the aura drifts toward the pointer with soft easing.
+  const auraMainRef = useRef<HTMLDivElement>(null);
+  const auraSoftRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const target = { x: 0, y: 0 };
+    const main = { x: 0, y: 0 };
+    const soft = { x: 0, y: 0 };
+    let raf = 0;
+
+    const onMove = (event: PointerEvent) => {
+      target.x = (event.clientX / window.innerWidth) * 2 - 1;
+      target.y = (event.clientY / window.innerHeight) * 2 - 1;
+    };
+
+    const tick = () => {
+      main.x += (target.x - main.x) * 0.035;
+      main.y += (target.y - main.y) * 0.035;
+      soft.x += (target.x - soft.x) * 0.06;
+      soft.y += (target.y - soft.y) * 0.06;
+      if (auraMainRef.current) {
+        auraMainRef.current.style.transform = `translate3d(${main.x * 7}vw, ${main.y * 5}vh, 0) scale(${1 + Math.abs(main.x) * 0.05})`;
+      }
+      if (auraSoftRef.current) {
+        auraSoftRef.current.style.transform = `translate3d(${soft.x * 14}vw, ${soft.y * 10}vh, 0)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    raf = requestAnimationFrame(tick);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -93,7 +130,8 @@ function AuthPage() {
     >
       {/* soft periwinkle-pink aura — lower-left like the reference */}
       <div
-        className="pointer-events-none absolute -left-[10vw] -bottom-[16vh] -z-10 h-[84vh] w-[84vh] rounded-full"
+        ref={auraMainRef}
+        className="pointer-events-none absolute -left-[10vw] -bottom-[16vh] -z-10 h-[84vh] w-[84vh] rounded-full will-change-transform"
         style={{
           background:
             "radial-gradient(circle at 42% 42%, rgba(236, 72, 133, 0.95) 0%, rgba(168, 85, 247, 0.78) 26%, rgba(165, 180, 252, 0.48) 54%, transparent 80%)",
@@ -101,7 +139,8 @@ function AuthPage() {
         }}
       />
       <div
-        className="pointer-events-none absolute left-[6vw] bottom-[6vh] -z-10 h-[34vh] w-[34vh] rounded-full"
+        ref={auraSoftRef}
+        className="pointer-events-none absolute left-[6vw] bottom-[6vh] -z-10 h-[34vh] w-[34vh] rounded-full will-change-transform"
         style={{
           background: "radial-gradient(circle at center, rgba(255, 228, 230, 0.65) 0%, transparent 64%)",
           filter: "blur(20px)",
