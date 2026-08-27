@@ -89,10 +89,24 @@ function AuthPage() {
   return (
     <div
       className="relative flex h-screen items-center justify-center overflow-hidden px-6"
-      style={{ backgroundColor: "#F8F9FA" }}
+      style={{ background: "linear-gradient(160deg, #FCFCFC 0%, #F8F7FF 52%, #FDF2F8 100%)" }}
     >
-      {/* soft background wash, matching the reference's cool, blurred placement */}
-      <div className="pointer-events-none absolute -left-[8vw] bottom-[5vh] -z-10 h-[75vh] w-[75vh] rounded-full bg-[radial-gradient(circle_at_center,_rgba(199,210,254,0.22)_0%,_rgba(224,232,255,0.10)_45%,_transparent_75%)] blur-[100px]" />
+      {/* soft periwinkle-pink aura — lower-left like the reference */}
+      <div
+        className="pointer-events-none absolute -left-[10vw] -bottom-[16vh] -z-10 h-[84vh] w-[84vh] rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle at 42% 42%, rgba(236, 72, 133, 0.95) 0%, rgba(168, 85, 247, 0.78) 26%, rgba(165, 180, 252, 0.48) 54%, transparent 80%)",
+          filter: "blur(16px)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute left-[6vw] bottom-[6vh] -z-10 h-[34vh] w-[34vh] rounded-full"
+        style={{
+          background: "radial-gradient(circle at center, rgba(255, 228, 230, 0.65) 0%, transparent 64%)",
+          filter: "blur(20px)",
+        }}
+      />
 
       <div className="relative z-10 flex w-full max-w-[400px] flex-col items-center justify-center px-6 sm:px-10">
         <div className="mb-5">
