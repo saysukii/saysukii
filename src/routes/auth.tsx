@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
+
 
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
@@ -35,7 +35,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -275,18 +275,6 @@ function AuthPage() {
             </label>
           </div>
 
-          <div className="flex items-center justify-between px-0.5">
-            <label className="flex cursor-pointer items-center gap-2.5">
-              <Checkbox
-                id="remember"
-                checked={rememberMe}
-                onCheckedChange={(checked) => setRememberMe(checked === true)}
-              />
-              <span className="text-[10px] uppercase tracking-tight text-muted-foreground">
-                Remember me
-              </span>
-            </label>
-          </div>
 
           <div className="flex justify-center">
             <div className="inline-flex items-center rounded-lg border border-foreground/10 bg-[#FAFAF8] p-0.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
