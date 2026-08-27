@@ -40,6 +40,43 @@ function AuthPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Fluid cursor-follow motion: the aura drifts toward the pointer with soft easing.
+  const auraMainRef = useRef<HTMLDivElement>(null);
+  const auraSoftRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const target = { x: 0, y: 0 };
+    const main = { x: 0, y: 0 };
+    const soft = { x: 0, y: 0 };
+    let raf = 0;
+
+    const onMove = (event: PointerEvent) => {
+      target.x = (event.clientX / window.innerWidth) * 2 - 1;
+      target.y = (event.clientY / window.innerHeight) * 2 - 1;
+    };
+
+    const tick = () => {
+      main.x += (target.x - main.x) * 0.035;
+      main.y += (target.y - main.y) * 0.035;
+      soft.x += (target.x - soft.x) * 0.06;
+      soft.y += (target.y - soft.y) * 0.06;
+      if (auraMainRef.current) {
+        auraMainRef.current.style.transform = `translate3d(${main.x * 7}vw, ${main.y * 5}vh, 0) scale(${1 + Math.abs(main.x) * 0.05})`;
+      }
+      if (auraSoftRef.current) {
+        auraSoftRef.current.style.transform = `translate3d(${soft.x * 14}vw, ${soft.y * 10}vh, 0)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    raf = requestAnimationFrame(tick);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   function validateEmail(value: string) {
