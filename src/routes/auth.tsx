@@ -92,9 +92,7 @@ function AuthPage() {
       style={{ backgroundColor: "#FCFCFC" }}
     >
 
-      <div className="relative z-10 flex h-full max-h-[844px] w-full max-w-[400px] flex-col px-6 py-12 sm:px-10">
-        <div className="flex-1" />
-
+      <div className="relative z-10 flex w-full max-w-[400px] flex-col items-center justify-center px-6 sm:px-10">
         <div className="mb-5">
           <Wordmark className="block w-32" />
         </div>
