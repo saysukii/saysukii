@@ -184,23 +184,23 @@ function AuthPage() {
           </div>
 
           <div className="flex justify-center pt-2">
-            <div className="inline-flex items-center rounded-full border border-foreground/10 bg-[#F5F5F5] p-1 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.06),inset_-2px_-2px_6px_rgba(255,255,255,0.9)]">
+            <div className="inline-flex items-center rounded-full border border-foreground/15 bg-transparent p-1">
               <button
                 type="submit"
                 disabled={busy}
-                className="inline-flex h-10 items-center rounded-full bg-[#FCFCFC] px-6 text-[11px] font-semibold uppercase tracking-widest text-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.04),-2px_-2px_5px_rgba(255,255,255,1)] transition-all hover:translate-y-[-1px] hover:shadow-[3px_3px_8px_rgba(0,0,0,0.05),-3px_-3px_8px_rgba(255,255,255,1)] active:translate-y-[1px] active:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.05)] disabled:opacity-50"
+                className="inline-flex h-10 items-center rounded-full bg-transparent px-6 text-[11px] font-semibold uppercase tracking-widest text-foreground transition-colors hover:bg-foreground/5 active:bg-foreground/10 disabled:opacity-50"
               >
                 {busy ? "One moment" : "Enter Studio"}
               </button>
 
-              <div className="mx-2 h-5 w-px rounded-full bg-foreground/10" />
+              <div className="mx-2 h-5 w-px rounded-full bg-foreground/15" />
 
               <button
                 type="button"
                 onClick={google}
                 disabled={busy}
                 aria-label="Continue with Google"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#FCFCFC] text-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.04),-2px_-2px_5px_rgba(255,255,255,1)] transition-all hover:translate-y-[-1px] hover:shadow-[3px_3px_8px_rgba(0,0,0,0.05),-3px_-3px_8px_rgba(255,255,255,1)] active:translate-y-[1px] active:shadow-[inset_1px_1px_3px_rgba(0,0,0,0.05)] disabled:opacity-50"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-foreground transition-colors hover:bg-foreground/5 active:bg-foreground/10 disabled:opacity-50"
               >
                 <GoogleIcon className="h-4 w-4" />
               </button>
