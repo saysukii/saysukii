@@ -93,18 +93,11 @@ function AuthPage() {
     >
       {/* soft periwinkle-pink aura — lower-left like the reference */}
       <div
-        className="pointer-events-none absolute -left-[10vw] -bottom-[10vh] -z-10 h-[90vh] w-[90vh] rounded-full"
+        className="pointer-events-none absolute -left-[18vw] -bottom-[18vh] -z-10 h-[110vh] w-[110vh] rounded-full"
         style={{
           background:
-            "radial-gradient(circle at 35% 55%, rgba(251, 207, 232, 0.45) 0%, rgba(224, 231, 255, 0.25) 38%, rgba(238, 242, 255, 0.12) 55%, transparent 72%)",
-          filter: "blur(60px)",
-        }}
-      />
-      <div
-        className="pointer-events-none absolute left-[4vw] bottom-[8vh] -z-10 h-[55vh] w-[55vh] rounded-full"
-        style={{
-          background: "radial-gradient(circle at center, rgba(244, 114, 182, 0.22) 0%, transparent 65%)",
-          filter: "blur(48px)",
+            "radial-gradient(circle at 40% 45%, rgba(251, 113, 133, 0.55) 0%, rgba(244, 114, 182, 0.35) 22%, rgba(199, 210, 254, 0.28) 45%, rgba(238, 242, 255, 0.12) 60%, transparent 78%)",
+          filter: "blur(54px)",
         }}
       />
 
