@@ -288,26 +288,26 @@ function AuthPage() {
             </label>
           </div>
 
-          <div className="flex justify-center pt-2">
-            <div className="inline-flex items-center rounded-full border border-[#EBEBE8] bg-[#F9F9F6] p-1 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+          <div className="flex justify-center">
+            <div className="inline-flex items-center rounded-lg border border-foreground/10 bg-[#FAFAF8] p-0.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
               <button
                 type="submit"
                 disabled={busy}
-                className="px-6 py-2.5 text-[13px] font-light uppercase tracking-[0.1em] text-foreground transition-opacity hover:opacity-60 disabled:pointer-events-none disabled:opacity-50"
+                className="px-5 py-2 text-[11px] font-light uppercase tracking-[0.12em] text-foreground transition-colors hover:text-foreground/60 disabled:pointer-events-none disabled:opacity-50"
               >
                 {busy ? "One moment" : "Enter Studio"}
               </button>
 
-              <div className="h-4 w-px bg-foreground/10" />
+              <div className="h-3.5 w-px bg-foreground/10" />
 
               <button
                 type="button"
                 onClick={google}
                 disabled={busy}
                 aria-label="Continue with Google"
-                className="flex items-center justify-center px-4 py-2.5 text-foreground/80 transition-opacity hover:opacity-60 disabled:pointer-events-none disabled:opacity-50"
+                className="flex items-center justify-center px-3 py-2 text-foreground/70 transition-colors hover:text-foreground/50 disabled:pointer-events-none disabled:opacity-50"
               >
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                   <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
