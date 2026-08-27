@@ -207,8 +207,6 @@ function AuthPage() {
             </div>
           </div>
         </form>
-
-        <div className="flex-1" />
       </div>
     </div>
   );
