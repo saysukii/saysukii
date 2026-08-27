@@ -89,15 +89,15 @@ function AuthPage() {
   return (
     <div
       className="relative flex h-screen items-center justify-center overflow-hidden px-6"
-      style={{ backgroundColor: "#F8F9FA" }}
+      style={{ background: "linear-gradient(160deg, #FCFCFC 0%, #F8F7FF 52%, #FDF2F8 100%)" }}
     >
       {/* soft periwinkle-pink aura — lower-left like the reference */}
       <div
-        className="pointer-events-none absolute -left-[6vw] -bottom-[8vh] -z-10 h-[48vh] w-[48vh] rounded-full"
+        className="pointer-events-none absolute -left-[8vw] -bottom-[14vh] -z-10 h-[80vh] w-[80vh] rounded-full"
         style={{
           background:
-            "radial-gradient(circle at 40% 40%, rgba(236, 72, 153, 0.85) 0%, rgba(168, 85, 247, 0.65) 30%, rgba(165, 180, 252, 0.35) 58%, transparent 82%)",
-          filter: "blur(14px)",
+            "radial-gradient(circle at 42% 42%, rgba(236, 72, 153, 0.90) 0%, rgba(168, 85, 247, 0.72) 26%, rgba(165, 180, 252, 0.42) 54%, transparent 80%)",
+          filter: "blur(18px)",
         }}
       />
 
