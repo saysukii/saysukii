@@ -184,25 +184,25 @@ function AuthPage() {
           </div>
 
           <div className="pt-2">
-            <div className="relative flex items-center rounded-full border border-border p-1">
+            <div className="inline-flex items-center rounded-full border border-white/60 bg-white/40 p-1.5 shadow-[8px_8px_20px_rgba(0,0,0,0.03),-8px_-8px_20px_rgba(255,255,255,0.8),inset_0_0_12px_rgba(255,255,255,0.4)] ring-1 ring-white/20 backdrop-blur-2xl">
               <button
                 type="submit"
                 disabled={busy}
-                className="flex-[2] rounded-full bg-foreground py-4 text-[11px] font-medium uppercase tracking-wider text-background transition-colors hover:bg-foreground/90 active:scale-[0.98] disabled:opacity-50"
+                className="rounded-full bg-[#121212] px-8 py-3.5 text-[13px] font-bold uppercase tracking-[0.06em] text-white transition-all hover:bg-black hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
               >
                 {busy ? "One moment" : "Enter Studio"}
               </button>
 
-              <div className="mx-2 h-6 w-px bg-border/50" />
+              <div className="mx-3.5 h-6 w-px rounded-full bg-black/10" />
 
               <button
                 type="button"
                 onClick={google}
                 disabled={busy}
                 aria-label="Continue with Google"
-                className="flex-1 rounded-full py-4 text-foreground transition-all hover:bg-white/50 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
+                className="flex h-[46px] w-[46px] items-center justify-center rounded-full border border-white bg-white/80 shadow-sm transition-all hover:bg-white active:scale-[0.95] disabled:opacity-50"
               >
-                <GoogleIcon className="h-4 w-4" />
+                <GoogleIcon className="h-5 w-5" />
               </button>
             </div>
           </div>
