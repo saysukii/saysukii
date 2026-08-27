@@ -139,7 +139,8 @@ function AuthPage() {
         }}
       />
       <div
-        className="pointer-events-none absolute left-[6vw] bottom-[6vh] -z-10 h-[34vh] w-[34vh] rounded-full"
+        ref={auraSoftRef}
+        className="pointer-events-none absolute left-[6vw] bottom-[6vh] -z-10 h-[34vh] w-[34vh] rounded-full will-change-transform"
         style={{
           background: "radial-gradient(circle at center, rgba(255, 228, 230, 0.65) 0%, transparent 64%)",
           filter: "blur(20px)",
