@@ -88,9 +88,11 @@ function AuthPage() {
 
   return (
     <div
-      className="flex h-screen items-center justify-center overflow-hidden px-6"
+      className="relative flex h-screen items-center justify-center overflow-hidden px-6"
       style={{ backgroundColor: "#FCFCFC" }}
     >
+      {/* soft background aura, similar to the reference */}
+      <div className="pointer-events-none absolute -left-[10vw] bottom-0 -z-10 h-[70vh] w-[70vh] rounded-full bg-[radial-gradient(circle_at_center,_rgba(244,114,182,0.14)_0%,_rgba(244,114,182,0.06)_40%,_transparent_70%)] blur-3xl" />
 
       <div className="relative z-10 flex w-full max-w-[400px] flex-col items-center justify-center px-6 sm:px-10">
         <div className="mb-5">
