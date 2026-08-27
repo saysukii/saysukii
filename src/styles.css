@@ -4,6 +4,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Origin type family (self-hosted via CDN assets) */
+@font-face {
+  font-family: "Origin";
+  src: url("/__l5e/assets-v1/c77e2adb-f32a-4b5a-9cc0-63aa75764f90/Origin-LightText.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Origin";
+  src: url("/__l5e/assets-v1/99764e04-cf2d-4d96-9665-e651a0616ee1/Origin-MediumText.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 /*
  * Say Sukii Portal design system.
  * Soft, dreamy, editorial: glassmorphism + neumorphism on a blush-cream ground.
@@ -19,8 +36,8 @@
   --radius-3xl: calc(var(--radius) + 10px);
   --radius-4xl: calc(var(--radius) + 16px);
 
-  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Origin", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Origin", ui-sans-serif, system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
