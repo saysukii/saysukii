@@ -1,0 +1,1263 @@
+import type { LibraryData } from "@/lib/os/library.functions";
+import type {
+  ArrangementRow,
+  ClientRow,
+  InquiryMessageRow,
+  InquiryRow,
+  InquiryStatus,
+  ProfileRow,
+  ProposalLineItemRow,
+  ProposalRow,
+  RecipeRow,
+  RecipeStemRow,
+  StemRow,
+  TaskRow,
+  VendorRow,
+  VenueRow,
+} from "@/integrations/supabase/types";
+import { assembleStudioToday } from "@/lib/os/studio-today";
+import { clientSlugs, inquirySlugs } from "@/lib/os/inquiry-desk";
+import { isBookInquiry } from "@/lib/os/inquiry-detection";
+import { desiredInquiryAutoTask } from "@/lib/os/inquiry-tasks";
+import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
+
+const now = Date.now();
+const iso = (days: number) => new Date(now + days * 86_400_000).toISOString();
+const dateOnly = (days: number) => iso(days).slice(0, 10);
+
+export const PREVIEW_IDS = {
+  clientAmelia: "10000000-0000-4000-8000-000000000011",
+  clientHarbor: "10000000-0000-4000-8000-000000000012",
+  clientLumen: "10000000-0000-4000-8000-000000000013",
+  clientMaya: "10000000-0000-4000-8000-000000000014",
+  clientElena: "10000000-0000-4000-8000-000000000015",
+  inquiryWedding: "20000000-0000-4000-8000-000000000021",
+  inquiryBrand: "20000000-0000-4000-8000-000000000022",
+  inquiryCorporate: "20000000-0000-4000-8000-000000000023",
+  inquiryFresh: "20000000-0000-4000-8000-000000000027",
+  inquiryCandidate: "20000000-0000-4000-8000-000000000028",
+  proposalDraft: "40000000-0000-4000-8000-000000000041",
+  proposalSent: "40000000-0000-4000-8000-000000000042",
+  proposalAccepted: "40000000-0000-4000-8000-000000000043",
+  projectEditorial: "30000000-0000-4000-8000-000000000031",
+  projectWedding: "30000000-0000-4000-8000-000000000032",
+  projectPopup: "30000000-0000-4000-8000-000000000033",
+  inquiryProposalOut: "20000000-0000-4000-8000-000000000024",
+  taskEditorialLoadIn: "b0000000-0000-4000-8000-0000000000b6",
+  taskOasisOrder: "b0000000-0000-4000-8000-0000000000b7",
+  taskWeddingDone: "b0000000-0000-4000-8000-0000000000b8",
+  venueVizcaya: "50000000-0000-4000-8000-000000000051",
+  venueHarbor: "50000000-0000-4000-8000-000000000052",
+  vendorMiami: "60000000-0000-4000-8000-000000000061",
+  vendorWholesale: "60000000-0000-4000-8000-000000000062",
+  stemGardenRose: "70000000-0000-4000-8000-000000000071",
+  stemOrchid: "70000000-0000-4000-8000-000000000072",
+  stemRuscus: "70000000-0000-4000-8000-000000000073",
+  arrangementArch: "80000000-0000-4000-8000-000000000081",
+  arrangementCenterpiece: "80000000-0000-4000-8000-000000000082",
+  recipeArch: "90000000-0000-4000-8000-000000000091",
+  orderWedding: "a0000000-0000-4000-8000-0000000000a1",
+} as const;
+
+const clients: Record<string, ClientRow> = {
+  [PREVIEW_IDS.clientAmelia]: {
+    id: PREVIEW_IDS.clientAmelia,
+    name: "Amelia Chen",
+    email: "amelia@example.com",
+    phone: "(305) 555-0112",
+    organization: null,
+    type: "individual",
+    source: "Instagram",
+    notes: "Prefers blush and ivory palette.",
+    archived: false,
+    created_at: iso(-12),
+    updated_at: iso(-12),
+  },
+  [PREVIEW_IDS.clientHarbor]: {
+    id: PREVIEW_IDS.clientHarbor,
+    name: "Harbor House Events",
+    email: "events@harborhouse.com",
+    phone: "(786) 555-0198",
+    organization: "Harbor House",
+    type: "venue_partner",
+    source: "Referral",
+    notes: null,
+    archived: false,
+    created_at: iso(-6),
+    updated_at: iso(-6),
+  },
+  [PREVIEW_IDS.clientLumen]: {
+    id: PREVIEW_IDS.clientLumen,
+    name: "Lumen Studio",
+    email: "hello@lumenstudio.co",
+    phone: null,
+    organization: "Lumen Studio",
+    type: "brand",
+    source: "Website",
+    notes: null,
+    archived: false,
+    created_at: iso(-2),
+    updated_at: iso(-2),
+  },
+  [PREVIEW_IDS.clientMaya]: {
+    id: PREVIEW_IDS.clientMaya,
+    name: "Maya Santos",
+    email: "maya@example.com",
+    phone: "(305) 555-0176",
+    organization: null,
+    type: "individual",
+    source: "instagram",
+    notes: null,
+    archived: false,
+    created_at: iso(0),
+    updated_at: iso(0),
+  },
+  [PREVIEW_IDS.clientElena]: {
+    id: PREVIEW_IDS.clientElena,
+    name: "Elena Ruiz",
+    email: "elena@example.com",
+    phone: null,
+    organization: null,
+    type: "individual",
+    source: "gmail",
+    notes: null,
+    archived: false,
+    created_at: iso(-2),
+    updated_at: iso(-2),
+  },
+};
+
+const venues: VenueRow[] = [
+  {
+    id: PREVIEW_IDS.venueVizcaya,
+    name: "Vizcaya Museum & Gardens",
+    address: "3251 S Miami Ave, Miami, FL 33129",
+    contact_name: "Events desk",
+    contact_email: "events@vizcaya.org",
+    contact_phone: "(305) 250-9133",
+    load_in_notes: "Service entrance on south side after 2 PM.",
+    archived: false,
+    created_at: iso(-90),
+    updated_at: iso(-10),
+  },
+  {
+    id: PREVIEW_IDS.venueHarbor,
+    name: "Harbor House",
+    address: "Key Biscayne, FL",
+    contact_name: "Morgan Lee",
+    contact_email: "morgan@harborhouse.com",
+    contact_phone: "(786) 555-0100",
+    load_in_notes: "Freight elevator to terrace level.",
+    archived: false,
+    created_at: iso(-60),
+    updated_at: iso(-8),
+  },
+];
+
+const vendors: VendorRow[] = [
+  {
+    id: PREVIEW_IDS.vendorMiami,
+    name: "Miami Flower Market",
+    type: "warehouse",
+    contact_name: "Carlos",
+    contact_email: "orders@miamiflower.example",
+    contact_phone: "(305) 555-0200",
+    ordering_method: "Text by 10 AM",
+    archived: false,
+    created_at: iso(-120),
+    updated_at: iso(-5),
+  },
+  {
+    id: PREVIEW_IDS.vendorWholesale,
+    name: "South Florida Wholesale",
+    type: "wholesaler",
+    contact_name: "Team desk",
+    contact_email: "buyers@sfwholesale.example",
+    contact_phone: "(954) 555-0300",
+    ordering_method: "Online portal",
+    archived: false,
+    created_at: iso(-120),
+    updated_at: iso(-5),
+  },
+];
+
+const stems: StemRow[] = [
+  {
+    id: PREVIEW_IDS.stemGardenRose,
+    common_name: "Garden rose",
+    variety: "Miyabi",
+    color: "Blush",
+    unit: "stem",
+    vendor_id: PREVIEW_IDS.vendorMiami,
+    last_known_cost_cents: 650,
+    active: true,
+    created_at: iso(-40),
+    updated_at: iso(-3),
+  },
+  {
+    id: PREVIEW_IDS.stemOrchid,
+    common_name: "Phalaenopsis orchid",
+    variety: null,
+    color: "White",
+    unit: "stem",
+    vendor_id: PREVIEW_IDS.vendorWholesale,
+    last_known_cost_cents: 1800,
+    active: true,
+    created_at: iso(-40),
+    updated_at: iso(-3),
+  },
+  {
+    id: PREVIEW_IDS.stemRuscus,
+    common_name: "Italian ruscus",
+    variety: null,
+    color: "Green",
+    unit: "bunch",
+    vendor_id: PREVIEW_IDS.vendorMiami,
+    last_known_cost_cents: 2400,
+    active: true,
+    created_at: iso(-40),
+    updated_at: iso(-3),
+  },
+];
+
+const arrangements: ArrangementRow[] = [
+  {
+    id: PREVIEW_IDS.arrangementArch,
+    name: "Ceremony arch",
+    type: "installation",
+    description: "Structural arch with layered garden roses and trailing ruscus.",
+    price_cents: 850000,
+    image_path: null,
+    default_recipe_id: PREVIEW_IDS.recipeArch,
+    active: true,
+    created_at: iso(-30),
+    updated_at: iso(-4),
+  },
+  {
+    id: PREVIEW_IDS.arrangementCenterpiece,
+    name: "Low reception centerpiece",
+    type: "reception",
+    description: "Wide low bowl with garden roses and orchid accents.",
+    price_cents: 18500,
+    image_path: null,
+    default_recipe_id: null,
+    active: true,
+    created_at: iso(-30),
+    updated_at: iso(-4),
+  },
+];
+
+const recipeStems: RecipeStemRow[] = [
+  {
+    id: "91000000-0000-4000-8000-000000000091",
+    recipe_id: PREVIEW_IDS.recipeArch,
+    stem_id: PREVIEW_IDS.stemGardenRose,
+    color: "Blush",
+    quantity: 120,
+    created_at: iso(-20),
+  },
+  {
+    id: "91000000-0000-4000-8000-000000000092",
+    recipe_id: PREVIEW_IDS.recipeArch,
+    stem_id: PREVIEW_IDS.stemRuscus,
+    color: "Green",
+    quantity: 18,
+    created_at: iso(-20),
+  },
+];
+
+const recipes: RecipeRow[] = [
+  {
+    id: PREVIEW_IDS.recipeArch,
+    arrangement_id: PREVIEW_IDS.arrangementArch,
+    project_id: null,
+    name: "Default ceremony arch",
+    is_default: true,
+    created_at: iso(-20),
+    updated_at: iso(-4),
+  },
+];
+
+function inquiry(
+  id: string,
+  clientId: string,
+  status: InquiryStatus,
+  overrides: Partial<InquiryRow> = {},
+): InquiryRow {
+  return {
+    id,
+    client_id: clientId,
+    event_date: dateOnly(120),
+    event_date_tbd: false,
+    event_type: "wedding",
+    venue_id: null,
+    venue_text: "Vizcaya Museum & Gardens, Miami, FL",
+    guest_count: 140,
+    budget_range: "$20,000–$40,000",
+    source: "Instagram",
+    message: "Soft garden romance with orchids and trailing greenery.",
+    status,
+    closed_reason: status === "closed" ? "Timeline changed" : null,
+    received_at: iso(status === "new" ? -5 : -14),
+    contacted_at: ["contacted", "in_conversation", "proposal_sent", "booked", "closed"].includes(
+      status,
+    )
+      ? iso(-10)
+      : null,
+    proposal_sent_at: ["proposal_sent", "booked"].includes(status) ? iso(-6) : null,
+    booked_at: status === "booked" ? iso(-2) : null,
+    closed_at: status === "closed" ? iso(-1) : null,
+    archived: false,
+    created_by: null,
+    updated_at: iso(-1),
+    origin: "form",
+    detection_status: "na",
+    detection_confidence: null,
+    detection_reason: null,
+    source_message_id: null,
+    summary_text: null,
+    summary_generated_at: null,
+    ...overrides,
+  };
+}
+
+const inquiries: InquiryRow[] = [
+  inquiry(PREVIEW_IDS.inquiryWedding, PREVIEW_IDS.clientAmelia, "in_conversation", {
+    received_at: iso(-5),
+  }),
+  inquiry(PREVIEW_IDS.inquiryBrand, PREVIEW_IDS.clientLumen, "new", {
+    event_date: null,
+    event_date_tbd: true,
+    event_type: "brand_activation",
+    venue_text: "Wynwood, Miami, FL",
+    budget_range: "$10,000–$20,000",
+    message: "Immersive floral moment for a product launch.",
+    received_at: iso(-1),
+  }),
+  inquiry(PREVIEW_IDS.inquiryFresh, PREVIEW_IDS.clientMaya, "new", {
+    event_date: "2026-10-01",
+    event_type: "wedding",
+    venue_text: "Seminole Hard Rock Hotel and Casino, 1 Seminole Way, Hollywood, FL",
+    guest_count: null,
+    budget_range: "$20,000+",
+    source: "instagram",
+    message: "Time: 7:00 pm\nwarm candlelight, garden roses, a long table that feels like dusk.",
+    received_at: iso(0),
+    updated_at: iso(0),
+  }),
+  inquiry(PREVIEW_IDS.inquiryCorporate, PREVIEW_IDS.clientHarbor, "in_conversation", {
+    event_type: "corporate",
+    venue_text: "Key Biscayne, FL",
+    status: "in_conversation",
+    received_at: iso(-8),
+    message:
+      "Corporate send for a spring editorial at the house. The arrival should feel like a garden room — orchard branches, pale citrus, and a long table that can hold conversation without shouting. Keep the palette quiet: oat, blush, a little sage. The team will walk the terrace at golden hour, then move inside for dinner. If the notes run long, they should still live on this card without stretching the desk.",
+  }),
+  inquiry(PREVIEW_IDS.inquiryProposalOut, PREVIEW_IDS.clientAmelia, "proposal_sent", {
+    received_at: iso(-12),
+  }),
+  inquiry("20000000-0000-4000-8000-000000000025", PREVIEW_IDS.clientHarbor, "booked", {
+    status: "booked",
+    received_at: iso(-20),
+  }),
+  inquiry("20000000-0000-4000-8000-000000000026", PREVIEW_IDS.clientLumen, "closed", {
+    status: "closed",
+    closed_reason: "Budget shifted",
+    received_at: iso(-30),
+  }),
+  inquiry(PREVIEW_IDS.inquiryCandidate, PREVIEW_IDS.clientElena, "new", {
+    origin: "detected",
+    detection_status: "candidate",
+    detection_confidence: 0.86,
+    detection_reason: "new wedding inquiry from gmail, no existing match",
+    source: "gmail",
+    event_type: "wedding",
+    event_date: "2027-03-14",
+    event_date_tbd: false,
+    venue_text: "Pérez Art Museum Miami",
+    budget_range: "$10,000–$20,000",
+    message:
+      "Hi Say Sukii — we're getting married at PAMM on March 14 and would love you for ceremony and reception. Garden, sculptural, a little wild. Budget around 10–20k.",
+    received_at: iso(-2),
+    source_message_id: "c0000000-0000-4000-8000-0000000000c1",
+  }),
+];
+
+const proposals: ProposalRow[] = [
+  {
+    id: PREVIEW_IDS.proposalDraft,
+    number: "SS-2026-014",
+    client_id: PREVIEW_IDS.clientAmelia,
+    inquiry_id: PREVIEW_IDS.inquiryWedding,
+    event_date: dateOnly(120),
+    venue_id: PREVIEW_IDS.venueVizcaya,
+    venue_text: "Vizcaya Museum & Gardens, Miami, FL",
+    subtotal_cents: 2840000,
+    tax_cents: 0,
+    total_cents: 2840000,
+    deposit_percent: 50,
+    deposit_amount_cents: 1420000,
+    vision_board_url: null,
+    vision_image_paths: [],
+    notes: "Includes ceremony arch, aisle markers, and reception centerpieces.",
+    valid_until: dateOnly(45),
+    status: "draft",
+    access_token_hash: null,
+    access_token_prefix: null,
+    pdf_path: null,
+    canva_design_id: null,
+    export_pdf_ref: null,
+    sent_at: null,
+    shared_at: null,
+    viewed_at: null,
+    accepted_at: null,
+    declined_at: null,
+    declined_reason: null,
+    created_by: "00000000-0000-4000-8000-000000000001",
+    archived: false,
+    created_at: iso(-3),
+    updated_at: iso(-1),
+  },
+  {
+    id: PREVIEW_IDS.proposalSent,
+    number: "SS-2026-011",
+    client_id: PREVIEW_IDS.clientHarbor,
+    inquiry_id: PREVIEW_IDS.inquiryCorporate,
+    event_date: dateOnly(9),
+    venue_id: PREVIEW_IDS.venueHarbor,
+    venue_text: "Key Biscayne, FL",
+    subtotal_cents: 1260000,
+    tax_cents: 0,
+    total_cents: 1260000,
+    deposit_percent: 50,
+    deposit_amount_cents: 630000,
+    vision_board_url: null,
+    vision_image_paths: [],
+    notes: null,
+    valid_until: dateOnly(20),
+    status: "sent",
+    access_token_hash: "preview",
+    access_token_prefix: "ss11",
+    pdf_path: null,
+    canva_design_id: null,
+    export_pdf_ref: null,
+    sent_at: iso(-2),
+    shared_at: null,
+    viewed_at: null,
+    accepted_at: null,
+    declined_at: null,
+    declined_reason: null,
+    created_by: "00000000-0000-4000-8000-000000000001",
+    archived: false,
+    created_at: iso(-10),
+    updated_at: iso(-2),
+  },
+  {
+    id: PREVIEW_IDS.proposalAccepted,
+    number: "SS-2026-008",
+    client_id: PREVIEW_IDS.clientAmelia,
+    inquiry_id: PREVIEW_IDS.inquiryProposalOut,
+    event_date: dateOnly(10),
+    venue_id: null,
+    venue_text: "Coral Gables, FL",
+    subtotal_cents: 3420000,
+    tax_cents: 0,
+    total_cents: 3420000,
+    deposit_percent: 50,
+    deposit_amount_cents: 1710000,
+    vision_board_url: null,
+    vision_image_paths: [],
+    notes: null,
+    valid_until: null,
+    status: "accepted",
+    access_token_hash: "preview",
+    access_token_prefix: "ss08",
+    pdf_path: null,
+    canva_design_id: null,
+    export_pdf_ref: null,
+    sent_at: iso(-14),
+    shared_at: null,
+    viewed_at: iso(-13),
+    accepted_at: iso(-10),
+    declined_at: null,
+    declined_reason: null,
+    created_by: "00000000-0000-4000-8000-000000000001",
+    archived: false,
+    created_at: iso(-18),
+    updated_at: iso(-10),
+  },
+];
+
+const lineItems: ProposalLineItemRow[] = [
+  {
+    id: "b1000000-0000-4000-8000-0000000000b1",
+    proposal_id: PREVIEW_IDS.proposalDraft,
+    arrangement_id: PREVIEW_IDS.arrangementArch,
+    kind: "arrangement",
+    label: "Ceremony arch",
+    description: "Structural arch with layered garden roses and trailing ruscus.",
+    quantity: 1,
+    unit_price_cents: 850000,
+    line_total_cents: 850000,
+    snapshot: {},
+    sort_order: 0,
+    created_at: iso(-3),
+  },
+  {
+    id: "b1000000-0000-4000-8000-0000000000b2",
+    proposal_id: PREVIEW_IDS.proposalDraft,
+    arrangement_id: PREVIEW_IDS.arrangementCenterpiece,
+    kind: "arrangement",
+    label: "Low reception centerpiece",
+    description: "Wide low bowl with garden roses and orchid accents.",
+    quantity: 18,
+    unit_price_cents: 18500,
+    line_total_cents: 333000,
+    snapshot: {},
+    sort_order: 1,
+    created_at: iso(-3),
+  },
+];
+
+const projects = [
+  {
+    id: PREVIEW_IDS.projectEditorial,
+    client_id: PREVIEW_IDS.clientHarbor,
+    proposal_id: PREVIEW_IDS.proposalSent,
+    event_name: "Harbor House Spring Editorial",
+    event_date: dateOnly(9),
+    venue_id: PREVIEW_IDS.venueHarbor,
+    venue_text: "Key Biscayne, FL",
+    status: "pre_production" as const,
+    notes: "Editorial shoot — minimal palette, early load-in.",
+    google_event_id: null,
+    archived: false,
+    created_at: iso(-30),
+    updated_at: iso(-4),
+  },
+  {
+    id: PREVIEW_IDS.projectWedding,
+    client_id: PREVIEW_IDS.clientAmelia,
+    proposal_id: PREVIEW_IDS.proposalAccepted,
+    event_name: "Chen Wedding Ceremony",
+    event_date: dateOnly(10),
+    venue_id: null,
+    venue_text: "Coral Gables, FL",
+    status: "production" as const,
+    notes: null,
+    google_event_id: null,
+    archived: false,
+    created_at: iso(-45),
+    updated_at: iso(-2),
+  },
+  {
+    id: PREVIEW_IDS.projectPopup,
+    client_id: PREVIEW_IDS.clientLumen,
+    proposal_id: PREVIEW_IDS.proposalAccepted,
+    event_name: "Lumen Pop-Up Installation",
+    event_date: dateOnly(22),
+    venue_id: null,
+    venue_text: "Design District, Miami, FL",
+    status: "pre_production" as const,
+    notes: "Freestanding floral moment for launch week.",
+    google_event_id: null,
+    archived: false,
+    created_at: iso(-8),
+    updated_at: iso(-1),
+  },
+];
+
+const extraTasks: TaskRow[] = [
+  {
+    id: PREVIEW_IDS.taskEditorialLoadIn,
+    title: "confirm load-in window",
+    linked_type: "project",
+    linked_id: PREVIEW_IDS.projectEditorial,
+    source: "auto",
+    trigger_stage: "booked",
+    due_at: iso(2),
+    created_at: iso(-4),
+    status: "open",
+  },
+  {
+    id: PREVIEW_IDS.taskOasisOrder,
+    title: "order oasis and chicken wire",
+    linked_type: "none",
+    linked_id: null,
+    source: "manual",
+    trigger_stage: null,
+    due_at: iso(4),
+    created_at: iso(-2),
+    status: "open",
+  },
+  {
+    id: PREVIEW_IDS.taskWeddingDone,
+    title: "the date is held",
+    linked_type: "project",
+    linked_id: PREVIEW_IDS.projectWedding,
+    source: "auto",
+    trigger_stage: "booked",
+    due_at: iso(-2),
+    created_at: iso(-20),
+    status: "done",
+  },
+];
+
+function previewAutoTaskId(inquiryId: string, kind: string) {
+  const suffix = inquiryId.replaceAll("-", "").slice(-10);
+  const code =
+    kind === "reply" ? "01" : kind === "follow_up" ? "02" : kind === "write_proposal" ? "03" : "05";
+  return `b0000000-0000-4000-8000-${suffix}${code}`;
+}
+
+const reviewDecisions = new Map<string, { detection_status: InquiryRow["detection_status"]; status: InquiryStatus }>();
+
+export function previewReviewDecision(id: string, decision: "approve" | "dismiss") {
+  if (decision === "approve") {
+    reviewDecisions.set(id, { detection_status: "confirmed", status: "new" });
+    return;
+  }
+  reviewDecisions.set(id, { detection_status: "dismissed", status: "new" });
+}
+
+function withReview(inquiry: InquiryRow): InquiryRow {
+  const patch = reviewDecisions.get(inquiry.id);
+  return patch ? { ...inquiry, ...patch } : inquiry;
+}
+
+const CANDIDATE_SOURCE = {
+  subject: "wedding flowers at PAMM",
+  body: "Hi Say Sukii — we're getting married at PAMM on March 14 and would love you for ceremony and reception. Garden, sculptural, a little wild. Budget around 10–20k.",
+  from_addr: "elena@example.com",
+};
+
+function autoInquiryTasks(): TaskRow[] {
+  return inquiries
+    .map(withReview)
+    .filter(isBookInquiry)
+    .flatMap((inquiry) => {
+    const draft = desiredInquiryAutoTask({
+      inquiry,
+      clientName: clients[inquiry.client_id]?.name ?? null,
+      lastInboundAt: inquiry.received_at,
+    });
+    if (!draft) return [];
+    return [
+      {
+        id: previewAutoTaskId(inquiry.id, draft.kind),
+        title: draft.title,
+        linked_type: draft.linked_type,
+        linked_id: draft.linked_id,
+        source: draft.source,
+        trigger_stage: draft.trigger_stage,
+        due_at: draft.due_at,
+        created_at: inquiry.received_at,
+        status: "open" as const,
+      },
+    ];
+  });
+}
+
+function withClient<T extends { client_id: string }>(row: T) {
+  return { ...row, client: clients[row.client_id] ?? null };
+}
+
+export function getDevPreviewPipeline() {
+  const rows = inquiries
+    .map(withReview)
+    .filter((inquiry) => inquiry.detection_status !== "dismissed")
+    .map((inquiry) => withClient(inquiry));
+  const slugs = inquirySlugs(rows);
+  return rows.map((inquiry) => ({
+    ...inquiry,
+    slug: slugs.get(inquiry.id) ?? inquiry.id,
+    source_peek:
+      inquiry.id === PREVIEW_IDS.inquiryCandidate && inquiry.detection_status === "candidate"
+        ? CANDIDATE_SOURCE
+        : null,
+  }));
+}
+
+function formMessage(inquiry: InquiryRow): InquiryMessageRow {
+  const time = inquiry.message?.match(/^Time:\s*(.+)$/m)?.[1]?.trim();
+  const vision = (inquiry.message ?? "")
+    .split("\n")
+    .filter((line) => !/^(Size|Time|Recipient):/i.test(line.trim()))
+    .join("\n")
+    .trim();
+  const body = [
+    vision || "a new inquiry arrived through the form.",
+    inquiry.venue_text ? `place: ${inquiry.venue_text}` : "",
+    inquiry.event_date_tbd ? "date: tbd" : inquiry.event_date ? `date: ${inquiry.event_date}` : "",
+    time ? `time: ${time}` : "",
+    inquiry.budget_range ? `figure: ${inquiry.budget_range}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return {
+    id: `msg-form-${inquiry.id}`,
+    inquiry_id: inquiry.id,
+    direction: "inbound",
+    channel: "form",
+    subject: "new inquiry",
+    body,
+    from_address: clients[inquiry.client_id]?.email ?? null,
+    to_address: "info@saysukii.com",
+    gmail_message_id: null,
+    gmail_thread_id: null,
+    author: clients[inquiry.client_id]?.name ?? null,
+    sent_at: inquiry.received_at,
+    status: "received",
+    created_by: null,
+    created_at: inquiry.received_at,
+  };
+}
+
+export function getDevPreviewInquiryWorkspace(id: string) {
+  const slugs = inquirySlugs(inquiries.map((item) => ({ ...item, client: clients[item.client_id] ?? null })));
+  const found =
+    inquiries.find((item) => item.id === id) ??
+    inquiries.find((item) => slugs.get(item.id) === id) ??
+    inquiries[0];
+  if (!found) throw new Error("inquiry not found");
+  const inquiry = withReview(found);
+  const client = clients[inquiry.client_id] ?? null;
+  const messages: InquiryMessageRow[] =
+    inquiry.origin === "detected"
+      ? [
+          {
+            id: `msg-mail-${inquiry.id}`,
+            inquiry_id: inquiry.id,
+            direction: "inbound",
+            channel: "email",
+            subject: CANDIDATE_SOURCE.subject,
+            body: CANDIDATE_SOURCE.body,
+            from_address: client?.email ?? CANDIDATE_SOURCE.from_addr,
+            to_address: "info@saysukii.com",
+            gmail_message_id: "gmail-preview-candidate",
+            gmail_thread_id: "thread-preview-candidate",
+            author: client?.name ?? null,
+            sent_at: inquiry.received_at,
+            status: "received",
+            created_by: null,
+            created_at: inquiry.received_at,
+          },
+        ]
+      : [formMessage(inquiry)];
+
+  if (inquiry.id === PREVIEW_IDS.inquiryWedding) {
+    messages.push(
+      {
+        id: "msg-out-amelia",
+        inquiry_id: inquiry.id,
+        direction: "outbound",
+        channel: "email",
+        subject: "your wedding flowers",
+        body: "amelia — thank you for writing. i’ve read through the vision and i’ll send a first proposal this week so we can sit with scale and palette together.",
+        from_address: "info@saysukii.com",
+        to_address: client?.email ?? null,
+        gmail_message_id: "gmail-out-amelia",
+        gmail_thread_id: "thread-amelia",
+        author: "say sukii",
+        sent_at: iso(-4),
+        status: "sent",
+        created_by: null,
+        created_at: iso(-4),
+      },
+      {
+        id: "msg-in-amelia",
+        inquiry_id: inquiry.id,
+        direction: "inbound",
+        channel: "email",
+        subject: "re: your wedding flowers",
+        body: "that would be lovely. we’re hoping for a ceremony arch if the budget can hold it — vizcaya at dusk is the feeling.",
+        from_address: client?.email ?? null,
+        to_address: "info@saysukii.com",
+        gmail_message_id: "gmail-in-amelia",
+        gmail_thread_id: "thread-amelia",
+        author: client?.name ?? null,
+        sent_at: iso(-3),
+        status: "received",
+        created_by: null,
+        created_at: iso(-3),
+      },
+      {
+        id: "msg-note-amelia",
+        inquiry_id: inquiry.id,
+        direction: "note",
+        channel: "note",
+        subject: null,
+        body: "ask about aisle petals vs a grounded meadow at the altar. she mentioned orchids.",
+        from_address: null,
+        to_address: null,
+        gmail_message_id: null,
+        gmail_thread_id: null,
+        author: "studio",
+        sent_at: iso(-3),
+        status: "sent",
+        created_by: null,
+        created_at: iso(-3),
+      },
+    );
+  }
+
+  const proposalRows = proposals
+    .filter((item) => item.inquiry_id === inquiry.id)
+    .map((item) => ({
+      id: item.id,
+      number: item.number,
+      status: item.status,
+      total_cents: item.total_cents,
+      event_date: item.event_date,
+      created_at: item.created_at,
+    }));
+  const summary = resolveInquirySummaryText(
+    buildInquirySummaryFacts({
+      status: inquiry.status,
+      contacted_at: inquiry.contacted_at,
+      messages,
+      proposals: proposalRows,
+      meetings: [],
+    }),
+  );
+
+  return {
+    inquiry: { ...inquiry, summary_text: summary, summary_generated_at: inquiry.received_at },
+    slug: slugs.get(inquiry.id) ?? inquiry.id,
+    client,
+    messages,
+    proposals: proposalRows,
+    files:
+      inquiry.id === PREVIEW_IDS.inquiryWedding
+        ? [
+            {
+              id: "file-amelia-1",
+              owner_type: "inquiry" as const,
+              owner_id: inquiry.id,
+              file_path: "inquiries/amelia-moodboard.pdf",
+              file_type: "application/pdf",
+              uploaded_by: null,
+              created_at: iso(-4),
+              name: "amelia-moodboard.pdf",
+              signed_url: null,
+            },
+          ]
+        : [],
+    gmailConnected: false,
+    source_message:
+      inquiry.origin === "detected"
+        ? { ...CANDIDATE_SOURCE, received_at: inquiry.received_at }
+        : null,
+  };
+}
+
+export function getDevPreviewDashboard() {
+  return assembleStudioToday({
+    inquiries: getDevPreviewPipeline().filter(isBookInquiry),
+    projects: projects.map((project) => ({
+      ...project,
+      client: clients[project.client_id] ?? null,
+    })),
+    tasks: getDevPreviewTasks(),
+  });
+}
+
+export function getDevPreviewTasks() {
+  return [...autoInquiryTasks(), ...extraTasks];
+}
+
+export function getDevPreviewProposals() {
+  return proposals.map((proposal) => ({
+    ...proposal,
+    clients: { name: clients[proposal.client_id].name, email: clients[proposal.client_id].email },
+    inquiries: {
+      event_type: inquiries.find((item) => item.id === proposal.inquiry_id)?.event_type ?? "wedding",
+    },
+  }));
+}
+
+export function getDevPreviewProposal(id: string) {
+  const proposal = proposals.find((item) => item.id === id) ?? proposals[0];
+  const client = clients[proposal.client_id];
+  const inquiryRow = inquiries.find((item) => item.id === proposal.inquiry_id) ?? inquiries[0];
+  const venue = venues.find((item) => item.id === proposal.venue_id) ?? null;
+  return {
+    ...proposal,
+    clients: client,
+    inquiries: inquiryRow,
+    venues: venue,
+    proposal_line_items: lineItems.filter((item) => item.proposal_id === proposal.id),
+    agreements: [],
+    invoices:
+      proposal.status === "accepted"
+        ? [
+            {
+              id: "c1000000-0000-4000-8000-0000000000c1",
+              proposal_id: proposal.id,
+              number: "INV-2026-008-DEP",
+              amount_cents: proposal.deposit_amount_cents,
+              status: "paid" as const,
+              due_date: dateOnly(-5),
+              square_payment_link: null,
+              square_order_id: null,
+              pdf_path: null,
+              created_at: iso(-10),
+              updated_at: iso(-9),
+            },
+          ]
+        : [],
+  };
+}
+
+export function getDevPreviewProposalBuilderData() {
+  return {
+    clients: Object.values(clients),
+    inquiries: inquiries
+      .filter((item) => ["new", "contacted", "in_conversation"].includes(item.status))
+      .map((item) => ({ ...item, clients: clients[item.client_id] })),
+    arrangements,
+    venues,
+  };
+}
+
+export function getDevPreviewProjects() {
+  const venueById = new Map(venues.map((venue) => [venue.id, venue]));
+  return {
+    role: "admin" as const,
+    projects: projects.map((project) => ({
+      id: project.id,
+      event_name: project.event_name,
+      event_date: project.event_date,
+      venue_id: project.venue_id,
+      venue_text: project.venue_text,
+      status: project.status,
+      notes: project.notes,
+      archived: project.archived,
+      created_at: project.created_at,
+      updated_at: project.updated_at,
+      venue: project.venue_id ? (venueById.get(project.venue_id) ?? null) : null,
+      client: clients[project.client_id]
+        ? {
+            id: clients[project.client_id].id,
+            name: clients[project.client_id].name,
+            email: clients[project.client_id].email,
+            organization: clients[project.client_id].organization,
+            phone: clients[project.client_id].phone,
+          }
+        : null,
+      proposal: proposals.find((item) => item.id === project.proposal_id)
+        ? {
+            id: project.proposal_id,
+            number: proposals.find((item) => item.id === project.proposal_id)!.number,
+            status: proposals.find((item) => item.id === project.proposal_id)!.status,
+            total_cents: proposals.find((item) => item.id === project.proposal_id)!.total_cents,
+            deposit_amount_cents: proposals.find((item) => item.id === project.proposal_id)!
+              .deposit_amount_cents,
+          }
+        : null,
+    })),
+  };
+}
+
+export function getDevPreviewProject(id: string) {
+  const project = projects.find((item) => item.id === id) ?? projects[0];
+  const client = clients[project.client_id];
+  const proposal = proposals.find((item) => item.id === project.proposal_id)!;
+  const venue = venues.find((item) => item.id === project.venue_id) ?? null;
+  return {
+    role: "admin" as const,
+    project: {
+      id: project.id,
+      event_name: project.event_name,
+      event_date: project.event_date,
+      venue_id: project.venue_id,
+      venue_text: project.venue_text,
+      status: project.status,
+      notes: project.notes,
+      google_event_id: project.google_event_id,
+      archived: project.archived,
+      created_at: project.created_at,
+      updated_at: project.updated_at,
+    },
+    venue,
+    arrangements: [
+      {
+        id: "d1000000-0000-4000-8000-0000000000d1",
+        project_id: project.id,
+        arrangement_id: PREVIEW_IDS.arrangementArch,
+        proposal_line_item_id: lineItems[0]?.id ?? null,
+        label: "Ceremony arch",
+        quantity: 1,
+        recipe_id: PREVIEW_IDS.recipeArch,
+        created_at: iso(-5),
+      },
+    ],
+    files: [],
+    order: {
+      id: PREVIEW_IDS.orderWedding,
+      project_id: project.id,
+      status: "ordered" as const,
+      notes: null,
+      created_at: iso(-4),
+      updated_at: iso(-1),
+    },
+    order_items: [
+      {
+        id: "e1000000-0000-4000-8000-0000000000e1",
+        order_id: PREVIEW_IDS.orderWedding,
+        stem_id: PREVIEW_IDS.stemGardenRose,
+        vendor_id: PREVIEW_IDS.vendorMiami,
+        manual_label: null,
+        color: "Blush",
+        quantity: 120,
+        unit: "stem" as const,
+        received: false,
+        created_at: iso(-4),
+        stem: stems[0],
+        vendor: vendors[0],
+      },
+      {
+        id: "e1000000-0000-4000-8000-0000000000e2",
+        order_id: PREVIEW_IDS.orderWedding,
+        stem_id: PREVIEW_IDS.stemRuscus,
+        vendor_id: PREVIEW_IDS.vendorMiami,
+        manual_label: null,
+        color: "Green",
+        quantity: 18,
+        unit: "bunch" as const,
+        received: true,
+        created_at: iso(-4),
+        stem: stems[2],
+        vendor: vendors[0],
+      },
+    ],
+    admin: {
+      client: {
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        phone: client.phone,
+        organization: client.organization,
+        notes: client.notes,
+      },
+      proposal: {
+        id: proposal.id,
+        number: proposal.number,
+        status: proposal.status,
+        subtotal_cents: proposal.subtotal_cents,
+        tax_cents: proposal.tax_cents,
+        total_cents: proposal.total_cents,
+        deposit_amount_cents: proposal.deposit_amount_cents,
+        accepted_at: proposal.accepted_at,
+        pdf_path: proposal.pdf_path,
+      },
+      invoices: [],
+      payments: [],
+    },
+  };
+}
+
+export function getDevPreviewClients() {
+  return Object.values(clients);
+}
+
+export function getDevPreviewClient(id: string) {
+  const slugs = clientSlugs(Object.values(clients));
+  const client =
+    clients[id] ??
+    Object.values(clients).find((item) => slugs.get(item.id) === id) ??
+    Object.values(clients)[0];
+  return {
+    client,
+    slug: slugs.get(client.id) ?? client.id,
+    inquiries: inquiries
+      .filter((item) => item.client_id === client.id)
+      .map((item) => ({
+        ...item,
+        slug: inquirySlugs(inquiries.map((row) => ({ ...row, client: clients[row.client_id] ?? null }))).get(item.id),
+      })),
+    proposals: proposals
+      .filter((item) => item.client_id === client.id)
+      .map((proposal) => ({
+        id: proposal.id,
+        number: proposal.number,
+        inquiry_id: proposal.inquiry_id,
+        event_date: proposal.event_date,
+        venue_id: proposal.venue_id,
+        venue_text: proposal.venue_text,
+        total_cents: proposal.total_cents,
+        deposit_amount_cents: proposal.deposit_amount_cents,
+        status: proposal.status,
+        pdf_path: proposal.pdf_path,
+        sent_at: proposal.sent_at,
+        accepted_at: proposal.accepted_at,
+        created_at: proposal.created_at,
+      })),
+    projects: projects.filter((item) => item.client_id === client.id),
+    files: [],
+  };
+}
+
+export function getDevPreviewLibrary(): LibraryData {
+  const stemById = new Map(stems.map((stem) => [stem.id, stem]));
+  const vendorById = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+  const recipe = recipes[0];
+  const libraryRecipe = {
+    ...recipe,
+    recipe_stems: recipeStems.map((line) => ({
+      ...line,
+      stem: stemById.get(line.stem_id) ?? null,
+    })),
+  };
+
+  return {
+    role: "admin",
+    vendors,
+    projects: projects.map((project) => ({
+      id: project.id,
+      event_name: project.event_name,
+      event_date: project.event_date,
+      status: project.status,
+    })),
+    stems: stems.map((stem) => ({
+      ...stem,
+      vendor: stem.vendor_id ? (vendorById.get(stem.vendor_id) ?? null) : null,
+    })),
+    arrangements: arrangements.map((arrangement) => ({
+      ...arrangement,
+      default_recipe: arrangement.default_recipe_id === recipe.id ? libraryRecipe : null,
+    })),
+  };
+}
+
+export function getDevPreviewSettings() {
+  const members: ProfileRow[] = [
+    {
+      id: "00000000-0000-4000-8000-000000000001",
+      full_name: "Studio Preview",
+      email: "preview@saysukii.com",
+      role: "admin",
+      active: true,
+      created_at: iso(-200),
+      updated_at: iso(-1),
+      last_seen_at: iso(0),
+    },
+    {
+      id: "00000000-0000-4000-8000-000000000002",
+      full_name: "Production Lead",
+      email: "production@saysukii.com",
+      role: "team",
+      active: true,
+      created_at: iso(-120),
+      updated_at: iso(-2),
+      last_seen_at: iso(-1),
+    },
+  ];
+
+  return {
+    connections: [
+      {
+        id: "f1000000-0000-4000-8000-0000000000f1",
+        provider: "square",
+        status: "disconnected",
+        expires_at: null,
+        metadata: {},
+        connected_by: null,
+        updated_at: iso(-30),
+      },
+      {
+        id: "f1000000-0000-4000-8000-0000000000f2",
+        provider: "google",
+        status: "disconnected",
+        expires_at: null,
+        metadata: {},
+        connected_by: null,
+        updated_at: iso(-30),
+      },
+      {
+        id: "f1000000-0000-4000-8000-0000000000f3",
+        provider: "gmail",
+        status: "disconnected",
+        expires_at: null,
+        metadata: {},
+        connected_by: null,
+        updated_at: iso(-30),
+        account_email: null,
+      },
+    ],
+    failedEvents: [],
+    members,
+    invites: [
+      {
+        id: "f2000000-0000-4000-8000-0000000000f1",
+        email: "newmember@saysukii.com",
+        role: "team" as const,
+        expires_at: iso(5),
+        accepted_at: null,
+        created_at: iso(-2),
+      },
+    ],
+  };
+}
+
+export function getDevPreviewDirectories() {
+  return { venues, vendors };
+}
+
+export function getDevPreviewShoppingList(projectId: string) {
+  const project = projects.find((item) => item.id === projectId) ?? projects[0];
+  const client = clients[project.client_id];
+  const lines = [
+    {
+      key: "preview-1",
+      stem_id: PREVIEW_IDS.stemGardenRose,
+      label: "Garden rose · Miyabi",
+      color: "Blush",
+      quantity: 120,
+      unit: "stem" as const,
+      received: false,
+      unit_cost_cents: 650,
+      total_cost_cents: 78000,
+    },
+    {
+      key: "preview-2",
+      stem_id: PREVIEW_IDS.stemRuscus,
+      label: "Italian ruscus",
+      color: "Green",
+      quantity: 18,
+      unit: "bunch" as const,
+      received: true,
+      unit_cost_cents: 2400,
+      total_cost_cents: 43200,
+    },
+  ];
+
+  return {
+    project: {
+      id: project.id,
+      client_id: project.client_id,
+      event_name: project.event_name,
+      event_date: project.event_date,
+      venue_id: project.venue_id,
+      venue_text: project.venue_text,
+      status: project.status,
+      client_name: client.name,
+      venue_name: venues.find((venue) => venue.id === project.venue_id)?.name ?? project.venue_text,
+    },
+    order: {
+      id: PREVIEW_IDS.orderWedding,
+      status: "ordered" as const,
+      updated_at: iso(-1),
+    },
+    groups: [
+      {
+        vendor_id: PREVIEW_IDS.vendorMiami,
+        vendor_name: "Miami Flower Market",
+        ordering_method: "Text by 10 AM",
+        items: lines,
+      },
+    ],
+    grand_total_cents: 121200,
+  };
+}

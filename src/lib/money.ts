@@ -39,13 +39,7 @@ export const SERVICE_LINE_LABEL: Record<ServiceLine, string> = {
 export const UNITS = ["each", "hour", "arrangement", "flat"] as const;
 export type Unit = (typeof UNITS)[number];
 
-export const STAGES = [
-  "conversation",
-  "proposal_out",
-  "agreement",
-  "booked",
-  "complete",
-] as const;
+export const STAGES = ["conversation", "proposal_out", "agreement", "booked", "complete"] as const;
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = {
@@ -56,14 +50,28 @@ export const STAGE_LABEL: Record<Stage, string> = {
   complete: "Complete",
 };
 
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
+function parseDate(value: string | null | undefined) {
+  if (!value) return null;
   const date = new Date(value.length <= 10 ? `${value}T12:00:00Z` : value);
-  if (Number.isNaN(date.getTime())) return "—";
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function formatDate(value: string | null | undefined): string {
+  const date = parseDate(value);
+  if (!date) return "—";
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
   });
+}
+
+export function formatDateNumeric(value: string | null | undefined): string {
+  const date = parseDate(value);
+  if (!date) return "—";
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const year = String(date.getUTCFullYear()).slice(-2);
+  return `${month}/${day}/${year}`;
 }

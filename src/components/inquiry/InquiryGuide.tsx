@@ -1,0 +1,410 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Check } from "lucide-react";
+
+import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
+import { INQUIRE_DELIVERY_TIMES, InquiryDatePicker } from "@/components/inquiry/InquiryDatePicker";
+import type { InquiryFormValues } from "@/lib/os/inquiry-form";
+import { EMPTY_INQUIRY_DRAFT, interestLabel, toInquirySubmitValues } from "@/lib/os/inquiry-schema";
+import {
+  inquiryDraftsAreActive,
+  readInquiryDrafts,
+  resolveInquirySteps,
+} from "@/lib/os/inquiry-draft";
+import {
+  formatInquiryDate,
+  formatInquiryPhone,
+  inquiryFirstName,
+  isInquiryEmail,
+  isInquiryPhone,
+  isStepComplete,
+  personalizeInquiryHelp,
+  personalizeInquiryLabel,
+  type InquiryStep,
+} from "@/lib/os/inquiry-steps";
+import { cn } from "@/lib/utils";
+
+type GuideChange = <K extends keyof InquiryFormValues>(field: K, value: InquiryFormValues[K]) => void;
+
+const STAMP_LABELS: Record<string, string> = {
+  instagram: "Instagram",
+  "the streets": "Streets",
+  "google search": "Google",
+  "returning client": "Returning",
+  referral: "Referral",
+};
+
+function compactRange(label: string) {
+  if (/not sure/i.test(label)) return "TBD";
+  return label.replaceAll(",000", "k").replace("Under ", "< ");
+}
+
+export function InquiryGuide({
+  onSubmit,
+  disabled = false,
+  showHoneypot = false,
+}: {
+  onSubmit: (values: InquiryFormValues) => Promise<void>;
+  disabled?: boolean;
+  showHoneypot?: boolean;
+}) {
+  const drafts = useMemo(() => readInquiryDrafts(), []);
+  const usingDrafts = inquiryDraftsAreActive(drafts);
+  const [values, setValues] = useState<InquiryFormValues>(EMPTY_INQUIRY_DRAFT);
+  const [index, setIndex] = useState(0);
+  const steps = useMemo(() => resolveInquirySteps(values.interest, drafts), [values.interest, drafts]);
+  const step = steps[Math.min(index, Math.max(steps.length - 1, 0))];
+
+  useEffect(() => {
+    if (index > steps.length - 1) setIndex(Math.max(steps.length - 1, 0));
+  }, [index, steps.length]);
+
+  function change<K extends keyof InquiryFormValues>(field: K, value: InquiryFormValues[K]) {
+    setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  const last = step?.kind === "review";
+  const complete = step ? isStepComplete(step, values) : false;
+  const ready = step?.kind === "email" || step?.kind === "tel" ? complete : import.meta.env.DEV || complete;
+  const firstName = inquiryFirstName(values.name);
+  const title = step ? (usingDrafts ? step.label : personalizeInquiryLabel(step, firstName)) : undefined;
+  const help = step ? personalizeInquiryHelp(step, firstName) : undefined;
+
+  return (
+    <section className="auth-panel inquire-panel inquire-guide inquire-guide--path">
+      {usingDrafts ? (
+        <p className="inquire-draft-banner">
+          You’re seeing your draft wording.{" "}
+          <a href="/inquire/preview">Back to the editor</a>
+        </p>
+      ) : null}
+      <div className="inquire-guide-top">
+        <div className="inquire-guide-dashes" aria-hidden="true">
+          {steps.map((item, itemIndex) => (
+            <i key={item.id} className={itemIndex <= index ? "is-on" : undefined} />
+          ))}
+        </div>
+        {index > 0 ? (
+          <button type="button" className="auth-text-action" disabled={disabled} onClick={() => setIndex((current) => current - 1)}>
+            Back
+          </button>
+        ) : null}
+      </div>
+
+      <div className="auth-form inquire-form">
+        <div className="auth-panel-heading inquire-heading">
+          <h2>{title}</h2>
+          {help ? <p className="inquire-step-note">{help}</p> : null}
+        </div>
+
+        {showHoneypot ? (
+          <label className="inquire-honeypot" aria-hidden="true">
+            Website
+            <input
+              tabIndex={-1}
+              autoComplete="off"
+              value={values.website ?? ""}
+              onChange={(event) => change("website", event.target.value)}
+            />
+          </label>
+        ) : null}
+
+        <div className="inquire-guide-body">
+          {last ? (
+            <Review values={values} />
+          ) : step ? (
+            <GuideField
+              step={step}
+              values={values}
+              disabled={disabled}
+              hideLabel
+              useDraftLabels={usingDrafts}
+              onChange={change}
+            />
+          ) : null}
+        </div>
+
+        <div className="inquire-actions">
+          <button
+            type="button"
+            className="auth-submit inquire-continue"
+            disabled={disabled || !ready}
+            onClick={() => {
+              if (last) {
+                void onSubmit(
+                  toInquirySubmitValues({
+                    ...values,
+                    phone: formatInquiryPhone(values.phone),
+                    website: values.website ?? "",
+                  }),
+                );
+                return;
+              }
+              setIndex((current) => current + 1);
+            }}
+          >
+            <span>{last ? (disabled ? "sending…" : "send inquiry") : "continue"}</span>
+            <i>
+              <ArrowRight size={16} />
+            </i>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Review({ values }: { values: InquiryFormValues }) {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    const stop = scroller.querySelector<HTMLElement>("[data-review-stop]");
+    const vision = scroller.querySelector<HTMLElement>("[data-review-vision]");
+    if (!stop) {
+      scroller.style.maxHeight = "";
+      return;
+    }
+
+    const box = scroller.getBoundingClientRect();
+    const stopBottom = stop.getBoundingClientRect().bottom - box.top;
+    const visionHeight = vision?.getBoundingClientRect().height ?? 0;
+    const peek = visionHeight > 0 ? Math.min(Math.max(visionHeight / 2, 22), 36) : 0;
+    scroller.style.maxHeight = `${Math.ceil(stopBottom + peek)}px`;
+  }, [values]);
+
+  return (
+    <div ref={scrollerRef} className="inquire-review">
+      <dl>
+        <div>
+          <dt>Name</dt>
+          <dd>{values.name || "—"}</dd>
+        </div>
+        <div>
+          <dt>Email</dt>
+          <dd>{values.email || "—"}</dd>
+        </div>
+        <div>
+          <dt>Phone</dt>
+          <dd>{values.phone ? formatInquiryPhone(values.phone) || values.phone : "—"}</dd>
+        </div>
+        <div>
+          <dt>Interested in</dt>
+          <dd>
+            {interestLabel(values.interest ?? "")}
+            {values.event_setting ? ` · ${values.event_setting}` : ""}
+          </dd>
+        </div>
+        <div data-review-stop={!values.venue_text && !values.budget_range && !values.arrangement_size ? "" : undefined}>
+          <dt>Date</dt>
+          <dd>{formatInquiryDate(values) || "—"}</dd>
+        </div>
+        {values.venue_text ? (
+          <div data-review-stop={!values.budget_range && !values.arrangement_size ? "" : undefined}>
+            <dt>Place</dt>
+            <dd>{values.venue_text}</dd>
+          </div>
+        ) : null}
+        {values.budget_range || values.arrangement_size ? (
+          <div data-review-stop="">
+            <dt>Figure</dt>
+            <dd>{values.arrangement_size || values.budget_range}</dd>
+          </div>
+        ) : null}
+        <div data-review-vision="">
+          <dt>Vision</dt>
+          <dd>{values.message.trim() || "—"}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function GuideField({
+  step,
+  values,
+  disabled,
+  hideLabel,
+  useDraftLabels = false,
+  onChange,
+}: {
+  step: InquiryStep;
+  values: InquiryFormValues;
+  disabled?: boolean;
+  hideLabel?: boolean;
+  useDraftLabels?: boolean;
+  onChange: GuideChange;
+}) {
+  if (step.kind === "choice" || step.kind === "multi") {
+    const selected = step.kind === "choice" ? String(values[step.field] ?? "") : "";
+    const chips = step.field === "budget_range" || step.field === "arrangement_size" || step.field === "sources";
+    return (
+      <fieldset className="auth-field inquire-guide-set">
+        {hideLabel ? <legend className="sr-only">{step.label}</legend> : <legend>{step.label}</legend>}
+        <div className={cn("inquire-picks", chips ? "inquire-picks--chips" : "inquire-picks--rows")}>
+          {step.options.map((option) => {
+            const on =
+              step.kind === "choice"
+                ? selected === option.value
+                : (values.sources ?? []).includes(option.value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={cn(on && "is-on")}
+                disabled={disabled}
+                onClick={() => {
+                  if (step.kind === "choice") onChange(step.field, option.value as never);
+                  else {
+                    const current = values.sources ?? [];
+                    onChange(
+                      "sources",
+                      current.includes(option.value)
+                        ? current.filter((item) => item !== option.value)
+                        : [...current, option.value],
+                    );
+                  }
+                }}
+              >
+                <span>
+                  {step.field === "sources"
+                    ? (useDraftLabels ? option.label : (STAMP_LABELS[option.value] ?? option.label))
+                    : chips
+                      ? compactRange(option.label)
+                      : option.label}
+                </span>
+                {on ? <Check className="size-3.5" aria-hidden="true" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+    );
+  }
+
+  if (step.kind === "date") {
+    return (
+      <div className="inquire-date">
+        {hideLabel ? null : <span className="inquire-guide-label">{step.label}</span>}
+        <InquiryDatePicker
+          value={values.event_date}
+          time={values.event_time}
+          times={values.interest === "deliveries" ? INQUIRE_DELIVERY_TIMES : undefined}
+          disabled={disabled || values.event_date_tbd}
+          onChange={(next) => {
+            onChange("event_date", next);
+            onChange("event_date_tbd", false);
+            if (!next) onChange("event_time", "");
+          }}
+          onTimeChange={(next) => onChange("event_time", next)}
+        />
+        <button
+          type="button"
+          className={cn("auth-text-action", values.event_date_tbd && "is-on")}
+          disabled={disabled}
+          onClick={() => {
+            onChange("event_date_tbd", !values.event_date_tbd);
+            if (!values.event_date_tbd) {
+              onChange("event_date", null);
+              onChange("event_time", "");
+            }
+          }}
+        >
+          Date is still TBD
+        </button>
+      </div>
+    );
+  }
+
+  if (step.kind === "textarea") {
+    return (
+      <label className="inquire-letter-paper">
+        {hideLabel ? <span className="sr-only">{step.label}</span> : <span>{step.label}</span>}
+        <textarea
+          value={values.message}
+          placeholder={step.placeholder}
+          disabled={disabled}
+          rows={5}
+          onChange={(event) => onChange("message", event.target.value)}
+        />
+      </label>
+    );
+  }
+
+  if (step.kind === "address") {
+    return (
+      <div className="auth-field">
+        {hideLabel ? null : <span>{step.label}</span>}
+        <FloridaAddressPicker
+          value={values.venue_text}
+          disabled={disabled}
+          placeholder={step.placeholder}
+          onChange={(next) => onChange("venue_text", next)}
+        />
+      </div>
+    );
+  }
+
+  if (step.kind === "text" || step.kind === "email" || step.kind === "tel") {
+    return (
+      <ContactField step={step} values={values} disabled={disabled} hideLabel={hideLabel} onChange={onChange} />
+    );
+  }
+
+  return null;
+}
+
+function ContactField({
+  step,
+  values,
+  disabled,
+  hideLabel,
+  onChange,
+}: {
+  step: Extract<InquiryStep, { kind: "text" | "email" | "tel" }>;
+  values: InquiryFormValues;
+  disabled?: boolean;
+  hideLabel?: boolean;
+  onChange: GuideChange;
+}) {
+  const [emailChecked, setEmailChecked] = useState(false);
+  const [phoneChecked, setPhoneChecked] = useState(false);
+  const raw = String(values[step.field] ?? "");
+  const issue =
+    step.kind === "email" && emailChecked && raw.trim() && !isInquiryEmail(raw)
+      ? "that doesn’t look like an email yet."
+      : step.kind === "tel" && phoneChecked && raw.trim() && !isInquiryPhone(raw)
+        ? "use a ten digit number"
+        : undefined;
+
+  return (
+    <label className="auth-field">
+      {hideLabel ? <span className="sr-only">{step.label}</span> : <span>{step.label}</span>}
+      <div className={cn("auth-input", issue && "has-error")}>
+        <input
+          type={step.kind}
+          inputMode={step.kind === "tel" ? "tel" : step.kind === "email" ? "email" : "text"}
+          autoComplete={step.kind === "tel" ? "tel" : step.kind === "email" ? "email" : step.field === "name" ? "name" : "off"}
+          value={raw}
+          placeholder={step.placeholder}
+          disabled={disabled}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (step.kind === "email") setEmailChecked(false);
+            if (step.kind === "tel") setPhoneChecked(false);
+            onChange(step.field, step.kind === "tel" ? formatInquiryPhone(next) : next);
+          }}
+          onBlur={() => {
+            if (step.kind === "email") setEmailChecked(true);
+            if (step.kind === "tel") {
+              setPhoneChecked(true);
+              if (raw.trim()) onChange("phone", formatInquiryPhone(raw));
+            }
+          }}
+        />
+      </div>
+      {issue ? <small>{issue}</small> : null}
+    </label>
+  );
+}

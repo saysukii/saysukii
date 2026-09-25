@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,117 +14,171 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Wordmark } from "./bits";
 
-const NAV = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/pipeline", label: "Pipeline" },
-  { to: "/accounts", label: "Accounts" },
-  { to: "/studio", label: "Proposal Studio" },
-  { to: "/rate-card", label: "Rate Card" },
-] as const;
+type NavItem = {
+  to: string;
+  label: string;
+};
+
+const ADMIN_NAV: NavItem[] = [
+  { to: "/dashboard", label: "today" },
+  { to: "/pipeline", label: "inquiries" },
+  { to: "/proposals", label: "proposals" },
+  { to: "/clients", label: "clients" },
+  { to: "/settings", label: "settings" },
+];
+
+const TEAM_NAV = ADMIN_NAV.filter(({ label }) => label === "today");
+
+function PrimaryNav({
+  items,
+  onNavigate,
+}: {
+  items: NavItem[];
+  onNavigate?: () => void;
+}) {
+  return (
+    <nav aria-label="Primary" className="studio-pearl-nav">
+      {items.map(({ to, label }) => (
+        <Link
+          key={to}
+          to={to as "/dashboard"}
+          onClick={onNavigate}
+          activeOptions={{ exact: to === "/dashboard" }}
+          activeProps={{ className: "is-on" }}
+        >
+          {label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
 
 export function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const { user } = useRouteContext({ from: "/_authenticated" });
+  const { user, profile, devPreview } = useRouteContext({ from: "/_authenticated" });
 
   async function signOut() {
+    if (devPreview) {
+      await router.navigate({ to: "/auth" });
+      return;
+    }
     await supabase.auth.signOut();
     await router.navigate({ to: "/auth" });
   }
 
   const email = user?.email ?? "";
-  const initial = email ? email.charAt(0).toUpperCase() : "S";
+  const initial = email ? email.charAt(0).toLowerCase() : "s";
+  const isAdmin = profile.role === "admin";
+  const navItems = isAdmin ? ADMIN_NAV : TEAM_NAV;
+  const displayName = profile.full_name?.trim() || email;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top bar */}
-      <header className="flex h-16 items-center justify-between gap-4 border-b border-border px-4 sm:px-8">
-        <div className="flex items-center gap-3">
+    <div className="studio-pearl">
+      <div className="auth-grain" aria-hidden="true" />
+      <div className="studio-pearl-aura-far" aria-hidden="true" />
+      <div className="studio-pearl-aura-near" aria-hidden="true" />
+
+      <header className="studio-pearl-bar md:hidden">
+        <div className="flex min-w-0 items-center gap-3">
           <button
+            type="button"
+            className="studio-pearl-menu"
             onClick={() => setOpen((value) => !value)}
             aria-label="Toggle navigation"
-            className="inline-flex size-9 items-center justify-center rounded-md border border-border text-foreground md:hidden"
+            aria-expanded={open}
           >
             {open ? <X className="size-4" /> : <Menu className="size-4" />}
           </button>
-          <Link to="/dashboard" className="block">
-            <Wordmark className="w-24" />
+          <Link to="/dashboard" className="studio-pearl-brand" aria-label="Say Sukii home">
+            <Wordmark tone="ink" className="w-24" />
           </Link>
         </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3 outline-none">
-            <span className="flex size-8 items-center justify-center rounded-full border border-border text-xs font-semibold text-foreground">
-              {initial}
-            </span>
-            <span className="hidden max-w-[12rem] truncate text-sm text-muted-foreground sm:block">
-              {email}
-            </span>
-            <ChevronDown className="size-3.5 text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-56 rounded-lg border border-border bg-background p-1 shadow-none"
-          >
-            <DropdownMenuLabel className="px-3 py-2">
-              <p className="truncate text-sm font-medium text-foreground">{email}</p>
-              <p className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Studio admin
-              </p>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-border" />
-            <DropdownMenuItem
-              onClick={signOut}
-              className="cursor-pointer gap-2 rounded-md px-3 py-2.5 text-sm"
-            >
-              <LogOut className="size-4" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <AccountMenu
+          displayName={displayName}
+          email={email}
+          initial={initial}
+          isAdmin={isAdmin}
+          onSignOut={signOut}
+          compact
+        />
       </header>
 
-      {/* Folder tabs (desktop) */}
-      <nav
-        aria-label="Primary"
-        className="hidden items-end gap-1 border-b border-border px-4 sm:px-8 md:flex"
-      >
-        {NAV.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className="-mb-px rounded-t-md border border-b-0 border-transparent bg-muted px-4 pb-2.5 pt-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            activeProps={{
-              className:
-                "-mb-px rounded-t-md border border-b-0 border-border !bg-background px-4 pb-[0.6875rem] pt-2.5 text-sm !text-foreground font-medium relative z-10",
-            }}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-
-      {/* Mobile menu */}
       {open ? (
-        <nav
-          aria-label="Primary mobile"
-          className="flex flex-col border-b border-border md:hidden"
-        >
-          {NAV.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={() => setOpen(false)}
-              className="border-b border-border px-4 py-3 text-sm text-muted-foreground last:border-b-0"
-              activeProps={{ className: "!text-foreground font-medium" }}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="studio-pearl-drawer md:hidden">
+          <PrimaryNav items={navItems} onNavigate={() => setOpen(false)} />
+        </div>
       ) : null}
 
-      <main className="min-w-0 px-4 py-8 pb-16 sm:px-8">{children}</main>
+      <div className="studio-pearl-frame">
+        <aside className="studio-pearl-rail">
+          <Link to="/dashboard" className="studio-pearl-brand" aria-label="Say Sukii home">
+            <Wordmark tone="ink" />
+          </Link>
+          <PrimaryNav items={navItems} />
+          <AccountMenu
+            displayName={displayName}
+            email={email}
+            initial={initial}
+            isAdmin={isAdmin}
+            onSignOut={signOut}
+          />
+        </aside>
+
+        <main className="studio-pearl-main">{children}</main>
+      </div>
     </div>
+  );
+}
+
+function AccountMenu({
+  displayName,
+  email,
+  initial,
+  isAdmin,
+  onSignOut,
+  compact = false,
+}: {
+  displayName: string;
+  email: string;
+  initial: string;
+  isAdmin: boolean;
+  onSignOut: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={cn("studio-pearl-account", compact && "w-auto")}>
+        <span className="studio-pearl-initial">{initial}</span>
+        {!compact ? (
+          <span className="min-w-0 flex-1">
+            <b className="truncate">{displayName}</b>
+            <span className="studio-pearl-role">{isAdmin ? "administrator" : "team member"}</span>
+          </span>
+        ) : null}
+        <ChevronDown className="size-3.5 shrink-0 opacity-45" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={10}
+        className="w-60 rounded-3xl border-0 bg-[#f7f4ef] p-2 shadow-none"
+      >
+        <DropdownMenuLabel className="px-3 py-3">
+          <p className="truncate text-sm font-light lowercase">{displayName}</p>
+          <p className="mt-1 truncate text-xs font-light lowercase opacity-60">{email}</p>
+          <p className="mt-2 text-[0.65rem] font-light tracking-[0.06em] lowercase opacity-60">
+            {isAdmin ? "administrator" : "team member"}
+          </p>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="mx-2 bg-black/5" />
+        <DropdownMenuItem
+          onClick={onSignOut}
+          className="cursor-pointer gap-2 rounded-2xl px-3 py-3 text-sm font-light lowercase focus:bg-[#f6f5f2]"
+        >
+          <LogOut className="size-4" />
+          sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

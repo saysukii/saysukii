@@ -1,110 +1,163 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 
-import { listProposals } from "@/lib/portal.functions";
-import { EmptyState, GlassCard, PageHeader, Pill } from "@/components/portal/bits";
-import { SERVICE_LINE_LABEL, formatDate, formatMoney } from "@/lib/money";
+import { StudioChip, StudioHeading, StudioViews } from "@/components/portal/studio";
+import type { ClientRow, InquiryRow, ProposalRow, ProposalStatus } from "@/integrations/supabase/types";
+import { formatDate, formatMoneyExact } from "@/lib/money";
+import { listProposals } from "@/lib/os/proposals.functions";
+import { getDevPreviewProposals } from "@/lib/dev-preview";
+import { useDevPreview } from "@/lib/use-dev-preview";
+
+const views = [
+  { id: "ledger", label: "ledger" },
+  { id: "tiles", label: "tiles" },
+  { id: "board", label: "board" },
+] as const;
+
+const viewSchema = z.object({
+  view: z.enum(["ledger", "tiles", "board"]).optional(),
+});
 
 export const Route = createFileRoute("/_authenticated/proposals/")({
+  validateSearch: viewSchema,
   head: () => ({
     meta: [
-      { title: "Documents — Say Sukii Portal" },
-      {
-        name: "description",
-        content:
-          "Every Say Sukii proposal, agreement, and invoice in one numbered library with branded PDFs.",
-      },
-      { property: "og:title", content: "Documents — Say Sukii Portal" },
-      {
-        property: "og:description",
-        content: "Numbered proposals, agreements, and invoices for the Say Sukii studio.",
-      },
+      { title: "Proposals — Say Sukii OS" },
+      { name: "description", content: "Draft, send, and follow every client proposal." },
       { name: "robots", content: "noindex" },
     ],
   }),
-  component: DocumentsPage,
+  component: ProposalsPage,
 });
 
-const STATUS_TONE: Record<string, "rose" | "neutral"> = {
-  accepted: "rose",
-  sent: "rose",
+const STATUS_LABEL: Record<ProposalStatus, string> = {
+  draft: "draft",
+  sent: "sent",
+  viewed: "viewed",
+  accepted: "accepted",
+  declined: "declined",
 };
 
-function DocumentsPage() {
+const BOARD_COLUMNS: Array<{ id: string; label: string; statuses: ProposalStatus[] }> = [
+  { id: "draft", label: "drafting", statuses: ["draft"] },
+  { id: "out", label: "with the client", statuses: ["sent", "viewed"] },
+  { id: "yes", label: "accepted", statuses: ["accepted"] },
+  { id: "no", label: "declined", statuses: ["declined"] },
+];
+
+type ProposalListItem = ProposalRow & {
+  clients: Pick<ClientRow, "name" | "email"> | null;
+  inquiries: Pick<InquiryRow, "event_type"> | null;
+};
+
+function chipTone(status: ProposalStatus): "soft" | "due" | "late" {
+  if (status === "accepted") return "late";
+  if (status === "sent" || status === "viewed") return "due";
+  return "soft";
+}
+
+function ProposalsPage() {
+  const { view } = Route.useSearch();
+  const layout = view ?? "ledger";
+  const devPreview = useDevPreview();
   const fetchProposals = useServerFn(listProposals);
-  const { data: proposals = [], isPending } = useQuery({
-    queryKey: ["proposals"],
-    queryFn: () => fetchProposals(),
+  const {
+    data: rawProposals,
+    isPending,
+    isError,
+  } = useQuery({
+    queryKey: ["os", "proposals", devPreview],
+    queryFn: () => (devPreview ? getDevPreviewProposals() : fetchProposals()),
   });
+  const proposals = (rawProposals ?? []) as unknown as ProposalListItem[];
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Library"
-        title="Documents"
-        description="Each proposal carries its agreement and invoice as one linked, numbered set."
+    <div className="studio-page">
+      <StudioHeading
+        title="proposals"
+        note="prepare the note, send it, and follow the decision."
+        action={
+          <a href="/proposals/new" className="studio-today-go">
+            new proposal
+          </a>
+        }
       />
+      <StudioViews to="/proposals" views={[...views]} current={layout} />
 
-      {!isPending && proposals.length === 0 ? (
-        <EmptyState
-          title="No documents yet"
-          body="Build your first proposal in the Studio and its agreement and invoice appear here automatically."
-        />
+      {isPending ? <p className="studio-empty">gathering…</p> : null}
+      {isError ? <p className="studio-pearl-note">proposals are available to studio admins only.</p> : null}
+      {!isPending && !isError && proposals.length === 0 ? (
+        <p className="studio-empty">no proposals yet — start from an open inquiry.</p>
       ) : null}
 
-      <div className="space-y-4">
-        {proposals.map((proposal) => {
-          const invoice = Array.isArray(proposal.invoices) ? proposal.invoices[0] : null;
-          const project = proposal.projects;
-          return (
-            <Link
-              key={proposal.id}
-              to="/proposals/$id"
-              params={{ id: proposal.id }}
-              className="block"
-            >
-              <GlassCard className="p-6 transition-transform duration-300 hover:-translate-y-0.5">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="eyebrow">Proposal {proposal.number}</p>
-                    <h2 className="mt-1 text-lg font-light">{project?.title ?? "Project"}</h2>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {project?.accounts?.name ?? "Account"} · {formatDate(project?.event_date)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="display-number text-xl">{formatMoney(proposal.total_cents)}</p>
-                    {invoice ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Invoice {invoice.number}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <Pill tone={STATUS_TONE[proposal.status] ?? "neutral"}>{proposal.status}</Pill>
-                  {project?.service_line ? (
-                    <Pill>
-                      {
-                        SERVICE_LINE_LABEL[
-                          project.service_line as keyof typeof SERVICE_LINE_LABEL
-                        ]
-                      }
-                    </Pill>
-                  ) : null}
-                  {proposal.sent_at ? (
-                    <span className="text-xs text-muted-foreground">
-                      Sent {formatDate(proposal.sent_at)}
-                    </span>
-                  ) : null}
-                </div>
-              </GlassCard>
+      {layout === "ledger" ? (
+        <div className="studio-ledger">
+          {proposals.map((proposal) => (
+            <Link key={proposal.id} to="/proposals/$id" params={{ id: proposal.id }} className="studio-ledger-row">
+              <div>
+                <b>{proposal.clients?.name ?? "client"}</b>
+                <p>
+                  {proposal.number} · {proposal.inquiries?.event_type.replaceAll("_", " ") ?? "event"} ·{" "}
+                  {formatDate(proposal.event_date)}
+                </p>
+              </div>
+              <div className="text-right">
+                <StudioChip tone={chipTone(proposal.status)}>{STATUS_LABEL[proposal.status]}</StudioChip>
+                <p>
+                  <strong>{formatMoneyExact(proposal.total_cents)}</strong>
+                </p>
+              </div>
             </Link>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      ) : null}
+
+      {layout === "tiles" ? (
+        <div className="studio-tiles">
+          {proposals.map((proposal) => (
+            <Link key={proposal.id} to="/proposals/$id" params={{ id: proposal.id }} className="studio-tile">
+              <div className="studio-wait-top">
+                <b>{proposal.clients?.name ?? "client"}</b>
+                <StudioChip tone={chipTone(proposal.status)}>{STATUS_LABEL[proposal.status]}</StudioChip>
+              </div>
+              <p>
+                {proposal.number} · {proposal.inquiries?.event_type.replaceAll("_", " ") ?? "event"}
+              </p>
+              <p>{formatDate(proposal.event_date)}</p>
+              <strong>{formatMoneyExact(proposal.total_cents)}</strong>
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      {layout === "board" ? (
+        <div className="studio-board-cols">
+          {BOARD_COLUMNS.map((column) => {
+            const items = proposals.filter((proposal) => column.statuses.includes(proposal.status));
+            return (
+              <section key={column.id} className="studio-pipe-col">
+                <h2>
+                  {column.label}
+                  <span>{items.length}</span>
+                </h2>
+                <div className="studio-pipe-list">
+                  {items.length === 0 ? <p className="studio-empty">none yet</p> : null}
+                  {items.map((proposal) => (
+                    <Link key={proposal.id} to="/proposals/$id" params={{ id: proposal.id }} className="studio-tile">
+                      <b>{proposal.clients?.name ?? "client"}</b>
+                      <p>{proposal.number}</p>
+                      <p>{formatDate(proposal.event_date)}</p>
+                      <strong>{formatMoneyExact(proposal.total_cents)}</strong>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

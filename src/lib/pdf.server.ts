@@ -23,7 +23,12 @@ export type DocumentMeta = {
   venue: string | null;
 };
 
-export type LineItem = { name: string; qty: number; unitPriceCents: number; lineTotalCents: number };
+export type LineItem = {
+  name: string;
+  qty: number;
+  unitPriceCents: number;
+  lineTotalCents: number;
+};
 
 function money(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

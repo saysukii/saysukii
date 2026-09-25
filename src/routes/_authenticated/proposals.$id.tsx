@@ -1,41 +1,34 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { Check, Copy, ExternalLink, FileText, Send } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  getDocumentUrl,
-  getEssenceUrls,
-  getProposal,
-  markProposalSent,
-  savePaymentLink,
-  setProposalStatus,
-} from "@/lib/portal.functions";
-import {
-  Field,
-  GlassCard,
-  PageHeader,
-  Pill,
-  SoftButton,
-  inputClass,
-} from "@/components/portal/bits";
-import { AGREEMENT_TYPE_LABEL } from "@/lib/agreement-templates";
-import { SERVICE_LINE_LABEL, formatDate, formatMoneyExact } from "@/lib/money";
+import { EmptyState, GlassCard, PageHeader, Pill, SoftButton } from "@/components/portal/bits";
+import { supabase } from "@/integrations/supabase/client";
+import type {
+  AgreementRow,
+  ClientRow,
+  InquiryRow,
+  InvoiceRow,
+  ProposalLineItemRow,
+  ProposalRow,
+  ProposalStatus,
+  VenueRow,
+} from "@/integrations/supabase/types";
+import { formatDate, formatMoneyExact } from "@/lib/money";
+import { getProposal, sendProposal } from "@/lib/os/proposals.functions";
+import { getDevPreviewProposal } from "@/lib/dev-preview";
+import { useDevPreview } from "@/lib/use-dev-preview";
 
 export const Route = createFileRoute("/_authenticated/proposals/$id")({
   head: () => ({
     meta: [
-      { title: "Document set — Say Sukii Portal" },
+      { title: "Proposal detail — Say Sukii OS" },
       {
         name: "description",
-        content:
-          "Proposal, agreement, and invoice for a single Say Sukii project with branded PDF downloads.",
-      },
-      { property: "og:title", content: "Document set — Say Sukii Portal" },
-      {
-        property: "og:description",
-        content: "One linked proposal, agreement, and invoice set.",
+        content: "Review and send a Say Sukii client proposal.",
       },
       { name: "robots", content: "noindex" },
     ],
@@ -43,299 +36,378 @@ export const Route = createFileRoute("/_authenticated/proposals/$id")({
   component: ProposalDetailPage,
 });
 
+const STATUS_LABEL: Record<ProposalStatus, string> = {
+  draft: "Draft",
+  sent: "Sent",
+  viewed: "Viewed",
+  accepted: "Accepted",
+  declined: "Declined",
+};
+
+type ProposalDetail = ProposalRow & {
+  clients: ClientRow;
+  inquiries: InquiryRow;
+  venues: VenueRow | null;
+  proposal_line_items: ProposalLineItemRow[];
+  agreements: AgreementRow[];
+  invoices: InvoiceRow[];
+};
+
 function ProposalDetailPage() {
   const { id } = Route.useParams();
+  const devPreview = useDevPreview();
   const queryClient = useQueryClient();
-
   const fetchProposal = useServerFn(getProposal);
-  const signDocument = useServerFn(getDocumentUrl);
-  const signEssence = useServerFn(getEssenceUrls);
-  const sendProposal = useServerFn(markProposalSent);
-  const updateStatus = useServerFn(setProposalStatus);
-  const updatePaymentLink = useServerFn(savePaymentLink);
+  const submitSend = useServerFn(sendProposal);
+  const [publicUrl, setPublicUrl] = useState("");
+  const [copied, setCopied] = useState(false);
 
-  const { data: proposal, isPending } = useQuery({
-    queryKey: ["proposal", id],
-    queryFn: () => fetchProposal({ data: { id } }),
+  const {
+    data: rawProposal,
+    isPending,
+    isError,
+  } = useQuery({
+    queryKey: ["os", "proposal", id, devPreview],
+    queryFn: () => (devPreview ? getDevPreviewProposal(id) : fetchProposal({ data: { id } })),
   });
+  const proposal = rawProposal as unknown as ProposalDetail | undefined;
 
-  const project = proposal?.projects ?? null;
-  const account = project?.accounts ?? null;
-  const agreement = Array.isArray(proposal?.agreements) ? proposal.agreements[0] : null;
-  const invoice = Array.isArray(proposal?.invoices) ? proposal.invoices[0] : null;
-  const lineItems = proposal?.proposal_line_items ?? [];
-
-  const [paymentLink, setPaymentLink] = useState("");
-  useEffect(() => {
-    setPaymentLink(invoice?.stripe_payment_link ?? "");
-  }, [invoice?.stripe_payment_link]);
-
-  const essencePaths: string[] = Array.isArray(proposal?.essence_image_urls)
-    ? proposal.essence_image_urls
-    : [];
-
-  const { data: essence } = useQuery({
-    queryKey: ["essence", id, essencePaths.join("|")],
-    queryFn: () => signEssence({ data: { paths: essencePaths } }),
-    enabled: essencePaths.length > 0,
+  const imagePaths = proposal?.vision_image_paths ?? [];
+  const { data: visionUrls = [] } = useQuery({
+    queryKey: ["os", "proposal-images", id, imagePaths.join("|")],
+    queryFn: async () => {
+      const { data, error } = await supabase.storage
+        .from("vision-images")
+        .createSignedUrls(imagePaths, 60 * 30);
+      if (error) throw error;
+      return data.map((image) => image.signedUrl).filter((url): url is string => Boolean(url));
+    },
+    enabled: imagePaths.length > 0,
   });
-
-  const essenceUrls: string[] = (essence?.urls ?? []).filter(
-    (url): url is string => typeof url === "string" && url.length > 0,
-  );
-
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["proposal", id] });
-    void queryClient.invalidateQueries({ queryKey: ["proposals"] });
-    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    void queryClient.invalidateQueries({ queryKey: ["projects"] });
-  };
 
   const send = useMutation({
-    mutationFn: () => sendProposal({ data: { id } }),
-    onSuccess: () => {
-      toast.success("Marked as sent");
-      invalidate();
+    mutationFn: () => {
+      if (devPreview) {
+        toast.message("Preview mode — proposal not sent");
+        return Promise.resolve({ url: `${window.location.origin}/proposal/preview` });
+      }
+      return submitSend({ data: { id } });
+    },
+    onSuccess: ({ url }) => {
+      setPublicUrl(url);
+      toast.success("Proposal sent to the client");
+      void queryClient.invalidateQueries({ queryKey: ["os", "proposal", id] });
+      void queryClient.invalidateQueries({ queryKey: ["os", "proposals"] });
+      void queryClient.invalidateQueries({ queryKey: ["inquiry-pipeline"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const status = useMutation({
-    mutationFn: (next: "draft" | "sent" | "accepted" | "declined") =>
-      updateStatus({ data: { id, status: next } }),
-    onSuccess: () => {
-      toast.success("Status updated");
-      invalidate();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const link = useMutation({
-    mutationFn: () =>
-      updatePaymentLink({ data: { id: invoice!.id, link: paymentLink.trim() } }),
-    onSuccess: () => {
-      toast.success("Payment link saved");
-      invalidate();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const openDocument = async (path: string | null | undefined) => {
-    if (!path) {
-      toast.error("PDF not available yet");
+  async function openDocument(path: string | null | undefined) {
+    if (!path) return;
+    const { data, error } = await supabase.storage.from("documents").createSignedUrl(path, 60 * 15);
+    if (error) {
+      toast.error(error.message);
       return;
     }
-    try {
-      const { url } = await signDocument({ data: { path } });
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      toast.error((error as Error).message);
-    }
-  };
-
-  if (isPending) {
-    return <p className="text-sm text-muted-foreground">Gathering the document set…</p>;
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
-  if (!proposal) {
+  async function copyPublicUrl() {
+    if (!publicUrl) return;
+    await navigator.clipboard.writeText(publicUrl);
+    setCopied(true);
+    toast.success("Client link copied");
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (isPending) {
+    return <p className="text-sm text-muted-foreground">Loading proposal…</p>;
+  }
+
+  if (isError || !proposal) {
     return (
       <div>
-        <PageHeader eyebrow="Library" title="Not found" description="This document set is unavailable." />
-        <Link to="/proposals" className="text-xs tracking-[0.14em] text-muted-foreground uppercase">
-          ← Back to documents
-        </Link>
+        <PageHeader
+          eyebrow="Client proposals"
+          title="Proposal unavailable"
+          description="This proposal could not be found or you do not have access."
+        />
+        <EmptyState title="Nothing to show" body="Return to the proposal list and try again." />
       </div>
     );
   }
+
+  const client = proposal.clients;
+  const inquiry = proposal.inquiries;
+  const venue = proposal.venues;
+  const lineItems = [...proposal.proposal_line_items].sort(
+    (first, second) => first.sort_order - second.sort_order,
+  );
+  const agreement = proposal.agreements.at(0);
+  const invoice = proposal.invoices.at(0);
 
   return (
     <div>
       <Link
         to="/proposals"
-        className="text-xs tracking-[0.14em] text-muted-foreground uppercase hover:text-foreground"
+        className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase hover:text-foreground"
       >
-        ← Documents
+        ← Proposals
       </Link>
 
       <PageHeader
         eyebrow={`Proposal ${proposal.number}`}
-        title={project?.title ?? "Project"}
-        description={`${account?.name ?? "Account"} · ${formatDate(project?.event_date)}${
-          project?.venue ? ` · ${project.venue}` : ""
-        }`}
+        title={client?.name ?? "Client proposal"}
+        description={`${inquiry?.event_type.replaceAll("_", " ") ?? "Event"} · ${formatDate(
+          proposal.event_date,
+        )} · ${venue?.name ?? proposal.venue_text ?? "Venue TBD"}`}
+        actions={
+          proposal.status === "draft" ? (
+            <SoftButton variant="primary" disabled={send.isPending} onClick={() => send.mutate()}>
+              <Send className="size-3.5" />
+              {send.isPending ? "Sending" : "Send to client"}
+            </SoftButton>
+          ) : proposal.pdf_path ? (
+            <SoftButton onClick={() => void openDocument(proposal.pdf_path)}>
+              <FileText className="size-3.5" /> Open proposal PDF
+            </SoftButton>
+          ) : null
+        }
       />
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
-        <Pill tone={proposal.status === "accepted" ? "rose" : "neutral"}>{proposal.status}</Pill>
-        {project?.service_line ? (
-          <Pill>
-            {SERVICE_LINE_LABEL[project.service_line as keyof typeof SERVICE_LINE_LABEL]}
-          </Pill>
+        <Pill tone={proposal.status === "accepted" ? "ink" : "rose"}>
+          {STATUS_LABEL[proposal.status]}
+        </Pill>
+        <Pill>{lineItems.length} lines</Pill>
+        {proposal.valid_until ? (
+          <Pill>Valid through {formatDate(proposal.valid_until)}</Pill>
         ) : null}
-        {agreement ? (
-          <Pill>
-            {AGREEMENT_TYPE_LABEL[
-              agreement.type as keyof typeof AGREEMENT_TYPE_LABEL
-            ]}
-          </Pill>
-        ) : null}
-        {account?.tier === "high_value" ? <Pill tone="rose">VIP</Pill> : null}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      {publicUrl ? (
+        <GlassCard className="mb-6 border-primary/20">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <p className="eyebrow">Client link created</p>
+              <p className="mt-2 break-all text-sm text-muted-foreground">{publicUrl}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <SoftButton type="button" onClick={() => void copyPublicUrl()}>
+                {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                {copied ? "Copied" : "Copy link"}
+              </SoftButton>
+              <a href={publicUrl} target="_blank" rel="noreferrer">
+                <SoftButton type="button">
+                  <ExternalLink className="size-3.5" /> Open
+                </SoftButton>
+              </a>
+            </div>
+          </div>
+        </GlassCard>
+      ) : null}
+
+      {proposal.status === "declined" && proposal.declined_reason ? (
+        <GlassCard className="mb-6 border-destructive/20">
+          <p className="eyebrow">Client response</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">
+            {proposal.declined_reason}
+          </p>
+        </GlassCard>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(18rem,0.7fr)]">
         <div className="space-y-6">
-          <GlassCard className="p-6">
-            <h2 className="text-lg font-light">Scope &amp; pricing</h2>
-            <div className="mt-4 space-y-3">
+          <GlassCard>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="eyebrow">Client-facing scope</p>
+                <h2 className="mt-2 text-xl font-light">Arrangements &amp; services</h2>
+              </div>
+              <p className="display-number text-2xl">{formatMoneyExact(proposal.total_cents)}</p>
+            </div>
+            <div className="mt-6 divide-y divide-border">
               {lineItems.map((item) => (
-                <div key={item.id} className="flex items-start justify-between gap-4 border-b border-border/40 pb-3 last:border-0">
+                <div
+                  key={item.id}
+                  className="grid gap-2 py-4 first:pt-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-6"
+                >
                   <div>
-                    <p className="text-sm">{item.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {item.qty} × {formatMoneyExact(item.unit_price_cents)}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium">{item.label}</p>
+                      <Pill>{item.kind.replaceAll("_", " ")}</Pill>
+                    </div>
+                    {item.description ? (
+                      <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
+                        {item.description}
+                      </p>
+                    ) : null}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {item.quantity} × {formatMoneyExact(item.unit_price_cents)}
                     </p>
                   </div>
-                  <p className="display-number text-sm">{formatMoneyExact(item.line_total_cents)}</p>
+                  <p className="display-number text-sm sm:text-right">
+                    {formatMoneyExact(item.line_total_cents)}
+                  </p>
                 </div>
               ))}
             </div>
-
-            <dl className="mt-6 space-y-2 text-sm">
-              <Row label="Subtotal" value={formatMoneyExact(proposal.subtotal_cents)} />
-              <div className="flex items-baseline justify-between border-t border-border/50 pt-3">
-                <dt className="eyebrow">Total</dt>
-                <dd className="display-number text-xl">{formatMoneyExact(proposal.total_cents)}</dd>
+            <dl className="mt-3 space-y-3 border-t border-border pt-5 text-sm">
+              <MoneyRow label="Subtotal" value={proposal.subtotal_cents} />
+              <MoneyRow label="Tax" value={proposal.tax_cents} />
+              <div className="flex items-baseline justify-between gap-4 border-t border-border pt-4">
+                <dt className="font-medium">Total</dt>
+                <dd className="display-number text-2xl">
+                  {formatMoneyExact(proposal.total_cents)}
+                </dd>
               </div>
+              <MoneyRow
+                label={`${proposal.deposit_percent ?? 0}% deposit`}
+                value={proposal.deposit_amount_cents}
+              />
             </dl>
           </GlassCard>
 
-          {essenceUrls.length > 0 ? (
-            <GlassCard className="p-6">
-              <h2 className="text-lg font-light">Essence images</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {essenceUrls.map((url, index) => (
-                  <img
-                    key={url}
-                    src={url}
-                    alt={`Essence reference ${index + 1} for ${project?.title ?? "the project"}`}
-                    loading="lazy"
-                    className="h-32 w-full rounded-2xl object-cover"
-                  />
-                ))}
+          {visionUrls.length > 0 || proposal.vision_board_url ? (
+            <GlassCard>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="eyebrow">Creative direction</p>
+                  <h2 className="mt-2 text-xl font-light">Vision references</h2>
+                </div>
+                {proposal.vision_board_url ? (
+                  <a
+                    href={proposal.vision_board_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase hover:text-foreground"
+                  >
+                    Pinterest board <ExternalLink className="size-3.5" />
+                  </a>
+                ) : null}
               </div>
+              {visionUrls.length > 0 ? (
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {visionUrls.map((url, index) => (
+                    <img
+                      key={url}
+                      src={url}
+                      alt={`Proposal vision reference ${index + 1}`}
+                      className="aspect-square w-full rounded-2xl object-cover"
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </GlassCard>
+          ) : null}
+
+          {proposal.notes ? (
+            <GlassCard>
+              <p className="eyebrow">Client notes</p>
+              <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                {proposal.notes}
+              </p>
             </GlassCard>
           ) : null}
         </div>
 
         <div className="space-y-6">
-          <GlassCard className="p-6">
-            <h2 className="text-lg font-light">The set</h2>
-            <div className="mt-4 space-y-3">
-              <DocRow
-                label={`Proposal ${proposal.number}`}
-                onOpen={() => void openDocument(proposal.pdf_url)}
-              />
-              {agreement ? (
-                <DocRow
-                  label={`Agreement v${agreement.version}`}
-                  onOpen={() => void openDocument(agreement.pdf_url)}
-                />
-              ) : null}
-              {invoice ? (
-                <DocRow
-                  label={`Invoice ${invoice.number}`}
-                  onOpen={() => void openDocument(invoice.pdf_url)}
-                />
-              ) : null}
+          <GlassCard>
+            <p className="eyebrow">Activity</p>
+            <h2 className="mt-2 text-xl font-light">Proposal timeline</h2>
+            <dl className="mt-5 space-y-3 text-sm">
+              <DateRow label="Created" value={proposal.created_at} />
+              <DateRow label="Sent" value={proposal.sent_at} />
+              <DateRow label="Viewed" value={proposal.viewed_at} />
+              <DateRow label="Accepted" value={proposal.accepted_at} />
+              <DateRow label="Declined" value={proposal.declined_at} />
+            </dl>
+          </GlassCard>
+
+          <GlassCard>
+            <p className="eyebrow">Client</p>
+            <h2 className="mt-2 text-xl font-light">{client?.name ?? "Client"}</h2>
+            <p className="mt-3 text-sm text-muted-foreground">{client?.email}</p>
+            {client?.organization ? (
+              <p className="mt-1 text-sm text-muted-foreground">{client.organization}</p>
+            ) : null}
+            <div className="mt-5 border-t border-border pt-4 text-sm text-muted-foreground">
+              <p>{formatDate(proposal.event_date)}</p>
+              <p className="mt-1">{venue?.name ?? proposal.venue_text ?? "Venue TBD"}</p>
             </div>
           </GlassCard>
 
-          {invoice ? (
-            <GlassCard className="p-6">
-              <h2 className="text-lg font-light">Invoice</h2>
-              <dl className="mt-4 space-y-2 text-sm">
-                <Row label="Amount" value={formatMoneyExact(invoice.amount_cents)} />
-                <Row label="Deposit due" value={formatMoneyExact(invoice.deposit_cents)} />
-                <Row label="Balance" value={formatMoneyExact(invoice.balance_cents)} />
-                <Row label="Due" value={formatDate(invoice.due_date)} />
-                <Row label="Status" value={invoice.status} />
-              </dl>
-
-              <div className="mt-5">
-                <Field label="Square payment link">
-                  <input
-                    className={inputClass}
-                    value={paymentLink}
-                    onChange={(event) => setPaymentLink(event.target.value)}
-                    placeholder="https://square.link/…"
+          {agreement || invoice ? (
+            <GlassCard>
+              <p className="eyebrow">Accepted documents</p>
+              <div className="mt-4 space-y-3">
+                {agreement?.pdf_path ? (
+                  <DocumentButton
+                    label={`Agreement v${agreement.version}`}
+                    onClick={() => void openDocument(agreement.pdf_path)}
                   />
-                </Field>
-                <SoftButton
-                  className="mt-3"
-                  onClick={() => link.mutate()}
-                  disabled={link.isPending}
-                >
-                  Save link
-                </SoftButton>
+                ) : null}
+                {invoice?.pdf_path ? (
+                  <DocumentButton
+                    label={`Invoice ${invoice.number}`}
+                    onClick={() => void openDocument(invoice.pdf_path)}
+                  />
+                ) : null}
               </div>
+              {invoice ? (
+                <dl className="mt-5 space-y-3 border-t border-border pt-4 text-sm">
+                  <MoneyRow label="Deposit invoice" value={invoice.amount_cents} />
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-muted-foreground">Status</dt>
+                    <dd>
+                      <Pill>{invoice.status}</Pill>
+                    </dd>
+                  </div>
+                </dl>
+              ) : null}
             </GlassCard>
           ) : null}
-
-          <GlassCard className="p-6">
-            <h2 className="text-lg font-light">Move it forward</h2>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <SoftButton
-                variant="primary"
-                onClick={() => send.mutate()}
-                disabled={send.isPending || proposal.status !== "draft"}
-              >
-                Mark sent
-              </SoftButton>
-              <SoftButton
-                onClick={() => status.mutate("accepted")}
-                disabled={status.isPending || proposal.status === "accepted"}
-              >
-                Accepted
-              </SoftButton>
-              <SoftButton
-                variant="ghost"
-                onClick={() => status.mutate("declined")}
-                disabled={status.isPending}
-              >
-                Declined
-              </SoftButton>
-            </div>
-            {proposal.sent_at ? (
-              <p className="mt-4 text-xs text-muted-foreground">
-                Sent {formatDate(proposal.sent_at)}
-              </p>
-            ) : null}
-          </GlassCard>
         </div>
       </div>
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function MoneyRow({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-baseline justify-between">
+    <div className="flex items-baseline justify-between gap-4">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="display-number">{value}</dd>
+      <dd className="display-number">{formatMoneyExact(value)}</dd>
     </div>
   );
 }
 
-function DocRow({ label, onOpen }: { label: string; onOpen: () => void }) {
+function DateRow({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="glass-soft flex items-center justify-between rounded-2xl px-4 py-3">
-      <p className="text-sm">{label}</p>
-      <button
-        onClick={onOpen}
-        className="text-[0.6rem] font-semibold tracking-[0.16em] text-muted-foreground uppercase hover:text-foreground"
-      >
-        Open PDF
-      </button>
+    <div className="flex items-baseline justify-between gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right">
+        {value
+          ? new Intl.DateTimeFormat("en-US", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(value))
+          : "—"}
+      </dd>
     </div>
+  );
+}
+
+function DocumentButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-3 text-left hover:bg-accent"
+    >
+      <span className="text-sm">{label}</span>
+      <ExternalLink className="size-3.5 text-muted-foreground" />
+    </button>
   );
 }

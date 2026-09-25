@@ -14,7 +14,11 @@ dist-ssr
 .vinxi
 .tanstack/**
 .nitro
+.netlify
 *.local
+
+# Encrypted local vault used before Supabase is activated
+.data/
 
 # Wrangler / Cloudflare
 .wrangler/
