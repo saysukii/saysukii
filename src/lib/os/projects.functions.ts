@@ -76,7 +76,7 @@ export const listProjects = createServerFn({ method: "GET" })
 
 export const getProject = createServerFn({ method: "GET" })
   .middleware([requireStudioAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const projectResult = await context.supabase
       .from("projects")
@@ -272,7 +272,7 @@ export const getProject = createServerFn({ method: "GET" })
 
 export const updateProject = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -306,7 +306,7 @@ export const updateProject = createServerFn({ method: "POST" })
 
 export const setOrderStatus = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid(), status: orderStatus }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -322,7 +322,7 @@ export const setOrderStatus = createServerFn({ method: "POST" })
 
 export const setOrderItemReceived = createServerFn({ method: "POST" })
   .middleware([requireStudioAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ id: z.string().uuid(), received: z.boolean() }).parse(input),
   )
   .handler(async ({ data, context }) => {

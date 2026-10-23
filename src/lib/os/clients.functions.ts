@@ -70,7 +70,7 @@ async function resolveClientId(client: SupabaseClient<Database>, key: string) {
 
 export const getClient = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ id: z.string().trim().min(1).max(160) }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().trim().min(1).max(160) }).parse(input))
   .handler(async ({ data, context }) => {
     const clientId = await resolveClientId(context.supabase, data.id);
     const clientResult = await context.supabase
@@ -147,7 +147,7 @@ export const getClient = createServerFn({ method: "GET" })
 
 export const saveClient = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => clientInput.parse(input))
+  .validator((input: unknown) => clientInput.parse(input))
   .handler(async ({ data, context }) => {
     const payload = {
       name: data.name,
@@ -208,7 +208,7 @@ const importVendorInput = z
 
 export const importClients = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => importClientInput.parse(input))
+  .validator((input: unknown) => importClientInput.parse(input))
   .handler(async ({ data, context }) => {
     const emails = data.map((row) => row.email.toLowerCase());
     const { data: existing, error: lookupError } = await context.supabase
@@ -241,7 +241,7 @@ export const importClients = createServerFn({ method: "POST" })
 
 export const archiveClient = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("clients")
@@ -265,7 +265,7 @@ export const listDirectories = createServerFn({ method: "GET" })
 
 export const saveVenue = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => venueInput.parse(input))
+  .validator((input: unknown) => venueInput.parse(input))
   .handler(async ({ data, context }) => {
     const payload = {
       name: data.name,
@@ -285,7 +285,7 @@ export const saveVenue = createServerFn({ method: "POST" })
 
 export const archiveVenue = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("venues")
@@ -297,7 +297,7 @@ export const archiveVenue = createServerFn({ method: "POST" })
 
 export const saveVendor = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => vendorInput.parse(input))
+  .validator((input: unknown) => vendorInput.parse(input))
   .handler(async ({ data, context }) => {
     const payload = {
       name: data.name,
@@ -317,7 +317,7 @@ export const saveVendor = createServerFn({ method: "POST" })
 
 export const archiveVendor = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("vendors")
@@ -329,7 +329,7 @@ export const archiveVendor = createServerFn({ method: "POST" })
 
 export const importVenues = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => importVenueInput.parse(input))
+  .validator((input: unknown) => importVenueInput.parse(input))
   .handler(async ({ data, context }) => {
     const { data: existing, error: lookupError } = await context.supabase
       .from("venues")
@@ -360,7 +360,7 @@ export const importVenues = createServerFn({ method: "POST" })
 
 export const importVendors = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => importVendorInput.parse(input))
+  .validator((input: unknown) => importVendorInput.parse(input))
   .handler(async ({ data, context }) => {
     const { data: existing, error: lookupError } = await context.supabase
       .from("vendors")

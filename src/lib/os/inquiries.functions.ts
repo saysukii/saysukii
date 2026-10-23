@@ -319,7 +319,7 @@ function dateOnly(date: Date) {
 
 
 export const submitPublicInquiry = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => publicInquiryInput.parse(input))
+  .validator((input: unknown) => publicInquiryInput.parse(input))
   .handler(async ({ data }) => {
     // Honeypot submissions get a normal success response without touching the database.
     if (data.website.trim()) return { ok: true as const, preview: false as const };
@@ -382,7 +382,7 @@ export const listFreshArrivals = createServerFn({ method: "GET" })
 
 export const createAdminInquiry = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => adminInquiryInput.parse(input))
+  .validator((input: unknown) => adminInquiryInput.parse(input))
   .handler(async ({ data, context }) => {
     const inquiry = await createInquiryWithClient(context.supabase, data, context.profile.id);
     return { id: inquiry.id };
@@ -443,7 +443,7 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
 
 export const setInquiryStatus = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -589,7 +589,7 @@ async function searchPhotonPlaces(query: string) {
 }
 
 export const searchFloridaAddresses = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => floridaAddressSearch.parse(input))
+  .validator((input: unknown) => floridaAddressSearch.parse(input))
   .handler(async ({ data }) => {
     const { searchGooglePlaces } = await import("@/lib/os/maps.server");
     const google = searchGooglePlaces(data.q).catch(() => null);
@@ -622,7 +622,7 @@ async function resolveInquiryId(client: StudioClient, key: string) {
 
 export const getInquiryWorkspace = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ id: z.string().trim().min(1).max(160) }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().trim().min(1).max(160) }).parse(input))
   .handler(async ({ data, context }) => {
     const inquiryId = await resolveInquiryId(context.supabase, data.id);
     const inquiryResult = await context.supabase
@@ -737,7 +737,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
 
 export const reviewDetectedInquiry = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -806,7 +806,7 @@ export const reviewDetectedInquiry = createServerFn({ method: "POST" })
 
 export const addInquiryMessage = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         inquiry_id: z.string().uuid(),
@@ -971,7 +971,7 @@ async function studioNote(id: string) {
 
 export const updateInquiryNote = createServerFn({ method: "POST" })
   .middleware([requireStudioAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -994,7 +994,7 @@ export const updateInquiryNote = createServerFn({ method: "POST" })
 
 export const deleteInquiryNote = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const note = await studioNote(data.id);
     const { error } = await context.supabase.from("inquiry_messages").delete().eq("id", note.id);
@@ -1005,7 +1005,7 @@ export const deleteInquiryNote = createServerFn({ method: "POST" })
 
 export const attachInquiryFile = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         inquiry_id: z.string().uuid(),

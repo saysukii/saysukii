@@ -10,7 +10,7 @@ export const getCalendarSettings = createServerFn({ method: "GET" }).handler(asy
 
 export const saveCalendarSettings = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => normalizeCalendar(input))
+  .validator((input: unknown) => normalizeCalendar(input))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin

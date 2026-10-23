@@ -205,7 +205,7 @@ export const listLibrary = createServerFn({ method: "GET" })
 
 export const saveArrangement = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => arrangementInput.parse(input))
+  .validator((input: unknown) => arrangementInput.parse(input))
   .handler(async ({ data, context }) => {
     const payload = {
       name: data.name,
@@ -225,7 +225,7 @@ export const saveArrangement = createServerFn({ method: "POST" })
 
 export const setArrangementActive = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => idInput.extend({ active: z.boolean() }).parse(input))
+  .validator((input: unknown) => idInput.extend({ active: z.boolean() }).parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("arrangements")
@@ -237,7 +237,7 @@ export const setArrangementActive = createServerFn({ method: "POST" })
 
 export const saveStem = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => stemInput.parse(input))
+  .validator((input: unknown) => stemInput.parse(input))
   .handler(async ({ data, context }) => {
     if (data.vendor_id) {
       const { data: vendor, error: vendorError } = await context.supabase
@@ -269,7 +269,7 @@ export const saveStem = createServerFn({ method: "POST" })
 
 export const setStemActive = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => idInput.extend({ active: z.boolean() }).parse(input))
+  .validator((input: unknown) => idInput.extend({ active: z.boolean() }).parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("stems")
@@ -281,7 +281,7 @@ export const setStemActive = createServerFn({ method: "POST" })
 
 export const saveDefaultRecipe = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => recipeInput.parse(input))
+  .validator((input: unknown) => recipeInput.parse(input))
   .handler(async ({ data, context }) => {
     const { data: arrangement, error: arrangementError } = await context.supabase
       .from("arrangements")
@@ -397,7 +397,7 @@ export const saveDefaultRecipe = createServerFn({ method: "POST" })
 
 export const clearDefaultRecipe = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ arrangement_id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ arrangement_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: arrangement, error: arrangementError } = await context.supabase
       .from("arrangements")
@@ -440,7 +440,7 @@ export const clearDefaultRecipe = createServerFn({ method: "POST" })
 
 export const getProjectShoppingList = createServerFn({ method: "GET" })
   .middleware([requireStudioAuth])
-  .inputValidator((input: unknown) => z.object({ project_id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ project_id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const supabase = await studioClient();
     const { data: project, error: projectError } = await supabase

@@ -14,7 +14,7 @@ export const Route = createFileRoute("/email-preview")({
 });
 
 const loadEmailPreviews = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => z.object({ origin: z.string().url() }).parse(input))
+  .validator((input: unknown) => z.object({ origin: z.string().url() }).parse(input))
   .handler(async ({ data }) => {
     const { inquiryReceivedHtml } = await import("@/lib/os/inquiry-email.server");
     const { changeRequestHtml } = await import("@/lib/os/change-request-email.server");

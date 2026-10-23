@@ -58,7 +58,7 @@ export const listAdminSettings = createServerFn({ method: "GET" })
 
 export const inviteTeamMember = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => inviteSchema.parse(input))
+  .validator((input: unknown) => inviteSchema.parse(input))
   .handler(async ({ data, context }) => {
     const email = data.email.toLowerCase();
     const [{ supabaseAdmin }, { createPublicToken }, { getRequest }] = await Promise.all([
@@ -113,7 +113,7 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
 
 export const deactivateTeamMember = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => memberSchema.parse(input))
+  .validator((input: unknown) => memberSchema.parse(input))
   .handler(async ({ data, context }) => {
     if (data.id === context.profile.id) {
       throw new Error("You cannot deactivate your own account.");

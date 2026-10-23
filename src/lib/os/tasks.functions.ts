@@ -162,7 +162,7 @@ export const listTasks = createServerFn({ method: "GET" })
 
 export const createManualTask = createServerFn({ method: "POST" })
   .middleware([requireStudioAuth])
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         title: z.string().trim().min(1).max(240),
@@ -227,7 +227,7 @@ export const createManualTask = createServerFn({ method: "POST" })
 
 export const completeTask = createServerFn({ method: "POST" })
   .middleware([requireStudioAuth])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: task, error } = await context.supabase
       .from("tasks")

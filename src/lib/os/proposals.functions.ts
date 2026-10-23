@@ -93,7 +93,7 @@ export const proposalBuilderData = createServerFn({ method: "GET" })
 
 export const getProposal = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: proposal, error } = await context.supabase
       .from("proposals")
@@ -109,7 +109,7 @@ export const getProposal = createServerFn({ method: "GET" })
 
 export const saveProposal = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => proposalInput.parse(input))
+  .validator((input: unknown) => proposalInput.parse(input))
   .handler(async ({ data, context }) => {
     const subtotal = data.line_items.reduce(
       (sum, item) => sum + Math.round(item.quantity * item.unit_price_cents),
@@ -220,7 +220,7 @@ const importInput = z.object({
 
 export const importProposalPdf = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => importInput.parse(input))
+  .validator((input: unknown) => importInput.parse(input))
   .handler(async ({ data, context }) => {
     const inquiryResult = await context.supabase
       .from("inquiries")
@@ -346,7 +346,7 @@ export const importProposalPdf = createServerFn({ method: "POST" })
 
 export const sendProposal = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const bundle = await loadProposalBundleById(data.id);
     if (!bundle.proposal.pdf_path) throw new Error("Import the proposal PDF before sending.");
@@ -388,7 +388,7 @@ export const sendProposal = createServerFn({ method: "POST" })
   });
 
 export const getPublicProposal = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => z.object({ token: z.string().min(32) }).parse(input))
+  .validator((input: unknown) => z.object({ token: z.string().min(32) }).parse(input))
   .handler(async ({ data }) => {
     const bundle = await loadProposalBundleByToken(data.token);
     if (bundle.proposal.status !== "draft") {
@@ -450,7 +450,7 @@ export const getPublicProposal = createServerFn({ method: "GET" })
   });
 
 export const acceptPublicProposal = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => z.object({ token: z.string().min(32) }).parse(input))
+  .validator((input: unknown) => z.object({ token: z.string().min(32) }).parse(input))
   .handler(async ({ data }) => {
     const bundle = await loadProposalBundleByToken(data.token);
     if (!["sent", "viewed"].includes(bundle.proposal.status)) {
@@ -487,7 +487,7 @@ export const acceptPublicProposal = createServerFn({ method: "POST" })
   });
 
 export const signPublicAgreement = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         token: z.string().min(32),
@@ -534,7 +534,7 @@ export const signPublicAgreement = createServerFn({ method: "POST" })
   });
 
 export const requestProposalChanges = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ token: z.string().min(32), note: z.string().trim().min(1).max(2000) }).parse(input),
   )
   .handler(async ({ data }) => {
@@ -556,7 +556,7 @@ export const requestProposalChanges = createServerFn({ method: "POST" })
   });
 
 export const sendChangeRequestNotice = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z
       .object({
         clientName: z.string().trim().min(1).max(160),
@@ -581,7 +581,7 @@ export const sendChangeRequestNotice = createServerFn({ method: "POST" })
   });
 
 export const declinePublicProposal = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
+  .validator((input: unknown) =>
     z.object({ token: z.string().min(32), reason: z.string().max(1000).optional() }).parse(input),
   )
   .handler(async ({ data }) => {

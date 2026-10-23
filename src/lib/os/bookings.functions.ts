@@ -50,7 +50,7 @@ export const listMeetingBusy = createServerFn({ method: "GET" }).handler(async (
 });
 
 export const bookAppointment = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => bookingInput.parse(input))
+  .validator((input: unknown) => bookingInput.parse(input))
   .handler(async ({ data }) => {
     const { readStudioCalendar } = await import("@/lib/os/calendar-settings.functions");
     const settings = await readStudioCalendar();
