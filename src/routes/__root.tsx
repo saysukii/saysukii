@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 
+import { GlitterCursorTrail } from "@/components/glitter-cursor-trail";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 
@@ -124,6 +125,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <GlitterCursorTrail />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster />

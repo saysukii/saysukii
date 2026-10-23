@@ -28,7 +28,7 @@ export function StudioViews({
   views,
   current,
 }: {
-  to: "/proposals" | "/clients" | "/settings";
+  to: "/clients" | "/settings";
   views: Array<{ id: string; label: string }>;
   current: string;
 }) {

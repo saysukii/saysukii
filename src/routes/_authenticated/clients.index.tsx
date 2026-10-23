@@ -1,22 +1,18 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { StudioChip, StudioHeading, StudioViews } from "@/components/portal/studio";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { ClientType } from "@/integrations/supabase/types";
-import { listClients, saveClient } from "@/lib/os/clients.functions";
 import { getDevPreviewClients } from "@/lib/dev-preview";
 import { clientSlugs } from "@/lib/os/inquiry-desk";
+import { importClients, listClients, saveClient } from "@/lib/os/clients.functions";
+import { mergePreviewClients, parseNotionCsv, rememberPreviewClient, type ContactDraft } from "@/lib/preview-clients";
 import { useDevPreview } from "@/lib/use-dev-preview";
-
-const views = [
-  { id: "roll", label: "roll" },
-  { id: "grid", label: "grid" },
-  { id: "split", label: "split" },
-] as const;
 
 export const Route = createFileRoute("/_authenticated/clients/")({
   validateSearch: z.object({
@@ -38,90 +34,165 @@ const emptyForm = {
   phone: "",
   organization: "",
   type: "individual" as ClientType,
-  source: "",
+  source: "added by hand",
   notes: "",
 };
 
 function ClientsPage() {
   const { profile } = Route.useRouteContext();
-  const { view } = Route.useSearch();
-  const layout = view ?? "roll";
   const devPreview = useDevPreview();
   const isAdmin = profile.role === "admin";
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchClients = useServerFn(listClients);
   const submitClient = useServerFn(saveClient);
+  const submitImport = useServerFn(importClients);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [csv, setCsv] = useState("");
   const [form, setForm] = useState(emptyForm);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data: clients = [], isPending } = useQuery({
+  const { data: clients = [], isPending, isError } = useQuery({
     queryKey: ["os", "clients", devPreview],
-    queryFn: () => (devPreview ? getDevPreviewClients() : fetchClients()),
+    queryFn: async () => {
+      const rows = devPreview ? getDevPreviewClients() : await fetchClients();
+      return devPreview ? mergePreviewClients(rows) : rows;
+    },
     enabled: isAdmin,
   });
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return clients;
-    return clients.filter((client) =>
-      [client.name, client.email, client.organization, client.phone]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(term)),
-    );
+    const rows = term
+      ? clients.filter((client) =>
+          [client.name, client.email, client.organization, client.phone]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(term)),
+        )
+      : clients;
+    return [...rows].sort((left, right) => left.name.localeCompare(right.name));
   }, [clients, search]);
 
   const slugs = useMemo(() => clientSlugs(clients), [clients]);
-  const selected = visible.find((client) => client.id === selectedId) ?? visible[0];
 
   const createClient = useMutation({
-    mutationFn: () => {
-      if (devPreview) {
-        toast.message("Preview mode — client not saved");
-        return Promise.resolve(clients[0]);
-      }
+    mutationFn: async () => {
+      if (devPreview) return rememberPreviewClient(form);
       return submitClient({ data: form });
     },
-    onSuccess: () => {
-      toast.success("Client created");
-      setCreating(false);
+    onSuccess: async (row) => {
+      toast.success("added");
+      setAdding(false);
       setForm(emptyForm);
-      void queryClient.invalidateQueries({ queryKey: ["os", "clients"] });
+      await queryClient.invalidateQueries({ queryKey: ["os", "clients"] });
+      const next = devPreview ? mergePreviewClients(getDevPreviewClients()) : clients;
+      const slug = clientSlugs(devPreview ? next : [...clients, row]).get(row.id);
+      if (slug) await navigate({ to: "/clients/$id", params: { id: slug } });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const bringIn = useMutation({
+    mutationFn: async (contacts: ContactDraft[]) => {
+      if (devPreview) {
+        const existing = new Set(
+          mergePreviewClients(getDevPreviewClients()).map((client) => client.email.toLowerCase()),
+        );
+        const fresh = contacts.filter((contact) => !existing.has(contact.email.toLowerCase()));
+        fresh.forEach((contact) => rememberPreviewClient(contact));
+        return { added: fresh.length, skipped: contacts.length - fresh.length };
+      }
+      return submitImport({ data: contacts });
+    },
+    onSuccess: async (result) => {
+      toast.success(result.added ? `imported ${result.added}` : "those contacts are already here");
+      setImporting(false);
+      setCsv("");
+      await queryClient.invalidateQueries({ queryKey: ["os", "clients"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
   if (!isAdmin) {
     return (
-      <div className="studio-page">
-        <StudioHeading title="clients" note="client records are available to admin users only." />
+      <div className="studio-home is-book">
+        <p className="studio-pearl-note">client records are available to admin users only.</p>
       </div>
     );
   }
 
   return (
-    <div className="studio-page">
-      <StudioHeading
-        title="clients"
-        note="the people and houses we keep in conversation."
-        action={
-          <button type="button" className="studio-today-go" onClick={() => setCreating((open) => !open)}>
-            {creating ? "close" : "new client"}
+    <div className="studio-home is-book">
+      <header className="studio-home-hello">
+        <div>
+          <p className="studio-kicker">the book</p>
+          <h1>clients</h1>
+          <p>{isPending ? "gathering the book…" : `${clients.length} ${clients.length === 1 ? "person" : "people"}`}</p>
+        </div>
+        <div className="studio-home-hello-go">
+          <button type="button" className="studio-ghost" onClick={() => setImporting(true)}>
+            import
           </button>
-        }
-      />
-      <StudioViews to="/clients" views={[...views]} current={layout} />
+          <button type="button" className="studio-today-go" onClick={() => setAdding(true)}>
+            add
+          </button>
+        </div>
+      </header>
 
-      {creating ? (
-        <form
-          className="studio-panel"
-          onSubmit={(event) => {
-            event.preventDefault();
-            createClient.mutate();
-          }}
-        >
-          <div className="studio-tiles">
+      {isError ? <p className="studio-pearl-note">the client book is for studio admins.</p> : null}
+      {isPending ? <p className="studio-empty">gathering…</p> : null}
+
+      {!isPending ? (
+        <div className="studio-book-body">
+          <label className="studio-search studio-directory-search">
+            <span className="sr-only">find a client</span>
+            <input
+              value={search}
+              placeholder="find a person"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          {visible.length === 0 ? <p className="studio-empty">nobody in the book yet.</p> : null}
+          {visible.length > 0 ? (
+          <div className="studio-directory">
+            {visible.map((client) => (
+              <Link
+                key={client.id}
+                to="/clients/$id"
+                params={{ id: slugs.get(client.id) ?? client.id }}
+                className="studio-book-row"
+              >
+                <span>
+                  <b>{client.name}</b>
+                  <em>{client.organization || client.email}</em>
+                </span>
+                <small>{client.type.replaceAll("_", " ")}</small>
+              </Link>
+            ))}
+          </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <Dialog open={adding} onOpenChange={setAdding}>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask is-soft" hideClose>
+          <div className="studio-task-head">
+            <DialogClose className="studio-task-close" aria-label="Close">
+              <X aria-hidden="true" />
+            </DialogClose>
+          </div>
+          <DialogTitle className="sr-only">add a client</DialogTitle>
+          <DialogDescription className="sr-only">name, email, and how to reach them.</DialogDescription>
+          <form
+            className="studio-task-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              createClient.mutate();
+            }}
+          >
+            <p className="studio-ask-hint">a person, added by hand.</p>
             <label className="studio-field">
               <span>name</span>
               <input
@@ -142,14 +213,6 @@ function ClientsPage() {
               />
             </label>
             <label className="studio-field">
-              <span>organization</span>
-              <input
-                className="studio-input"
-                value={form.organization}
-                onChange={(event) => setForm({ ...form, organization: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
               <span>phone</span>
               <input
                 className="studio-input"
@@ -158,138 +221,87 @@ function ClientsPage() {
               />
             </label>
             <label className="studio-field">
-              <span>client type</span>
-              <select
-                className="studio-select"
-                value={form.type}
-                onChange={(event) => setForm({ ...form, type: event.target.value as ClientType })}
-              >
-                <option value="individual">individual</option>
-                <option value="brand">brand</option>
-                <option value="corporate">corporate</option>
-                <option value="venue_partner">venue partner</option>
-              </select>
-            </label>
-            <label className="studio-field">
-              <span>source</span>
+              <span>organization</span>
               <input
                 className="studio-input"
-                value={form.source}
-                onChange={(event) => setForm({ ...form, source: event.target.value })}
+                value={form.organization}
+                onChange={(event) => setForm({ ...form, organization: event.target.value })}
               />
             </label>
-          </div>
-          <label className="studio-field" style={{ marginTop: 12 }}>
-            <span>notes</span>
-            <textarea
-              className="studio-textarea"
-              value={form.notes}
-              onChange={(event) => setForm({ ...form, notes: event.target.value })}
-            />
-          </label>
-          <button type="submit" className="studio-today-go" style={{ marginTop: 16 }} disabled={createClient.isPending}>
-            {createClient.isPending ? "saving" : "create client"}
-          </button>
-        </form>
-      ) : null}
-
-      <label className="studio-search">
-        <span className="sr-only">search clients</span>
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="search clients"
-        />
-      </label>
-
-      {isPending ? <p className="studio-empty">gathering…</p> : null}
-      {!isPending && clients.length === 0 ? <p className="studio-empty">no clients yet.</p> : null}
-
-      {layout === "roll" ? (
-        <div className="studio-ledger">
-          {visible.map((client) => (
-            <Link key={client.id} to="/clients/$id" params={{ id: slugs.get(client.id) ?? client.id }} className="studio-ledger-row">
-              <div>
-                <b>{client.name}</b>
-                <p>{[client.organization, client.email, client.phone].filter(Boolean).join(" · ")}</p>
-              </div>
-              <StudioChip>{client.type.replaceAll("_", " ")}</StudioChip>
-            </Link>
-          ))}
-        </div>
-      ) : null}
-
-      {layout === "grid" ? (
-        <div className="studio-clients-grid">
-          {visible.map((client) => (
-            <Link key={client.id} to="/clients/$id" params={{ id: slugs.get(client.id) ?? client.id }} className="studio-tile">
-              <div className="studio-wait-top">
-                <b>{client.name}</b>
-                <StudioChip>{client.type.replaceAll("_", " ")}</StudioChip>
-              </div>
-              <p>{client.organization || client.email}</p>
-              <p>{client.email}</p>
-              {client.phone ? <p>{client.phone}</p> : null}
-            </Link>
-          ))}
-        </div>
-      ) : null}
-
-      {layout === "split" && selected ? (
-        <div className="studio-split">
-          <div className="studio-split-list">
-            {visible.map((client) => (
-              <button
-                key={client.id}
-                type="button"
-                className={client.id === selected.id ? "is-on" : undefined}
-                onClick={() => setSelectedId(client.id)}
-              >
-                <b>{client.name}</b>
-                <p>{client.organization || client.email}</p>
+            <div className="studio-ask-foot">
+              <button type="submit" className="studio-today-go" disabled={createClient.isPending}>
+                {createClient.isPending ? "adding…" : "add"}
               </button>
-            ))}
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={importing}
+        onOpenChange={(open) => {
+          setImporting(open);
+          if (!open) setCsv("");
+        }}
+      >
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask is-soft" hideClose>
+          <div className="studio-task-head">
+            <DialogClose className="studio-task-close" aria-label="Close">
+              <X aria-hidden="true" />
+            </DialogClose>
           </div>
-          <div className="studio-split-pane">
-            <h2>{selected.name}</h2>
-            <p className="studio-muted">{selected.type.replaceAll("_", " ")}</p>
-            <dl className="studio-wait-card" style={{ marginTop: 16, boxShadow: "none" }}>
-              <div>
-                <dt>email</dt>
-                <dd>{selected.email}</dd>
-              </div>
-              {selected.phone ? (
-                <div>
-                  <dt>phone</dt>
-                  <dd>{selected.phone}</dd>
-                </div>
-              ) : null}
-              {selected.organization ? (
-                <div>
-                  <dt>house</dt>
-                  <dd>{selected.organization}</dd>
-                </div>
-              ) : null}
-              {selected.source ? (
-                <div>
-                  <dt>source</dt>
-                  <dd>{selected.source}</dd>
-                </div>
-              ) : null}
-              {selected.notes ? (
-                <div>
-                  <dt>notes</dt>
-                  <dd>{selected.notes}</dd>
-                </div>
-              ) : null}
-            </dl>
-            <Link to="/clients/$id" params={{ id: slugs.get(selected.id) ?? selected.id }} className="studio-today-go" style={{ marginTop: 16 }}>
-              open record
-            </Link>
-          </div>
-        </div>
-      ) : null}
+          <DialogTitle className="sr-only">import from notion</DialogTitle>
+          <DialogDescription className="sr-only">
+            paste a csv exported from the notion client directory.
+          </DialogDescription>
+          <form
+            className="studio-task-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const contacts = parseNotionCsv(csv);
+              if (contacts.length === 0) {
+                toast.error("that csv needs name and email columns");
+                return;
+              }
+              bringIn.mutate(contacts);
+            }}
+          >
+            <p className="studio-ask-hint">
+              export the notion directory as csv. name and email are enough. phone and organization come along when
+              they’re there.
+            </p>
+            <label className="studio-field">
+              <span>csv</span>
+              <textarea
+                className="studio-textarea"
+                value={csv}
+                placeholder="name,email,phone,organization"
+                onChange={(event) => setCsv(event.target.value)}
+              />
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="sr-only"
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                setCsv(await file.text());
+                event.target.value = "";
+              }}
+            />
+            <div className="studio-ask-foot is-pair is-spread">
+              <button type="button" className="studio-ghost" onClick={() => fileRef.current?.click()}>
+                choose a file
+              </button>
+              <button type="submit" className="studio-today-go" disabled={bringIn.isPending || !csv.trim()}>
+                {bringIn.isPending ? "importing…" : "import"}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

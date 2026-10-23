@@ -21,7 +21,7 @@ export function InquireScene({
   const nearRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scroll) return;
+    if (scroll || tone === "pearl") return;
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
@@ -71,7 +71,7 @@ export function InquireScene({
       scene?.removeEventListener("pointerleave", onLeave);
       cancelAnimationFrame(raf);
     };
-  }, [scroll]);
+  }, [scroll, tone]);
 
   return (
     <div

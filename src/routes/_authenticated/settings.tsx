@@ -1,31 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { StudioChip, StudioHeading } from "@/components/portal/studio";
+import { CalendarHours } from "@/components/portal/CalendarHours";
+import { StudioChip } from "@/components/portal/studio";
 import {
-  beginGmailOAuth,
   beginGoogleOAuth,
   beginSquareOAuth,
   deactivateTeamMember,
-  disconnectGmail,
+  disconnectGoogle,
   getGmailStatus,
   inviteTeamMember,
   listAdminSettings,
-  refreshGmail,
 } from "@/lib/os/settings.functions";
 import { getDevPreviewSettings } from "@/lib/dev-preview";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
-
-const views = [
-  { id: "stack", label: "stack" },
-  { id: "columns", label: "columns" },
-  { id: "tabs", label: "tabs" },
-] as const;
 
 const searchSchema = z.object({
   integration: z.enum(["square", "google", "gmail"]).optional(),
@@ -41,26 +34,25 @@ export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
 });
 
+const sections = [
+  { id: "hours", label: "hours", blurb: "when the meeting page is open." },
+  { id: "connections", label: "connections", blurb: "google and square." },
+  { id: "people", label: "people", blurb: "who can come into the studio." },
+  { id: "health", label: "health", blurb: "failures, venues, and vendors." },
+] as const;
+
+type SettingsSection = (typeof sections)[number]["id"];
+
 const providers = [
   {
-    id: "gmail",
-    name: "gmail",
-    description: "read and send as Sukii. tokens stay encrypted on the server.",
+    id: "google",
+    name: "google",
+    description: "one sign-in for calendar, gmail, and drive.",
   },
   {
     id: "square",
     name: "square",
     description: "deposit checkout links and payment status.",
-  },
-  {
-    id: "google",
-    name: "google calendar",
-    description: "project dates synced to the studio calendar.",
-  },
-  {
-    id: "resend",
-    name: "resend",
-    description: "inquiry notifications and proposal delivery.",
   },
 ] as const;
 
@@ -77,8 +69,8 @@ function formatSeen(value: string | null | undefined) {
 
 function SettingsPage() {
   const { profile } = Route.useRouteContext();
-  const { view, integration, status } = Route.useSearch();
-  const layout = view ?? "stack";
+  const { integration, status } = Route.useSearch();
+  const [open, setOpen] = useState<SettingsSection | null>(null);
   const devPreview = useDevPreview();
   const isAdmin = profile.role === "admin";
   const queryClient = useQueryClient();
@@ -87,13 +79,10 @@ function SettingsPage() {
   const deactivate = useServerFn(deactivateTeamMember);
   const connectSquare = useServerFn(beginSquareOAuth);
   const connectGoogle = useServerFn(beginGoogleOAuth);
-  const connectGmail = useServerFn(beginGmailOAuth);
   const fetchGmail = useServerFn(getGmailStatus);
-  const disconnectGmailFn = useServerFn(disconnectGmail);
-  const refreshGmailFn = useServerFn(refreshGmail);
+  const disconnectGoogleFn = useServerFn(disconnectGoogle);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "team">("team");
-  const [tab, setTab] = useState<"connections" | "access" | "health">("connections");
 
   const { data, isPending } = useQuery({
     queryKey: ["os", "admin-settings", devPreview],
@@ -127,7 +116,7 @@ function SettingsPage() {
   useEffect(() => {
     if (!integration || !status) return;
     const provider =
-      integration === "square" ? "Square" : integration === "gmail" ? "Gmail" : "Google Calendar";
+      integration === "square" ? "Square" : "Google";
     if (status === "connected") toast.success(`${provider} connected`);
     else toast.error(`${provider} could not be connected`);
     window.history.replaceState({}, "", "/settings");
@@ -176,7 +165,10 @@ function SettingsPage() {
       return connectSquare();
     },
     onSuccess: ({ redirectTo }) => window.location.assign(redirectTo),
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (error.message === "Preview mode") return;
+      toast.error(error.message);
+    },
   });
 
   const googleOAuth = useMutation({
@@ -188,48 +180,28 @@ function SettingsPage() {
       return connectGoogle();
     },
     onSuccess: ({ redirectTo }) => window.location.assign(redirectTo),
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const gmailOAuth = useMutation({
-    mutationFn: () => connectGmail(),
-    onSuccess: (result) => {
-      if (!result.redirectTo) {
-        toast.error(result.error ?? "Gmail could not be connected");
-        return;
-      }
-      window.location.assign(result.redirectTo);
+    onError: (error: Error) => {
+      if (error.message === "Preview mode") return;
+      toast.error(error.message);
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Gmail could not be connected"),
   });
 
-  const gmailDisconnect = useMutation({
-    mutationFn: () => disconnectGmailFn(),
-    onSuccess: (result) => {
-      if (!result.status) {
-        toast.error(result.error ?? "Gmail could not be disconnected");
-        return;
+  const googleDisconnect = useMutation({
+    mutationFn: () => {
+      if (devPreview) {
+        toast.message("Preview mode — Google stays disconnected");
+        return Promise.reject(new Error("Preview mode"));
       }
-      toast.success("Gmail disconnected");
+      return disconnectGoogleFn();
+    },
+    onSuccess: () => {
+      toast.success("Google disconnected");
       void refresh();
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Gmail could not be disconnected"),
-  });
-
-  const gmailRefresh = useMutation({
-    mutationFn: () => refreshGmailFn(),
-    onSuccess: (result) => {
-      if (!result.status) {
-        toast.error(result.error ?? "Gmail token could not be refreshed");
-        return;
-      }
-      toast.success("Gmail token refreshed");
-      void refresh();
+    onError: (error: Error) => {
+      if (error.message === "Preview mode") return;
+      toast.error(error.message);
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Gmail token could not be refreshed"),
   });
 
   function submitInvite(event: FormEvent<HTMLFormElement>) {
@@ -240,16 +212,15 @@ function SettingsPage() {
   if (!isAdmin) {
     return (
       <div className="studio-page">
-        <StudioHeading title="settings" note="studio access is managed by admin users." />
+        <div className="studio-page">
+          <p className="studio-kicker">studio</p>
+          <h1>settings</h1>
+          <p>studio access is managed by admin users.</p>
+        </div>
       </div>
     );
   }
 
-  const gmailNotice =
-    (gmailOAuth.data && !gmailOAuth.data.redirectTo ? gmailOAuth.data.error : null) ??
-    (gmailDisconnect.data && !gmailDisconnect.data.status ? gmailDisconnect.data.error : null) ??
-    (gmailRefresh.data && !gmailRefresh.data.status ? gmailRefresh.data.error : null) ??
-    (gmailOAuth.error instanceof Error ? gmailOAuth.error.message : null);
   const connections = data?.connections ?? [];
   const members = data?.members ?? [];
   const pendingInvites = data?.invites ?? [];
@@ -263,84 +234,70 @@ function SettingsPage() {
           <h2>connected services</h2>
         </div>
       </div>
-      <div className="studio-tiles" style={{ marginTop: 16 }}>
+      <div className="studio-connect-list">
         {providers.map((provider) => {
-          const connection = connections.find((item) => item.provider === provider.id);
-          const connectionStatus = connection?.status ?? "disconnected";
-          const gmailBusy =
-            gmailOAuth.isPending || gmailDisconnect.isPending || gmailRefresh.isPending;
+          const stored = connections.find((item) => item.provider === provider.id);
+          const gmail = connections.find((item) => item.provider === "gmail");
+          const linked = provider.id === "google" && gmail?.status === "connected";
+          const connectionStatus = linked ? "connected" : (stored?.status ?? "disconnected");
+          const accountEmail =
+            provider.id === "google"
+              ? (gmail && "account_email" in gmail ? gmail.account_email : null) ??
+                (stored?.metadata &&
+                typeof stored.metadata === "object" &&
+                !Array.isArray(stored.metadata) &&
+                typeof stored.metadata.account_email === "string"
+                  ? stored.metadata.account_email
+                  : null)
+              : null;
           const pending =
             provider.id === "square"
               ? squareOAuth.isPending
-              : provider.id === "google"
-                ? googleOAuth.isPending
-                : provider.id === "gmail"
-                  ? gmailBusy
-                  : false;
-          const accountEmail =
-            connection && "account_email" in connection
-              ? (connection as { account_email?: string | null }).account_email
-              : null;
+              : googleOAuth.isPending || googleDisconnect.isPending;
+          const updatedAt = linked ? (gmail?.updated_at ?? stored?.updated_at) : stored?.updated_at;
           return (
-            <article key={provider.id} className="studio-tile">
-              <div className="studio-wait-top">
-                <b>{provider.name}</b>
-                <StudioChip tone={connectionStatus === "connected" ? "late" : connectionStatus === "error" ? "due" : "soft"}>
-                  {connectionStatus}
-                </StudioChip>
+            <article key={provider.id} className="studio-connect-row">
+              <div>
+                <div className="studio-connect-name">
+                  <b>{provider.name}</b>
+                  <span
+                    className={cn(
+                      "studio-connect-status",
+                      connectionStatus === "connected" && "is-on",
+                      connectionStatus === "error" && "is-due",
+                    )}
+                  >
+                    {connectionStatus}
+                  </span>
+                </div>
+                <p>{provider.description}</p>
+                {accountEmail ? <p>{accountEmail}</p> : null}
+                <p className="studio-connect-seen">updated {formatSeen(updatedAt)}</p>
               </div>
-              <p>{provider.description}</p>
-              {provider.id === "gmail" && accountEmail ? <p>{accountEmail}</p> : null}
-              {provider.id === "gmail" && gmailNotice ? <p>{gmailNotice}</p> : null}
-              <p>updated {formatSeen(connection?.updated_at)}</p>
-              {provider.id === "square" || provider.id === "google" ? (
+              <div className="studio-connect-go">
                 <button
                   type="button"
                   className="studio-today-go"
-                  style={{ marginTop: 12 }}
                   disabled={pending}
                   onClick={() => (provider.id === "square" ? squareOAuth.mutate() : googleOAuth.mutate())}
                 >
-                  {pending ? "redirecting…" : connectionStatus === "connected" ? "reconnect" : "connect"}
+                  {pending && (provider.id === "square" ? squareOAuth.isPending : googleOAuth.isPending)
+                    ? "redirecting…"
+                    : connectionStatus === "connected"
+                      ? "reconnect"
+                      : "connect"}
                 </button>
-              ) : provider.id === "gmail" ? (
-                <div className="studio-views" style={{ marginTop: 12 }}>
+                {provider.id === "google" && connectionStatus === "connected" ? (
                   <button
                     type="button"
-                    className="studio-today-go"
+                    className="studio-ghost"
                     disabled={pending}
-                    onClick={() => gmailOAuth.mutate()}
+                    onClick={() => googleDisconnect.mutate()}
                   >
-                    {gmailOAuth.isPending
-                      ? "redirecting…"
-                      : connectionStatus === "connected"
-                        ? "reconnect"
-                        : "connect gmail"}
+                    {googleDisconnect.isPending ? "disconnecting…" : "disconnect"}
                   </button>
-                  {connectionStatus !== "disconnected" ? (
-                    <button
-                      type="button"
-                      className="studio-ghost"
-                      disabled={pending}
-                      onClick={() => gmailDisconnect.mutate()}
-                    >
-                      {gmailDisconnect.isPending ? "disconnecting…" : "disconnect"}
-                    </button>
-                  ) : null}
-                  {connectionStatus === "connected" ? (
-                    <button
-                      type="button"
-                      className="studio-ghost"
-                      disabled={pending}
-                      onClick={() => gmailRefresh.mutate()}
-                    >
-                      {gmailRefresh.isPending ? "refreshing…" : "refresh token"}
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <p>configured on the server.</p>
-              )}
+                ) : null}
+              </div>
             </article>
           );
         })}
@@ -441,59 +398,52 @@ function SettingsPage() {
       <p className="studio-muted" style={{ marginTop: 18 }}>
         default deposits stay on the server for v1. proposal-specific amounts are set when you send.
       </p>
-      <Link to="/settings/directories" className="auth-text-action" style={{ marginTop: 12, display: "inline-flex" }}>
-        venues and vendors
+      <Link to="/shelf" className="auth-text-action" style={{ marginTop: 12, display: "inline-flex" }}>
+        shelf
       </Link>
     </section>
   );
 
-  const sections: Record<"connections" | "access" | "health", ReactNode> = {
-    connections: connectionsBlock,
-    access: accessBlock,
-    health: healthBlock,
-  };
+  function panelFor(id: SettingsSection) {
+    if (id !== "hours" && isPending) return <p className="studio-empty">gathering…</p>;
+    if (id === "hours") return <CalendarHours />;
+    if (id === "connections") return connectionsBlock;
+    if (id === "people") return accessBlock;
+    return healthBlock;
+  }
 
   return (
-    <div className="studio-page">
-      <StudioHeading title="settings" note="access, connections, and the health of the studio." />
-      <nav className="studio-views" aria-label="layout versions">
-        {views.map((item) => (
-          <Link key={item.id} to="/settings" search={{ view: item.id }} className={cn(layout === item.id && "is-on")}>
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-
-      {isPending ? <p className="studio-empty">gathering…</p> : null}
-
-      {layout === "stack" ? (
-        <div className="studio-stack">
-          {connectionsBlock}
-          {accessBlock}
-          {healthBlock}
+    <div className="studio-home studio-settings">
+      <header className="studio-home-hello">
+        <div>
+          <p className="studio-kicker">studio</p>
+          <h1>settings</h1>
+          <p>hours, connections, and who can come in.</p>
         </div>
-      ) : null}
+      </header>
 
-      {layout === "columns" ? (
-        <div className="studio-settings-cols">
-          {connectionsBlock}
-          {accessBlock}
-          <div style={{ gridColumn: "1 / -1" }}>{healthBlock}</div>
-        </div>
-      ) : null}
-
-      {layout === "tabs" ? (
-        <>
-          <div className="studio-tabs">
-            {(["connections", "access", "health"] as const).map((id) => (
-              <button key={id} type="button" className={tab === id ? "is-on" : undefined} onClick={() => setTab(id)}>
-                {id}
-              </button>
-            ))}
-          </div>
-          {sections[tab]}
-        </>
-      ) : null}
+      <div className="studio-settings-index">
+        {sections.map((item) => {
+          const isOpen = open === item.id;
+          return (
+            <section key={item.id} className={isOpen ? "studio-settings-fold is-open" : "studio-settings-fold"}>
+              <h2>
+                <button
+                  type="button"
+                  className="studio-settings-fold-toggle"
+                  aria-expanded={isOpen}
+                  onClick={() => setOpen(isOpen ? null : item.id)}
+                >
+                  <b>{item.label}</b>
+                  <span>{item.blurb}</span>
+                  <em aria-hidden="true" />
+                </button>
+              </h2>
+              {isOpen ? <div className="studio-settings-fold-body">{panelFor(item.id)}</div> : null}
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

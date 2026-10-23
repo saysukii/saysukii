@@ -12,9 +12,18 @@ import type {
   VenueRow,
 } from "@/integrations/supabase/types";
 import { buildAgreementContent } from "@/lib/agreement-templates";
-import { renderAgreementPdf, renderInvoicePdf, renderProposalPdf } from "@/lib/pdf.server";
+import {
+  courtesyFromNotes,
+  floralPackageName,
+  invoiceBookingLine,
+  invoiceDateLabel,
+  invoiceSharedDate,
+  statementFromNotes,
+  statementNotes,
+  statementOfWork,
+} from "@/lib/floral-agreement";
+import { renderAgreementPdf, renderInvoicePdf } from "@/lib/pdf.server";
 import { createPublicToken, hashToken } from "./crypto.server";
-import { emailFrame, escapeHtml, sendStudioEmail } from "./email.server";
 import { createSquarePaymentLink } from "./square.server";
 import { syncInquiryAutoTaskFor } from "@/lib/os/tasks.functions";
 import { refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
@@ -188,68 +197,211 @@ export const saveProposal = createServerFn({ method: "POST" })
     return { id: proposalId };
   });
 
+const statementInput = z.object({
+  flowers: z.string().max(500),
+  delivery: z.string().max(500),
+  taxes: z.string().max(500),
+  rentals: z.string().max(500),
+  rentalDeposit: z.string().max(500),
+  eventWhen: z.string().max(500),
+  occasion: z.string().max(500),
+  venue: z.string().max(500),
+});
+
+const importInput = z.object({
+  inquiry_id: z.string().uuid(),
+  total_cents: z.number().int().positive().max(100_000_000),
+  deposit_percent: z.number().min(1).max(100).default(50),
+  file_name: z.string().trim().min(1).max(200),
+  pdf_base64: z.string().min(20).max(12_000_000),
+  statement: statementInput.optional(),
+  courtesy_cents: z.number().int().min(0).max(100_000_000).default(0),
+});
+
+export const importProposalPdf = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((input: unknown) => importInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const inquiryResult = await context.supabase
+      .from("inquiries")
+      .select("id, client_id, event_date, venue_id, venue_text")
+      .eq("id", data.inquiry_id)
+      .eq("archived", false)
+      .single();
+    if (inquiryResult.error) throw new Error(inquiryResult.error.message);
+    const inquiry = inquiryResult.data;
+
+    const bytes = Buffer.from(data.pdf_base64, "base64");
+    if (bytes.length < 5 || bytes.subarray(0, 4).toString() !== "%PDF") {
+      throw new Error("Choose the proposal PDF.");
+    }
+    if (bytes.length > 8 * 1024 * 1024) throw new Error("That PDF is larger than 8MB.");
+
+    const existing = await context.supabase
+      .from("proposals")
+      .select("id, number, status, access_token")
+      .eq("inquiry_id", inquiry.id)
+      .eq("archived", false)
+      .maybeSingle();
+    if (existing.error) throw new Error(existing.error.message);
+    if (existing.data?.status === "accepted") throw new Error("This proposal is already accepted.");
+
+    const deposit = Math.round(data.total_cents * (data.deposit_percent / 100));
+    const courtesy = Math.min(data.courtesy_cents, data.total_cents);
+    const listCents = data.total_cents + courtesy;
+    const notes = data.statement ? statementNotes(statementOfWork(data.statement), courtesy) : null;
+    const venueText = data.statement?.venue.trim() || inquiry.venue_text;
+    let proposalId = existing.data?.id ?? "";
+    let number = existing.data?.number ?? "";
+    let tokenValue = existing.data?.access_token ?? "";
+
+    if (!proposalId) {
+      const { data: nextNumber, error: numberError } = await supabaseAdmin.rpc("next_proposal_number");
+      if (numberError) throw new Error(numberError.message);
+      number = nextNumber;
+      const created = createPublicToken();
+      tokenValue = created.token;
+      const { data: proposal, error } = await context.supabase
+        .from("proposals")
+        .insert({
+          number,
+          client_id: inquiry.client_id,
+          inquiry_id: inquiry.id,
+          event_date: inquiry.event_date,
+          venue_id: inquiry.venue_id,
+          venue_text: venueText,
+          subtotal_cents: listCents,
+          tax_cents: 0,
+          total_cents: data.total_cents,
+          deposit_percent: data.deposit_percent,
+          deposit_amount_cents: deposit,
+          notes,
+          access_token: tokenValue,
+          access_token_hash: created.hash,
+          access_token_prefix: created.prefix,
+          created_by: context.profile.id,
+        })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      proposalId = proposal.id;
+    } else if (!tokenValue) {
+      const created = createPublicToken();
+      tokenValue = created.token;
+      const { error } = await context.supabase
+        .from("proposals")
+        .update({
+          access_token: tokenValue,
+          access_token_hash: created.hash,
+          access_token_prefix: created.prefix,
+        })
+        .eq("id", proposalId);
+      if (error) throw new Error(error.message);
+    }
+
+    const pdfPath = `${proposalId}/proposal-${number}.pdf`;
+    await uploadDocument(pdfPath, bytes);
+    const patch: {
+      event_date: string | null;
+      venue_id: string | null;
+      venue_text: string | null;
+      subtotal_cents: number;
+      tax_cents: number;
+      total_cents: number;
+      deposit_percent: number;
+      deposit_amount_cents: number;
+      pdf_path: string;
+      notes?: string | null;
+      status?: "draft";
+      declined_at?: null;
+      declined_reason?: null;
+    } = {
+      event_date: inquiry.event_date,
+      venue_id: inquiry.venue_id,
+      venue_text: venueText,
+      subtotal_cents: listCents,
+      tax_cents: 0,
+      total_cents: data.total_cents,
+      deposit_percent: data.deposit_percent,
+      deposit_amount_cents: deposit,
+      pdf_path: pdfPath,
+      notes,
+    };
+    if (existing.data?.status === "declined") {
+      patch.status = "draft";
+      patch.declined_at = null;
+      patch.declined_reason = null;
+    }
+    const { error: updateError } = await context.supabase.from("proposals").update(patch).eq("id", proposalId);
+    if (updateError) throw new Error(updateError.message);
+    await refreshInquirySummarySafe(context.supabase, inquiry.id);
+    return {
+      id: proposalId,
+      number,
+      token: tokenValue,
+      total_cents: data.total_cents,
+      deposit_amount_cents: deposit,
+    };
+  });
+
 export const sendProposal = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const bundle = await loadProposalBundleById(data.id);
-    if (bundle.proposal.status !== "draft") throw new Error("Only drafts can be sent");
-    if (!bundle.proposal.event_date) throw new Error("Add an event date before sending");
+    if (!bundle.proposal.pdf_path) throw new Error("Import the proposal PDF before sending.");
+    if (!["draft", "sent", "viewed"].includes(bundle.proposal.status)) {
+      throw new Error("This proposal can no longer be sent.");
+    }
 
-    const token = createPublicToken();
-    const pdf = await renderProposal(bundle);
-    const pdfPath = `${bundle.proposal.id}/proposal-${bundle.proposal.number}.pdf`;
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from("documents")
-      .upload(pdfPath, pdf, { contentType: "application/pdf", upsert: true });
-    if (uploadError) throw new Error(uploadError.message);
+    let tokenValue = bundle.proposal.access_token;
+    if (!tokenValue) {
+      const created = createPublicToken();
+      tokenValue = created.token;
+      const { error } = await supabaseAdmin
+        .from("proposals")
+        .update({
+          access_token: tokenValue,
+          access_token_hash: created.hash,
+          access_token_prefix: created.prefix,
+        })
+        .eq("id", bundle.proposal.id);
+      if (error) throw new Error(error.message);
+    }
 
-    const sentAt = new Date().toISOString();
-    const { error } = await supabaseAdmin
-      .from("proposals")
-      .update({
-        status: "sent",
-        access_token_hash: token.hash,
-        access_token_prefix: token.prefix,
-        pdf_path: pdfPath,
-        sent_at: sentAt,
-      })
-      .eq("id", bundle.proposal.id);
-    if (error) throw new Error(error.message);
-    await supabaseAdmin
-      .from("inquiries")
-      .update({ status: "proposal_sent", proposal_sent_at: sentAt })
-      .eq("id", bundle.proposal.inquiry_id);
-    await syncInquiryAutoTaskFor(supabaseAdmin, bundle.proposal.inquiry_id);
-    await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
+    if (bundle.proposal.status === "draft") {
+      const sentAt = new Date().toISOString();
+      const { error } = await supabaseAdmin
+        .from("proposals")
+        .update({ status: "sent", sent_at: sentAt })
+        .eq("id", bundle.proposal.id);
+      if (error) throw new Error(error.message);
+      await supabaseAdmin
+        .from("inquiries")
+        .update({ status: "proposal_sent", proposal_sent_at: sentAt })
+        .eq("id", bundle.proposal.inquiry_id);
+      await syncInquiryAutoTaskFor(supabaseAdmin, bundle.proposal.inquiry_id);
+      await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
+    }
 
-    const url = `${appUrl()}/proposal/${token.token}`;
-    await sendStudioEmail({
-      to: bundle.client.email,
-      subject: `Your Say Sukii proposal · ${bundle.proposal.number}`,
-      eventType: "proposal_sent",
-      referenceType: "proposal",
-      referenceId: bundle.proposal.id,
-      html: emailFrame(
-        "Your proposal is ready.",
-        `<p>Hi ${escapeHtml(bundle.client.name)},</p><p>Your Say Sukii floral proposal is ready to view.</p>`,
-        { label: "View your proposal", url },
-      ),
-    });
-    return { url };
+    return { url: `${appUrl()}/proposal/${tokenValue}` };
   });
 
 export const getPublicProposal = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => z.object({ token: z.string().min(32) }).parse(input))
   .handler(async ({ data }) => {
     const bundle = await loadProposalBundleByToken(data.token);
-    if (!bundle.proposal.viewed_at) {
+    if (bundle.proposal.status !== "draft") {
+      const viewedAt = new Date().toISOString();
+      const wasSent = bundle.proposal.status === "sent";
+      const nextStatus = wasSent ? "viewed" : bundle.proposal.status;
       await supabaseAdmin
         .from("proposals")
-        .update({ status: "viewed", viewed_at: new Date().toISOString() })
-        .eq("id", bundle.proposal.id)
-        .is("viewed_at", null);
-      void refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
+        .update({ status: nextStatus, viewed_at: viewedAt })
+        .eq("id", bundle.proposal.id);
+      if (wasSent) void refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
+      bundle.proposal.status = nextStatus;
+      bundle.proposal.viewed_at = viewedAt;
     }
     const pdfUrl = bundle.proposal.pdf_path
       ? (
@@ -258,6 +410,18 @@ export const getPublicProposal = createServerFn({ method: "GET" })
             .createSignedUrl(bundle.proposal.pdf_path, 60 * 15)
         ).data?.signedUrl
       : null;
+    const [{ data: agreement }, { data: invoice }] = await Promise.all([
+      supabaseAdmin
+        .from("agreements")
+        .select("content, signed_name, signed_at")
+        .eq("proposal_id", bundle.proposal.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("invoices")
+        .select("amount_cents, status, square_payment_link")
+        .eq("proposal_id", bundle.proposal.id)
+        .maybeSingle(),
+    ]);
     return {
       proposal: publicProposal(bundle.proposal),
       client: { name: bundle.client.name },
@@ -272,6 +436,16 @@ export const getPublicProposal = createServerFn({ method: "GET" })
         }),
       ),
       pdfUrl,
+      agreement: agreement
+        ? { content: agreement.content, signedName: agreement.signed_name, signedAt: agreement.signed_at }
+        : null,
+      invoice: invoice
+        ? {
+            amountCents: invoice.amount_cents,
+            status: invoice.status,
+            paymentLink: invoice.square_payment_link,
+          }
+        : null,
     };
   });
 
@@ -280,116 +454,130 @@ export const acceptPublicProposal = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const bundle = await loadProposalBundleByToken(data.token);
     if (!["sent", "viewed"].includes(bundle.proposal.status)) {
-      if (bundle.proposal.status === "accepted") return existingAcceptance(bundle.proposal.id);
+      if (bundle.proposal.status === "accepted") {
+        const { data: agreement } = await supabaseAdmin
+          .from("agreements")
+          .select("content, signed_name")
+          .eq("proposal_id", bundle.proposal.id)
+          .maybeSingle();
+        return { accepted: true, agreement: agreement?.content ?? "", signedName: agreement?.signed_name ?? null };
+      }
       throw new Error("This proposal can no longer be accepted");
     }
-    if (!bundle.proposal.event_date) throw new Error("The proposal needs an event date");
 
     const acceptedAt = new Date().toISOString();
-    await supabaseAdmin
+    const { error: acceptError } = await supabaseAdmin
       .from("proposals")
       .update({ status: "accepted", accepted_at: acceptedAt })
       .eq("id", bundle.proposal.id);
+    if (acceptError) throw new Error(acceptError.message);
     await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
 
-    const agreementContent = buildAgreementContent("standard", {
-      clientName: bundle.client.name,
-      contactName: null,
-      projectTitle: eventLabel(bundle.inquiry.event_type),
-      eventDate: bundle.proposal.event_date,
-      venue: bundle.venue?.name ?? bundle.proposal.venue_text,
-      totalCents: bundle.proposal.total_cents,
-      depositCents: bundle.proposal.deposit_amount_cents,
-      proposalNumber: bundle.proposal.number,
-    });
-    const { data: invoiceNumber, error: numberError } =
-      await supabaseAdmin.rpc("next_invoice_number");
-    if (numberError) throw new Error(numberError.message);
-
-    const [agreementPdf, invoicePdf] = await Promise.all([
-      renderAgreementPdf({
-        meta: documentMeta(bundle, "Agreement", bundle.proposal.number),
-        typeLabel: "Standard Service Agreement",
-        version: 1,
-        content: agreementContent,
-      }),
-      renderInvoicePdf({
-        meta: documentMeta(bundle, "Invoice", invoiceNumber),
-        items: pdfItems(bundle.items),
-        amountCents: bundle.proposal.total_cents,
-        depositCents: bundle.proposal.deposit_amount_cents,
-        balanceCents: bundle.proposal.total_cents - bundle.proposal.deposit_amount_cents,
-        dueDate: null,
-        paymentLink: null,
-      }),
-    ]);
-    const agreementPath = `${bundle.proposal.id}/agreement-${bundle.proposal.number}.pdf`;
-    const invoicePath = `${bundle.proposal.id}/invoice-${invoiceNumber}.pdf`;
-    await uploadDocument(agreementPath, agreementPdf);
-    await uploadDocument(invoicePath, invoicePdf);
-
-    await supabaseAdmin.from("agreements").upsert(
+    const agreementContent = agreementFor(bundle);
+    const { error } = await supabaseAdmin.from("agreements").upsert(
       {
         proposal_id: bundle.proposal.id,
         content: agreementContent,
         version: 1,
-        pdf_path: agreementPath,
       },
       { onConflict: "proposal_id" },
     );
-    const { data: invoice, error: invoiceError } = await supabaseAdmin
-      .from("invoices")
-      .upsert(
-        {
-          proposal_id: bundle.proposal.id,
-          number: invoiceNumber,
-          amount_cents: bundle.proposal.deposit_amount_cents,
-          status: "unpaid",
-          pdf_path: invoicePath,
-        },
-        { onConflict: "proposal_id" },
-      )
-      .select("*")
-      .single();
-    if (invoiceError) throw new Error(invoiceError.message);
+    if (error) throw new Error(error.message);
+    return { accepted: true, agreement: agreementContent, signedName: null };
+  });
 
-    let paymentLink: string | null = null;
-    try {
-      const square = await createSquarePaymentLink({
-        idempotencyKey: `proposal-${bundle.proposal.id}`,
-        label: `Say Sukii deposit · ${bundle.proposal.number}`,
-        amountCents: bundle.proposal.deposit_amount_cents,
-      });
-      paymentLink = square.url;
-      await supabaseAdmin
-        .from("invoices")
-        .update({ square_payment_link: square.url, square_order_id: square.orderId })
-        .eq("id", invoice.id);
-    } catch (error) {
-      await supabaseAdmin.from("integration_events").insert({
-        provider: "square",
-        event_type: "payment_link_create",
-        status: "failed",
-        reference_type: "proposal",
-        reference_id: bundle.proposal.id,
-        error_message: error instanceof Error ? error.message : String(error),
-        attempts: 1,
-      });
-    }
+export const signPublicAgreement = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        token: z.string().min(32),
+        signature: z.string().startsWith("data:image/png;base64,").max(600_000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const bundle = await loadProposalBundleByToken(data.token);
+    if (bundle.proposal.status !== "accepted") throw new Error("Accept the proposal before signing.");
+    const { data: agreement, error: agreementError } = await supabaseAdmin
+      .from("agreements")
+      .select("id, content, signed_name")
+      .eq("proposal_id", bundle.proposal.id)
+      .maybeSingle();
+    if (agreementError) throw new Error(agreementError.message);
+    if (!agreement) throw new Error("The agreement is not ready yet.");
 
-    await sendStudioEmail({
-      to: bundle.client.email,
-      subject: `Your Say Sukii agreement and deposit · ${bundle.proposal.number}`,
-      eventType: "proposal_accepted",
-      referenceType: "proposal",
-      referenceId: bundle.proposal.id,
-      html: emailFrame(
-        "Your date is almost reserved.",
-        "<p>Thank you for accepting your proposal. Complete the deposit to move your event into production.</p>",
-        paymentLink ? { label: "Pay the deposit", url: paymentLink } : undefined,
-      ),
+    const signedAt = new Date().toISOString();
+    const content = agreement.signed_name
+      ? agreement.content
+      : `${agreement.content}\n\nSigned on ${signedAt.slice(0, 10)}`;
+    const agreementPdf = await renderAgreementPdf({
+      meta: documentMeta(bundle, "Agreement", bundle.proposal.number),
+      typeLabel: "Standard Service Agreement",
+      version: 1,
+      content,
     });
-    return { accepted: true, paymentLink };
+    const agreementPath = `${bundle.proposal.id}/agreement-${bundle.proposal.number}.pdf`;
+    await uploadDocument(agreementPath, agreementPdf);
+    const { error: signError } = await supabaseAdmin
+      .from("agreements")
+      .update({
+        content,
+        pdf_path: agreementPath,
+        signed_name: agreement.signed_name ?? data.signature,
+        signed_at: signedAt,
+      })
+      .eq("id", agreement.id);
+    if (signError) throw new Error(signError.message);
+
+    const paymentLink = await ensureDepositInvoice(bundle);
+    return { signed: true, paymentLink, amountCents: bundle.proposal.deposit_amount_cents };
+  });
+
+export const requestProposalChanges = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({ token: z.string().min(32), note: z.string().trim().min(1).max(2000) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const bundle = await loadProposalBundleByToken(data.token);
+    if (!["sent", "viewed"].includes(bundle.proposal.status)) {
+      throw new Error("This proposal can no longer take a change request.");
+    }
+    const { sendChangeRequestEmail } = await import("@/lib/os/change-request-email.server");
+    const inquiry = bundle.inquiry;
+    await sendChangeRequestEmail({
+      clientName: bundle.client.name,
+      clientEmail: bundle.client.email,
+      eventDate: bundle.proposal.event_date,
+      place: bundle.proposal.venue_text || inquiry.venue_text,
+      investment: inquiry.budget_range,
+      note: data.note,
+    });
+    return { sent: true };
+  });
+
+export const sendChangeRequestNotice = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        clientName: z.string().trim().min(1).max(160),
+        clientEmail: z.string().trim().email().nullable().optional(),
+        eventDate: z.string().trim().max(80).nullable().optional(),
+        place: z.string().trim().max(240).nullable().optional(),
+        investment: z.string().trim().max(80).nullable().optional(),
+        note: z.string().trim().min(1).max(2000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { sendChangeRequestEmail } = await import("@/lib/os/change-request-email.server");
+    return sendChangeRequestEmail({
+      clientName: data.clientName,
+      clientEmail: data.clientEmail ?? null,
+      eventDate: data.eventDate ?? null,
+      place: data.place ?? null,
+      investment: data.investment ?? null,
+      note: data.note,
+    });
   });
 
 export const declinePublicProposal = createServerFn({ method: "POST" })
@@ -471,6 +659,7 @@ function publicProposal(proposal: ProposalRow) {
     vision_board_url: proposal.vision_board_url,
     notes: proposal.notes,
     valid_until: proposal.valid_until,
+    sent_at: proposal.sent_at,
     status: proposal.status,
   };
 }
@@ -508,15 +697,114 @@ function pdfItems(items: ProposalLineItemRow[]) {
   }));
 }
 
-function renderProposal(bundle: ProposalBundle) {
-  return renderProposalPdf({
-    meta: documentMeta(bundle, "Proposal", bundle.proposal.number),
-    items: pdfItems(bundle.items),
-    subtotalCents: bundle.proposal.subtotal_cents,
+function agreementFor(bundle: ProposalBundle) {
+  const statement = statementFromNotes(bundle.proposal.notes);
+  return buildAgreementContent("standard", {
+    clientName: bundle.client.name,
+    contactName: null,
+    projectTitle: statement?.occasion || eventLabel(bundle.inquiry.event_type),
+    eventDate: statement?.eventWhen || bundle.proposal.event_date,
+    venue: statement?.venue || bundle.venue?.name || bundle.proposal.venue_text,
     totalCents: bundle.proposal.total_cents,
     depositCents: bundle.proposal.deposit_amount_cents,
-    essenceCount: bundle.proposal.vision_image_paths.length,
+    proposalNumber: bundle.proposal.number,
+    statement,
   });
+}
+
+async function ensureDepositInvoice(bundle: ProposalBundle) {
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from("invoices")
+    .select("id, number, square_payment_link")
+    .eq("proposal_id", bundle.proposal.id)
+    .maybeSingle();
+  if (existingError) throw new Error(existingError.message);
+  if (existing?.square_payment_link) return existing.square_payment_link;
+
+  let invoiceId = existing?.id ?? "";
+  let invoiceNumber = existing?.number ?? "";
+  if (!invoiceId) {
+    const { data: nextNumber, error: numberError } = await supabaseAdmin.rpc("next_invoice_number");
+    if (numberError) throw new Error(numberError.message);
+    invoiceNumber = nextNumber;
+    const { data: invoice, error } = await supabaseAdmin
+      .from("invoices")
+      .insert({
+        proposal_id: bundle.proposal.id,
+        number: invoiceNumber,
+        amount_cents: bundle.proposal.deposit_amount_cents,
+        status: "unpaid",
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    invoiceId = invoice.id;
+  }
+
+  let paymentLink: string | null = null;
+  try {
+    const square = await createSquarePaymentLink({
+      idempotencyKey: `proposal-${bundle.proposal.id}`,
+      label: `${bundle.proposal.deposit_amount_cents >= bundle.proposal.total_cents ? "Say Sukii" : "Say Sukii deposit"} · ${bundle.proposal.number}`,
+      amountCents: bundle.proposal.deposit_amount_cents,
+    });
+    paymentLink = square.url;
+    await supabaseAdmin
+      .from("invoices")
+      .update({ square_payment_link: square.url, square_order_id: square.orderId })
+      .eq("id", invoiceId);
+  } catch (error) {
+    await supabaseAdmin.from("integration_events").insert({
+      provider: "square",
+      event_type: "payment_link_create",
+      status: "failed",
+      reference_type: "proposal",
+      reference_id: bundle.proposal.id,
+      error_message: error instanceof Error ? error.message : String(error),
+      attempts: 1,
+    });
+  }
+
+  const statement = statementFromNotes(bundle.proposal.notes);
+  const courtesy = courtesyFromNotes(bundle.proposal.notes);
+  const occasion = statement?.occasion || eventLabel(bundle.inquiry.event_type);
+  const packageName = floralPackageName(occasion);
+  const booking = invoiceBookingLine(occasion, invoiceDateLabel(statement?.eventWhen || bundle.proposal.event_date || ""));
+  const listCents = bundle.proposal.subtotal_cents || bundle.proposal.total_cents + courtesy;
+  const items = bundle.items.length
+    ? pdfItems(bundle.items)
+    : [
+        {
+          name: booking ? `${packageName} — ${booking}` : packageName,
+          qty: 1,
+          unitPriceCents: listCents,
+          lineTotalCents: listCents,
+        },
+        ...(courtesy > 0
+          ? [
+              {
+                name: "Courtesy discount",
+                qty: 1,
+                unitPriceCents: -courtesy,
+                lineTotalCents: -courtesy,
+              },
+            ]
+          : []),
+      ];
+  const invoicePdf = await renderInvoicePdf({
+    meta: documentMeta(bundle, "Invoice", invoiceNumber),
+    items,
+    amountCents: bundle.proposal.total_cents,
+    depositCents: bundle.proposal.deposit_amount_cents,
+    balanceCents: Math.max(0, bundle.proposal.total_cents - bundle.proposal.deposit_amount_cents),
+    dueDate: null,
+    sharedOn: invoiceSharedDate(bundle.proposal.sent_at),
+    paymentLink,
+  });
+  const invoicePath = `${bundle.proposal.id}/invoice-${invoiceNumber}.pdf`;
+  await uploadDocument(invoicePath, invoicePdf);
+  await supabaseAdmin.from("invoices").update({ pdf_path: invoicePath }).eq("id", invoiceId);
+  return paymentLink;
 }
 
 async function uploadDocument(path: string, bytes: Uint8Array) {
@@ -524,15 +812,6 @@ async function uploadDocument(path: string, bytes: Uint8Array) {
     .from("documents")
     .upload(path, bytes, { contentType: "application/pdf", upsert: true });
   if (error) throw new Error(error.message);
-}
-
-async function existingAcceptance(proposalId: string) {
-  const { data } = await supabaseAdmin
-    .from("invoices")
-    .select("square_payment_link")
-    .eq("proposal_id", proposalId)
-    .maybeSingle();
-  return { accepted: true, paymentLink: data?.square_payment_link ?? null };
 }
 
 function appUrl() {

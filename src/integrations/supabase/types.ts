@@ -202,6 +202,7 @@ export type ProposalRow = {
   status: ProposalStatus;
   access_token_hash: string | null;
   access_token_prefix: string | null;
+  access_token: string | null;
   pdf_path: string | null;
   canva_design_id: string | null;
   export_pdf_ref: string | null;
@@ -238,6 +239,8 @@ export type AgreementRow = {
   content: string;
   version: number;
   pdf_path: string | null;
+  signed_name: string | null;
+  signed_at: string | null;
   created_at: string;
 };
 
@@ -379,6 +382,7 @@ export type StudioRow = {
   id: string;
   name: string;
   created_at: string;
+  calendar_settings: Json | null;
 };
 
 export type InternalNoteRow = {
@@ -421,6 +425,15 @@ export type MeetingRow = {
   summary: string | null;
   attendees: Json;
   match_status: MeetingMatchStatus;
+  created_at: string;
+};
+
+export type AppointmentRow = {
+  id: string;
+  starts_at: string;
+  guest_name: string;
+  guest_email: string;
+  note: string | null;
   created_at: string;
 };
 
@@ -509,6 +522,7 @@ export type Database = {
       canva_integration: Table<CanvaIntegrationRow>;
       granola_integration: Table<GranolaIntegrationRow>;
       meetings: Table<MeetingRow>;
+      appointments: Table<AppointmentRow>;
       inspiration_images: Table<InspirationImageRow>;
       email_integration: Table<EmailIntegrationRow>;
       inbound_messages: Table<InboundMessageRow>;

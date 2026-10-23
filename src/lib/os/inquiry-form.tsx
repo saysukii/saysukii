@@ -29,6 +29,10 @@ export type InquiryFormValues = {
   arrangement_size?: string;
   recipient?: string;
   sources?: string[];
+  space?: string;
+  space_other?: string;
+  cadence?: string;
+  cadence_other?: string;
 };
 
 export const EVENT_TYPES: Array<{ value: EventType; label: string }> = [

@@ -16,7 +16,7 @@ export const INTEREST_OPTIONS: Array<{
   { value: "weddings", label: "Weddings", eventType: "wedding" },
   { value: "events", label: "Events + activations", eventType: "brand_activation" },
   { value: "deliveries", label: "Deliveries", eventType: "other" },
-  { value: "subscriptions", label: "Subscriptions", eventType: "subscription" },
+  { value: "subscriptions", label: "concierge + Subscriptions", eventType: "subscription" },
   { value: "set_design", label: "Set design + styling", eventType: "photoshoot" },
 ];
 
@@ -41,10 +41,24 @@ export const ARRANGEMENT_SIZES = [
 ] as const;
 
 export const WEDDING_BUDGETS = [
-  { value: "Under $6,000", label: "Under $6,000" },
-  { value: "$6,000–$10,000", label: "$6,000–$10,000" },
-  { value: "$10,000–$20,000", label: "$10,000–$20,000" },
-  { value: "$20,000+", label: "$20,000+" },
+  { value: "$6,000", label: "$6,000" },
+  { value: "$6,000 - $10,000", label: "$6,000 - $10,000" },
+  { value: "$10,000 - $15,000", label: "$10,000 - $15,000" },
+  { value: "$20,000 +", label: "$20,000 +" },
+] as const;
+
+export const SPACE_OPTIONS = [
+  { value: "home", label: "home" },
+  { value: "office", label: "office" },
+  { value: "business", label: "business" },
+  { value: "other", label: "other" },
+] as const;
+
+export const CADENCE_OPTIONS = [
+  { value: "weekly", label: "weekly" },
+  { value: "bi-weekly", label: "bi-weekly" },
+  { value: "monthly", label: "monthly" },
+  { value: "other", label: "other" },
 ] as const;
 
 export const EVENT_BUDGETS = [
@@ -76,6 +90,10 @@ export const EMPTY_INQUIRY_DRAFT: InquiryFormValues = {
   arrangement_size: "",
   recipient: "",
   sources: [],
+  space: "",
+  space_other: "",
+  cadence: "",
+  cadence_other: "",
 };
 
 export function interestLabel(interest: InquiryInterest | "") {
@@ -98,7 +116,19 @@ export function mapInquiryClientType(values: InquiryFormValues): ClientType {
 }
 
 export function toInquirySubmitValues(values: InquiryFormValues): InquiryFormValues {
+  const space =
+    values.space === "other"
+      ? [values.space, values.space_other?.trim()].filter(Boolean).join(" — ")
+      : values.space;
   const details = [
+    space ? `Space: ${space}` : "",
+    values.cadence
+      ? `Cadence: ${
+          values.cadence === "other"
+            ? [values.cadence, values.cadence_other?.trim()].filter(Boolean).join(" — ")
+            : values.cadence
+        }`
+      : "",
     values.arrangement_size ? `Size: ${values.arrangement_size}` : "",
     values.event_time ? `Time: ${values.event_time}` : "",
     values.recipient ? `Recipient: ${values.recipient}` : "",

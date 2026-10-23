@@ -2,6 +2,7 @@ import type { ClientRow, EventType, InquiryStatus, ProjectRow, TaskRow } from "@
 import type { InquiryPipelineItem } from "@/lib/os/inquiries.functions";
 import { isBookInquiry } from "@/lib/os/inquiry-detection";
 import { EVENT_LABEL, daysWaiting, nextMove, waitingTone, visionNote, inquiryTime } from "@/lib/os/inquiry-desk";
+import { studioClock, studioDay } from "@/lib/studio-bookings";
 
 export type TodayAging = "fresh" | "due" | "overdue";
 
@@ -30,8 +31,17 @@ export type TodayFloorItem = {
   when: string;
   title: string;
   detail: string;
-  kind: DeskKind | "event";
+  kind: DeskKind | "event" | "talk";
   taskId?: string;
+  at?: string;
+};
+
+export type TodayTalk = {
+  id: string;
+  startsAt: string;
+  name: string;
+  email: string;
+  note: string;
 };
 
 export type DeskGlance = {
@@ -52,6 +62,7 @@ export type StudioToday = {
   inboundWeek: number[];
   byEvent: Array<{ type: EventType; label: string; count: number }>;
   calendarMarks: string[];
+  appointments: TodayTalk[];
   tasks: TaskRow[];
   desk: TodayDeskTask[];
   projects: TodayProject[];
@@ -167,7 +178,7 @@ function floorPerson(
 }
 
 export function weekFloor(
-  data: Pick<StudioToday, "projects" | "waiting" | "tasks" | "desk">,
+  data: Pick<StudioToday, "projects" | "waiting" | "tasks" | "desk" | "appointments">,
   weekOf: string,
   today: string,
 ): TodayFloorItem[] {
@@ -204,6 +215,20 @@ export function weekFloor(
     });
   }
 
+  for (const talk of data.appointments ?? []) {
+    const date = studioDay(talk.startsAt);
+    if (!date || date < start || date > end) continue;
+    items.push({
+      id: `talk-${talk.id}`,
+      date,
+      when: formatFloorWhen(date, today),
+      title: talk.name,
+      detail: ["meeting", studioClock(talk.startsAt)].filter(Boolean).join(" · "),
+      kind: "talk",
+      at: talk.startsAt,
+    });
+  }
+
   for (const task of data.tasks) {
     if (task.status !== "open") continue;
     const due = dueDay(task.due_at);
@@ -227,9 +252,10 @@ export function weekFloor(
   return items.sort((left, right) => {
     const byDate = left.date.localeCompare(right.date);
     if (byDate !== 0) return byDate;
-    const rank = (kind: TodayFloorItem["kind"]) => (kind === "event" ? 0 : 1);
+    const rank = (kind: TodayFloorItem["kind"]) => (kind === "talk" ? 0 : kind === "event" ? 1 : 2);
     const byKind = rank(left.kind) - rank(right.kind);
     if (byKind !== 0) return byKind;
+    if (left.kind === "talk" && right.kind === "talk") return (left.at ?? "").localeCompare(right.at ?? "");
     return left.title.localeCompare(right.title);
   });
 }
@@ -342,6 +368,7 @@ export function assembleStudioToday(input: {
   inquiries: InquiryPipelineItem[];
   projects: Array<ProjectRow & { client?: ClientRow | null }>;
   tasks?: TaskRow[];
+  appointments?: TodayTalk[];
   now?: Date;
 }): StudioToday {
   const now = input.now ?? new Date();
@@ -404,6 +431,7 @@ export function assembleStudioToday(input: {
     .filter((item) => item.count > 0)
     .sort((left, right) => right.count - left.count);
 
+  const appointments = input.appointments ?? [];
   const calendarMarks = [
     ...new Set(
       [
@@ -411,6 +439,7 @@ export function assembleStudioToday(input: {
         ...inquiries
           .filter((inquiry) => inquiry.event_date && !inquiry.event_date_tbd)
           .map((inquiry) => inquiry.event_date as string),
+        ...appointments.map((talk) => studioDay(talk.startsAt)),
       ].filter(Boolean),
     ),
   ];
@@ -443,6 +472,7 @@ export function assembleStudioToday(input: {
     inboundWeek,
     byEvent,
     calendarMarks,
+    appointments,
     desk,
     projects,
     tasks: [...(input.tasks ?? [])].sort((left, right) => {

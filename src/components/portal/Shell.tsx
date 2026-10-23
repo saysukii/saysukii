@@ -1,18 +1,39 @@
-import { Link, useRouter, useRouteContext } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
-import { ChevronDown, LogOut, Menu, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useRouter, useRouteContext, useRouterState } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { Bell, ChevronDown, Menu, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Wordmark } from "./bits";
+import { firstName } from "@/lib/os/connect-letter";
+import { recordSlug } from "@/lib/os/inquiry-desk";
+import { listFreshArrivals } from "@/lib/os/inquiries.functions";
+import { PREVIEW_ARRIVALS_KEY } from "@/lib/preview-arrivals";
+import {
+  dismissNotice,
+  markNoticeToasted,
+  markNoticesRead,
+  pushNotice,
+  readNotices,
+  STUDIO_NOTICE_EVENT,
+  type StudioNotice,
+} from "@/lib/studio-notices";
 
 type NavItem = {
   to: string;
@@ -22,9 +43,8 @@ type NavItem = {
 const ADMIN_NAV: NavItem[] = [
   { to: "/dashboard", label: "today" },
   { to: "/pipeline", label: "inquiries" },
-  { to: "/proposals", label: "proposals" },
-  { to: "/clients", label: "clients" },
-  { to: "/settings", label: "settings" },
+  { to: "/schedule", label: "schedule" },
+  { to: "/shelf", label: "shelf" },
 ];
 
 const TEAM_NAV = ADMIN_NAV.filter(({ label }) => label === "today");
@@ -36,27 +56,88 @@ function PrimaryNav({
   items: NavItem[];
   onNavigate?: () => void;
 }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   return (
     <nav aria-label="Primary" className="studio-pearl-nav">
-      {items.map(({ to, label }) => (
-        <Link
-          key={to}
-          to={to as "/dashboard"}
-          onClick={onNavigate}
-          activeOptions={{ exact: to === "/dashboard" }}
-          activeProps={{ className: "is-on" }}
-        >
-          {label}
-        </Link>
-      ))}
+      {items.map(({ to, label }) => {
+        const onShelf =
+          to === "/shelf" &&
+          (pathname === "/shelf" || pathname.startsWith("/directories") || pathname.startsWith("/files"));
+        return (
+          <Link
+            key={to}
+            to={to as "/dashboard"}
+            onClick={onNavigate}
+            activeOptions={{ exact: to === "/dashboard" || to === "/shelf" }}
+            activeProps={{ className: "is-on" }}
+            className={onShelf ? "is-on" : undefined}
+          >
+            {label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }
 
 export function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const notices = useStudioNotices();
+  const noticeModal = useNoticeModal(notices);
   const router = useRouter();
   const { user, profile, devPreview } = useRouteContext({ from: "/_authenticated" });
+  const arrivals = useServerFn(listFreshArrivals);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!devPreview) return;
+    const sync = (event: StorageEvent) => {
+      if (event.key !== PREVIEW_ARRIVALS_KEY) return;
+      void queryClient.invalidateQueries({ queryKey: ["inquiry-dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["inquiry-pipeline"] });
+      void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace"] });
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, [devPreview, queryClient]);
+
+  useEffect(() => {
+    if (!devPreview) return;
+    pushNotice({
+      id: "inquiry-arrived-camila",
+      title: "camila wrote in",
+      body: "a new wedding inquiry is in the book.",
+      href: "/pipeline/camilareyes",
+    });
+  }, [devPreview]);
+
+  useEffect(() => {
+    if (devPreview || profile.role !== "admin") return;
+    let stop = false;
+    async function look() {
+      try {
+        const rows = await arrivals();
+        if (stop) return;
+        for (const row of rows) {
+          const who = firstName(row.name).toLowerCase();
+          pushNotice({
+            id: `inquiry-${row.id}`,
+            title: `${who} wrote in`,
+            body: "a new inquiry is in the book.",
+            href: `/pipeline/${recordSlug(row.name)}`,
+          });
+        }
+      } catch {
+        // the book can be quiet if the studio cannot reach it
+      }
+    }
+    void look();
+    const timer = window.setInterval(() => void look(), 20_000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [arrivals, devPreview, profile.role]);
 
   async function signOut() {
     if (devPreview) {
@@ -68,10 +149,10 @@ export function Shell({ children }: { children: ReactNode }) {
   }
 
   const email = user?.email ?? "";
-  const initial = email ? email.charAt(0).toLowerCase() : "s";
   const isAdmin = profile.role === "admin";
   const navItems = isAdmin ? ADMIN_NAV : TEAM_NAV;
   const displayName = profile.full_name?.trim() || email;
+  const initial = (displayName || email || "s").charAt(0).toLowerCase();
 
   return (
     <div className="studio-pearl">
@@ -79,8 +160,12 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="studio-pearl-aura-far" aria-hidden="true" />
       <div className="studio-pearl-aura-near" aria-hidden="true" />
 
-      <header className="studio-pearl-bar md:hidden">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="studio-pearl-bar">
+        <Link to="/dashboard" className="studio-pearl-brand" aria-label="Say Sukii home">
+          <Wordmark tone="ink" className="w-24" />
+        </Link>
+        <div className="studio-pearl-bar-end">
+          <NoticeBell unread={noticeModal.unread} onOpen={noticeModal.show} />
           <button
             type="button"
             className="studio-pearl-menu"
@@ -90,23 +175,31 @@ export function Shell({ children }: { children: ReactNode }) {
           >
             {open ? <X className="size-4" /> : <Menu className="size-4" />}
           </button>
-          <Link to="/dashboard" className="studio-pearl-brand" aria-label="Say Sukii home">
-            <Wordmark tone="ink" className="w-24" />
-          </Link>
         </div>
-        <AccountMenu
-          displayName={displayName}
-          email={email}
-          initial={initial}
-          isAdmin={isAdmin}
-          onSignOut={signOut}
-          compact
-        />
       </header>
 
       {open ? (
-        <div className="studio-pearl-drawer md:hidden">
+        <div className="studio-pearl-drawer">
           <PrimaryNav items={navItems} onNavigate={() => setOpen(false)} />
+          <footer className="studio-pearl-drawer-foot">
+            <span className="studio-pearl-initial" aria-hidden="true">
+              {initial}
+            </span>
+            <span className="min-w-0 flex-1">
+              <b>{displayName}</b>
+              <span>{email}</span>
+            </span>
+            <div className="studio-pearl-drawer-actions">
+              {isAdmin ? (
+                <Link to="/settings" onClick={() => setOpen(false)}>
+                  settings
+                </Link>
+              ) : null}
+              <button type="button" onClick={signOut}>
+                sign out
+              </button>
+            </div>
+          </footer>
         </div>
       ) : null}
 
@@ -116,18 +209,221 @@ export function Shell({ children }: { children: ReactNode }) {
             <Wordmark tone="ink" />
           </Link>
           <PrimaryNav items={navItems} />
-          <AccountMenu
-            displayName={displayName}
-            email={email}
-            initial={initial}
-            isAdmin={isAdmin}
-            onSignOut={signOut}
-          />
+          <div className="studio-pearl-foot">
+            <NoticeBell unread={noticeModal.unread} onOpen={noticeModal.show} />
+            <AccountMenu
+              displayName={displayName}
+              email={email}
+              initial={initial}
+              isAdmin={isAdmin}
+              onSignOut={signOut}
+            />
+          </div>
         </aside>
 
         <main className="studio-pearl-main">{children}</main>
       </div>
+      <NoticeModal
+        open={noticeModal.open}
+        notices={noticeModal.notices}
+        onOpenChange={noticeModal.onOpenChange}
+        onClear={noticeModal.clear}
+      />
     </div>
+  );
+}
+
+function noticeWhen(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) return `today at ${time}`;
+  const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toLowerCase();
+  return `${day} at ${time}`;
+}
+
+function noticeLine(title: string) {
+  const trimmed = title.trim();
+  if (/^a change was requested$/i.test(trimmed)) return "a change was requested";
+  const named = trimmed.match(/^(.*)\s+requested a change$/i);
+  const legacy = trimmed.match(/^changes requested —\s+(.+)$/i);
+  const who = (named?.[1] ?? legacy?.[1] ?? "").trim();
+  if (!who) return trimmed;
+  const first = who.split(/\s+/)[0];
+  return first ? `${first} requested a change` : "a change was requested";
+}
+
+function useStudioNotices() {
+  const [notices, setNotices] = useState<StudioNotice[]>([]);
+
+  useEffect(() => {
+    const sync = () => setNotices(readNotices());
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener(STUDIO_NOTICE_EVENT, sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener(STUDIO_NOTICE_EVENT, sync);
+    };
+  }, []);
+
+  return notices;
+}
+
+function useNoticeModal(notices: StudioNotice[]) {
+  const [open, setOpen] = useState(false);
+  const surfaced = useRef(new Set<string>());
+  const opened = useRef(false);
+  const router = useRouter();
+  const unread = notices.some((notice) => !notice.read);
+
+  useEffect(() => {
+    const fresh = notices.filter((notice) => !notice.read && !surfaced.current.has(notice.id));
+    if (fresh.length === 0) return;
+    let openBook = false;
+    for (const notice of fresh) {
+      surfaced.current.add(notice.id);
+      if (!notice.toasted) {
+        const href = notice.href;
+        toast(notice.title, {
+          description: notice.body,
+          duration: 20000,
+          ...(href
+            ? {
+                action: {
+                  label: "open",
+                  onClick: () => {
+                    const slug = href.split("/").filter(Boolean).pop();
+                    if (!slug) return;
+                    void router.navigate({ to: "/pipeline/$id", params: { id: slug } });
+                  },
+                },
+              }
+            : {}),
+        });
+        markNoticeToasted(notice.id);
+      }
+      if (!notice.href) openBook = true;
+    }
+    if (openBook) setOpen(true);
+  }, [notices, router]);
+
+  function show() {
+    setOpen(true);
+  }
+
+  function onOpenChange(next: boolean) {
+    setOpen(next);
+    if (next) opened.current = true;
+    if (!next && opened.current && unread) markNoticesRead();
+  }
+
+  function clear(id: string) {
+    const remaining = notices.filter((notice) => notice.id !== id);
+    dismissNotice(id);
+    if (remaining.length === 0) setOpen(false);
+  }
+
+  return { open, notices, unread, show, onOpenChange, clear };
+}
+
+function NoticeModal({
+  open,
+  notices,
+  onOpenChange,
+  onClear,
+}: {
+  open: boolean;
+  notices: StudioNotice[];
+  onOpenChange: (open: boolean) => void;
+  onClear: (id: string) => void;
+}) {
+  const summary = notices.map((notice) => noticeLine(notice.title)).join(". ") || "nothing new";
+  const listRef = useRef<HTMLUListElement>(null);
+  const [cap, setCap] = useState<number | null>(null);
+  const noticesRef = useRef(notices);
+  noticesRef.current = notices;
+
+  const measure = useCallback(() => {
+    const list = listRef.current;
+    if (!list || noticesRef.current.length < 3) {
+      setCap((current) => (current === null ? current : null));
+      return;
+    }
+    const items = list.querySelectorAll(":scope > li");
+    if (items.length < 2) return;
+    const gap = parseFloat(getComputedStyle(items[1]).marginTop) || 0;
+    const height = items[0].offsetHeight + items[1].offsetHeight + gap;
+    if (height < 1) return;
+    setCap((current) => (current === height ? current : height));
+  }, []);
+
+  const setList = useCallback((node: HTMLUListElement | null) => {
+    listRef.current = node;
+    measure();
+  }, [measure]);
+
+  useEffect(() => {
+    measure();
+    const timer = window.setTimeout(measure, 240);
+    return () => window.clearTimeout(timer);
+  }, [notices, open, measure]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent overlayClassName="studio-task-veil" className="studio-notice-modal" hideClose>
+        <div className="studio-notice-top">
+          <span className="studio-notice-mark" aria-hidden="true">
+            <Bell strokeWidth={1.5} />
+          </span>
+          <DialogClose className="studio-task-close" aria-label="Close">
+            <X aria-hidden="true" />
+          </DialogClose>
+        </div>
+        <DialogTitle className="sr-only">notifications</DialogTitle>
+        {notices.length === 0 ? (
+          <p className="studio-notice-line">nothing new</p>
+        ) : (
+          <ul ref={setList} className="studio-notice-list" style={cap ? { maxHeight: cap } : undefined}>
+            {notices.map((notice) => (
+              <li key={notice.id}>
+                <div className="studio-notice-head">
+                  <p className="studio-notice-line">{noticeLine(notice.title)}</p>
+                  <time dateTime={notice.createdAt}>{noticeWhen(notice.createdAt)}</time>
+                </div>
+                {notice.body ? <p className="studio-notice-message">{notice.body}</p> : null}
+                <span className="studio-notice-actions">
+                  {notice.href ? (
+                    <a className="studio-notice-clear" href={notice.href}>
+                      open
+                    </a>
+                  ) : null}
+                  <button type="button" className="studio-notice-clear" onClick={() => onClear(notice.id)}>
+                    clear
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <DialogDescription className="sr-only">{summary}</DialogDescription>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NoticeBell({ unread, onOpen }: { unread: boolean; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className="studio-pearl-bell"
+      aria-label={unread ? "unread notifications" : "notifications"}
+      onClick={onOpen}
+    >
+      <Bell aria-hidden="true" strokeWidth={1.5} />
+      {unread ? <i /> : null}
+    </button>
   );
 }
 
@@ -159,25 +455,21 @@ function AccountMenu({
         <ChevronDown className="size-3.5 shrink-0 opacity-45" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="end"
-        sideOffset={10}
-        className="w-60 rounded-3xl border-0 bg-[#f7f4ef] p-2 shadow-none"
+        side="top"
+        align="start"
+        sideOffset={8}
+        className="studio-account-menu"
       >
-        <DropdownMenuLabel className="px-3 py-3">
-          <p className="truncate text-sm font-light lowercase">{displayName}</p>
-          <p className="mt-1 truncate text-xs font-light lowercase opacity-60">{email}</p>
-          <p className="mt-2 text-[0.65rem] font-light tracking-[0.06em] lowercase opacity-60">
-            {isAdmin ? "administrator" : "team member"}
-          </p>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator className="mx-2 bg-black/5" />
-        <DropdownMenuItem
-          onClick={onSignOut}
-          className="cursor-pointer gap-2 rounded-2xl px-3 py-3 text-sm font-light lowercase focus:bg-[#f6f5f2]"
-        >
-          <LogOut className="size-4" />
-          sign out
-        </DropdownMenuItem>
+        <div className="studio-account-who">
+          <b>{displayName}</b>
+          <span>{email}</span>
+        </div>
+        {isAdmin ? (
+          <DropdownMenuItem asChild>
+            <Link to="/settings">settings</Link>
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onClick={onSignOut}>sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

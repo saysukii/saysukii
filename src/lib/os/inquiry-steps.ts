@@ -1,10 +1,12 @@
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 import {
   ARRANGEMENT_SIZES,
+  CADENCE_OPTIONS,
   EVENT_BUDGETS,
   EVENT_SETTING_OPTIONS,
   INTEREST_OPTIONS,
   SOURCE_OPTIONS,
+  SPACE_OPTIONS,
   WEDDING_BUDGETS,
   interestLabel,
 } from "@/lib/os/inquiry-schema";
@@ -29,10 +31,12 @@ export type InquiryStep =
       kind: "textarea";
       field: "message";
       placeholder: string;
+      maxLength?: number;
     })
   | (StepBase & {
       kind: "date";
       field: "event_date";
+      withTime?: boolean;
     })
   | (StepBase & {
       kind: "address";
@@ -41,8 +45,10 @@ export type InquiryStep =
     })
   | (StepBase & {
       kind: "choice";
-      field: "interest" | "event_setting" | "arrangement_size" | "budget_range";
+      field: "interest" | "event_setting" | "arrangement_size" | "budget_range" | "space" | "cadence";
       options: InquiryChoiceOption[];
+      otherField?: "space_other" | "cadence_other";
+      otherPlaceholder?: string;
     })
   | (StepBase & {
       kind: "multi";
@@ -87,18 +93,19 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
     },
   ];
 
-  const sourceAndReview: InquiryStep[] = [
-    {
+  const review: InquiryStep = { id: "review", kind: "review", label: "are you ready to move forward?" };
+
+  function sourceStep(label: string, hint: string): InquiryStep {
+    return {
       id: "source",
       kind: "multi",
       field: "sources",
-      label: "How did you hear about us?",
+      label,
       options: SOURCE_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
       required: true,
-      hint: "just so i know how you found the studio — pick any that are true.",
-    },
-    { id: "review", kind: "review", label: "are you ready to move forward?" },
-  ];
+      hint,
+    };
+  }
 
   const eventDate: InquiryStep = {
     id: "event_date",
@@ -106,6 +113,7 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
     field: "event_date",
     label: "When is it — date and time?",
     required: true,
+    withTime: true,
   };
 
   const venueOptional: InquiryStep = {
@@ -116,18 +124,9 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
     placeholder: "",
     required: false,
     optional: true,
-    hint: "so i can picture the room and the drive.",
   };
 
-  const vision: InquiryStep = {
-    id: "message",
-    kind: "textarea",
-    field: "message",
-    label: "Tell us about the vision.",
-    placeholder: "Mood, flowers, scale — or a link to references.",
-    required: true,
-    hint: "a feeling, a few flowers, or a link — whatever helps me see it with you.",
-  };
+  const visionHint = "a feeling, a few floral varieties you love, or a link — whatever helps me see it with you!";
 
   if (!interest) return sharedStart;
 
@@ -141,21 +140,30 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
         label: "Is this a private or corporate event?",
         options: EVENT_SETTING_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
         required: true,
-        hint: "so i know the tone — a dinner at home vs a brand in a room.",
+        hint: "so we understand the tone — a dinner at home vs a brand in a room?",
       },
       eventDate,
-      venueOptional,
+      { ...venueOptional, label: "Where will it take place? venue/location?" },
       {
         id: "budget_range",
         kind: "choice",
         field: "budget_range",
-        label: "What budget range feels right?",
+        label: "what is your budget?",
         options: EVENT_BUDGETS.map((option) => ({ value: option.value, label: option.label })),
         required: true,
-        hint: "events typically start around $1,000.",
+        hint: "minimum investment for events + activations is $1,000.",
       },
-      vision,
-      ...sourceAndReview,
+      {
+        id: "message",
+        kind: "textarea",
+        field: "message",
+        label: "Tell us about the vision.",
+        placeholder: "Mood, flowers, scale — or a link to references.",
+        required: true,
+        hint: visionHint,
+      },
+      sourceStep("How did you hear about us?", "pick any that are true."),
+      review,
     ];
   }
 
@@ -164,21 +172,31 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
       ...sharedStart,
       {
         ...eventDate,
-        label: "When is the wedding — date and time?",
-        hint: "even a season is enough if the day isn’t set.",
+        label: "what date is the wedding?",
+        hint: undefined,
+        withTime: false,
       },
-      venueOptional,
+      { ...venueOptional, label: "what is the venue/location?" },
       {
         id: "budget_range",
         kind: "choice",
         field: "budget_range",
-        label: "What budget range feels right?",
+        label: "what is your budget?",
         options: WEDDING_BUDGETS.map((option) => ({ value: option.value, label: option.label })),
         required: true,
-        hint: "full-service weddings typically start at $6,000.",
+        hint: "minimum investment for full-service weddings start at $6,000.",
       },
-      vision,
-      ...sourceAndReview,
+      {
+        id: "message",
+        kind: "textarea",
+        field: "message",
+        label: "please share a little about the vision",
+        placeholder: "A feeling, a few varieties, or a link.",
+        required: true,
+        hint: visionHint,
+      },
+      sourceStep("how did you hear about us?", "pick any that are true"),
+      review,
     ];
   }
 
@@ -189,44 +207,46 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
         id: "arrangement_size",
         kind: "choice",
         field: "arrangement_size",
-        label: "Which size feels right?",
+        label: "what size feels best?",
         options: ARRANGEMENT_SIZES.map((option) => ({ value: option.value, label: option.label })),
         required: true,
-        hint: "i choose the stems — you’re choosing the scale.",
       },
       {
         ...eventDate,
-        label: "When should it arrive — date and time?",
-        hint: "wed–fri, 10am–2pm in miami-dade and broward.",
+        label: "When should it arrive?",
+        hint: "we need at least 48 hours advance notice to approve delivery request. we deliver on wed–fri, 10am–2pm in most of miami-dade and broward county",
+        withTime: false,
       },
       {
         id: "venue_text",
         kind: "address",
         field: "venue_text",
-        label: "Where should we deliver?",
+        label: "what is the delivery address?",
         placeholder: "",
         required: true,
-        hint: "the door it should go to. delivery is +$25–$40 in miami-dade and broward.",
+        hint: "delivery $35 additional, pick up option available",
       },
       {
         id: "recipient",
         kind: "text",
         field: "recipient",
-        label: "Who is it for?",
+        label: "what is the recipient's name?",
         placeholder: "Recipient name",
         required: true,
-        hint: "for the card, and so the front desk knows who it’s for.",
       },
       {
         id: "message",
         kind: "textarea",
         field: "message",
-        label: "Any notes for the arrangement?",
-        placeholder: "Occasion, colors, flowers, or a short card message.",
-        required: true,
-        hint: "a card message, colors you love, or flowers to lean toward.",
+        label: "would you like to add a small card? please include message here.",
+        placeholder: "",
+        required: false,
+        optional: true,
+        maxLength: 160,
+        hint: "think short + sweet like a tweet (160 characters ish or less)",
       },
-      ...sourceAndReview,
+      sourceStep("How did you hear about us?", "pick any that are true."),
+      review,
     ];
   }
 
@@ -234,27 +254,33 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
     return [
       ...sharedStart,
       {
+        id: "space",
+        kind: "choice",
+        field: "space",
+        label: "what space are we activating?",
+        options: SPACE_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+        otherField: "space_other",
+        otherPlaceholder: "tell us the space",
+        required: true,
+      },
+      {
         ...eventDate,
-        label: "When would you like to start — date and time?",
-        hint: "we can always shift this once we talk.",
+        label: "What date would you like to start?",
+        hint: "we can always shift this after our consultation.",
+        withTime: false,
       },
       {
-        id: "venue_text",
-        kind: "address",
-        field: "venue_text",
-        label: "Where should we deliver?",
-        placeholder: "",
-        required: false,
-        optional: true,
-        hint: "home, office, or wherever you want flowers to land.",
+        id: "cadence",
+        kind: "choice",
+        field: "cadence",
+        label: "how often would you like to refresh your space?",
+        options: CADENCE_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+        otherField: "cadence_other",
+        otherPlaceholder: "tell us how often",
+        required: true,
       },
-      {
-        ...vision,
-        label: "What are you hoping for?",
-        placeholder: "Cadence, colors, vibe — whatever helps.",
-        hint: "how often, what colors, how wild — so i know the rhythm.",
-      },
-      ...sourceAndReview,
+      sourceStep("How did you hear about us?", "pick any that are true."),
+      review,
     ];
   }
 
@@ -263,25 +289,34 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
       ...sharedStart,
       {
         ...eventDate,
-        label: "When is the shoot or install — date and time?",
-        hint: "the day we’re in the room — not when the mood board is due.",
+        label: "what date is the shoot or installation?",
+        hint: undefined,
+        withTime: false,
       },
-      venueOptional,
+      { ...venueOptional, label: "Where will it take place -- venue/location?" },
       {
         id: "budget_range",
         kind: "choice",
         field: "budget_range",
-        label: "What budget range feels right?",
+        label: "what is your working budget?",
         options: EVENT_BUDGETS.map((option) => ({ value: option.value, label: option.label })),
         required: true,
-        hint: "so i can sketch something that actually fits.",
       },
-      vision,
-      ...sourceAndReview,
+      {
+        id: "message",
+        kind: "textarea",
+        field: "message",
+        label: "please Tell us about the vision.",
+        placeholder: "A feeling, a few varieties, or a link.",
+        required: true,
+        hint: visionHint,
+      },
+      sourceStep("How did you hear about us?", "pick any that are true."),
+      review,
     ];
   }
 
-  return [...sharedStart, ...sourceAndReview];
+  return [...sharedStart, sourceStep("How did you hear about us?", "pick any that are true."), review];
 }
 
 export function inquiryFirstName(name: string) {
@@ -289,44 +324,8 @@ export function inquiryFirstName(name: string) {
   return token.replace(/[.,!?]+$/g, "");
 }
 
-export function personalizeInquiryLabel(step: InquiryStep, firstName: string) {
-  if (!firstName || step.id === "name") return step.label;
-
-  switch (step.id) {
-    case "email":
-      return `hi ${firstName}, what’s the best email to reach you?`;
-    case "phone":
-      return "and a good phone number?";
-    case "interest":
-      return `what are you interested in, ${firstName}?`;
-    case "event_setting":
-      return "is this a private or corporate event?";
-    case "event_date":
-      if (/wedding/i.test(step.label)) return `${firstName}, when is the wedding — date and time?`;
-      if (/arrive/i.test(step.label)) return "when should it arrive — date and time?";
-      if (/start/i.test(step.label)) return `when would you like to start, ${firstName}?`;
-      if (/shoot|install/i.test(step.label)) return "when is the shoot or install — date and time?";
-      return `${firstName}, when is it — date and time?`;
-    case "venue_text":
-      if (/deliver/i.test(step.label)) return "where should we deliver?";
-      return "and where will it take place?";
-    case "budget_range":
-      return "what budget range feels right?";
-    case "arrangement_size":
-      return `which size feels right, ${firstName}?`;
-    case "recipient":
-      return "who is it for?";
-    case "message":
-      if (/hoping/i.test(step.label)) return `what are you hoping for, ${firstName}?`;
-      if (/notes/i.test(step.label)) return "any notes for the arrangement?";
-      return `tell us about the vision, ${firstName}.`;
-    case "source":
-      return "how did you hear about us?";
-    case "review":
-      return "are you ready to move forward?";
-    default:
-      return step.label;
-  }
+export function personalizeInquiryLabel(step: InquiryStep, _firstName: string) {
+  return step.label;
 }
 
 export function personalizeInquiryHelp(step: InquiryStep, _firstName: string) {
@@ -384,7 +383,14 @@ export function formatStepAnswer(step: InquiryStep, values: InquiryFormValues) {
   }
   if (step.kind === "choice") {
     const raw = String(values[step.field] ?? "");
-    return step.options.find((option) => option.value === raw)?.label ?? (step.field === "interest" ? interestLabel(values.interest ?? "") : raw);
+    const label =
+      step.options.find((option) => option.value === raw)?.label ??
+      (step.field === "interest" ? interestLabel(values.interest ?? "") : raw);
+    if (step.otherField && raw === "other") {
+      const detail = String(values[step.otherField] ?? "").trim();
+      return detail ? `${label} — ${detail}` : label;
+    }
+    return label;
   }
   return String(values[step.field] ?? "").trim();
 }
@@ -392,10 +398,19 @@ export function formatStepAnswer(step: InquiryStep, values: InquiryFormValues) {
 export function isStepComplete(step: InquiryStep, values: InquiryFormValues) {
   if (step.kind === "review") return true;
   if (step.optional) return true;
-  if (step.kind === "date") return values.event_date_tbd || (Boolean(values.event_date) && Boolean(values.event_time));
+  if (step.kind === "date") {
+    if (values.event_date_tbd) return true;
+    if (!values.event_date) return false;
+    return step.withTime === false || Boolean(values.event_time);
+  }
   if (step.kind === "multi") return (values.sources?.length ?? 0) > 0;
   if (step.kind === "email") return isInquiryEmail(values.email);
   if (step.kind === "tel") return isInquiryPhone(values.phone);
-  if (step.kind === "choice") return Boolean(String(values[step.field] ?? "").trim());
+  if (step.kind === "choice") {
+    const value = String(values[step.field] ?? "").trim();
+    if (!value) return false;
+    if (step.otherField && value === "other") return String(values[step.otherField] ?? "").trim().length > 0;
+    return true;
+  }
   return String(values[step.field] ?? "").trim().length > 0;
 }

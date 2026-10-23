@@ -52,7 +52,7 @@ export function FloridaAddressPicker({
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }, 140);
+    }, 220);
 
     return () => {
       cancelled = true;

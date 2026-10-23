@@ -186,6 +186,16 @@ export const beginGoogleOAuth = createServerFn({ method: "POST" })
     redirectTo: await createOAuthRedirect("google", context.profile.id),
   }));
 
+export const disconnectGoogle = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { disconnectGoogleConnection } = await import("./google.server");
+    const { disconnectGmailConnection } = await import("./gmail.server");
+    await disconnectGoogleConnection();
+    await disconnectGmailConnection();
+    return { status: "disconnected" as const };
+  });
+
 export const getGmailStatus = createServerFn({ method: "GET" }).handler(async () => {
   const { getGmailPublicStatus, resolveGmailAdminId } = await import("./gmail.server");
   await resolveGmailAdminId();

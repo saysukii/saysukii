@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { ArrowRight, Eye, EyeOff, Sparkles } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Wordmark } from "@/components/portal/bits";
 
 export const Route = createFileRoute("/auth")({
@@ -116,15 +115,15 @@ function AuthPage() {
   }
 
   async function google() {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+    setBusy(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
-    if (result.error) {
+    if (error) {
+      setBusy(false);
       toast.error("This Google account does not have access to the studio.");
-      return;
     }
-    if (result.redirected) return;
-    await router.navigate({ to: "/dashboard" });
   }
 
   async function magicLink() {

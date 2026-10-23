@@ -16,6 +16,8 @@ import type {
   VenueRow,
 } from "@/integrations/supabase/types";
 import { assembleStudioToday } from "@/lib/os/studio-today";
+import { CONNECT_SUBJECT, connectLetterBody } from "@/lib/os/connect-letter";
+import { readPreviewArrivals } from "@/lib/preview-arrivals";
 import { clientSlugs, inquirySlugs } from "@/lib/os/inquiry-desk";
 import { isBookInquiry } from "@/lib/os/inquiry-detection";
 import { desiredInquiryAutoTask } from "@/lib/os/inquiry-tasks";
@@ -31,11 +33,13 @@ export const PREVIEW_IDS = {
   clientLumen: "10000000-0000-4000-8000-000000000013",
   clientMaya: "10000000-0000-4000-8000-000000000014",
   clientElena: "10000000-0000-4000-8000-000000000015",
+  clientCamila: "10000000-0000-4000-8000-000000000016",
   inquiryWedding: "20000000-0000-4000-8000-000000000021",
   inquiryBrand: "20000000-0000-4000-8000-000000000022",
   inquiryCorporate: "20000000-0000-4000-8000-000000000023",
   inquiryFresh: "20000000-0000-4000-8000-000000000027",
   inquiryCandidate: "20000000-0000-4000-8000-000000000028",
+  inquiryArrived: "20000000-0000-4000-8000-000000000029",
   proposalDraft: "40000000-0000-4000-8000-000000000041",
   proposalSent: "40000000-0000-4000-8000-000000000042",
   proposalAccepted: "40000000-0000-4000-8000-000000000043",
@@ -124,6 +128,19 @@ const clients: Record<string, ClientRow> = {
     archived: false,
     created_at: iso(-2),
     updated_at: iso(-2),
+  },
+  [PREVIEW_IDS.clientCamila]: {
+    id: PREVIEW_IDS.clientCamila,
+    name: "Camila Reyes",
+    email: "camila.reyes@gmail.com",
+    phone: "(954) 555-0194",
+    organization: null,
+    type: "individual",
+    source: "instagram",
+    notes: null,
+    archived: false,
+    created_at: iso(0),
+    updated_at: iso(0),
   },
 };
 
@@ -365,6 +382,20 @@ const inquiries: InquiryRow[] = [
     closed_reason: "Budget shifted",
     received_at: iso(-30),
   }),
+  inquiry(PREVIEW_IDS.inquiryArrived, PREVIEW_IDS.clientCamila, "new", {
+    event_date: "2027-03-14",
+    event_date_tbd: false,
+    event_type: "wedding",
+    venue_text: "The W Hotel, 401 N Fort Lauderdale Beach Blvd, Fort Lauderdale, FL",
+    guest_count: null,
+    budget_range: "$10,000 - $15,000",
+    source: "instagram",
+    message:
+      "A garden ceremony at dusk. Garden roses, candlelight, and a long table that feels quiet rather than formal.",
+    received_at: iso(0),
+    updated_at: iso(0),
+    contacted_at: null,
+  }),
   inquiry(PREVIEW_IDS.inquiryCandidate, PREVIEW_IDS.clientElena, "new", {
     origin: "detected",
     detection_status: "candidate",
@@ -404,6 +435,7 @@ const proposals: ProposalRow[] = [
     status: "draft",
     access_token_hash: null,
     access_token_prefix: null,
+    access_token: null,
     pdf_path: null,
     canva_design_id: null,
     export_pdf_ref: null,
@@ -438,6 +470,7 @@ const proposals: ProposalRow[] = [
     status: "sent",
     access_token_hash: "preview",
     access_token_prefix: "ss11",
+    access_token: null,
     pdf_path: null,
     canva_design_id: null,
     export_pdf_ref: null,
@@ -472,12 +505,13 @@ const proposals: ProposalRow[] = [
     status: "accepted",
     access_token_hash: "preview",
     access_token_prefix: "ss08",
+    access_token: "preview_amelia8f3c1a9b2d4e6f708192a3b4c5d6e7",
     pdf_path: null,
     canva_design_id: null,
     export_pdf_ref: null,
     sent_at: iso(-14),
     shared_at: null,
-    viewed_at: iso(-13),
+    viewed_at: iso(-2),
     accepted_at: iso(-10),
     declined_at: null,
     declined_reason: null,
@@ -662,7 +696,51 @@ function withClient<T extends { client_id: string }>(row: T) {
   return { ...row, client: clients[row.client_id] ?? null };
 }
 
+const previewArrivalIds = new Set<string>();
+
+function hydratePreviewArrivals() {
+  if (typeof window === "undefined") return;
+  for (const arrival of readPreviewArrivals()) {
+    previewArrivalIds.add(arrival.id);
+    if (inquiries.some((item) => item.id === arrival.id)) continue;
+    const clientId = `preview-client-${arrival.id}`;
+    clients[clientId] = {
+      id: clientId,
+      name: arrival.name,
+      email: arrival.email,
+      phone: arrival.phone || null,
+      organization: null,
+      type: "individual",
+      source: "Website",
+      notes: null,
+      archived: false,
+      created_at: arrival.receivedAt,
+      updated_at: arrival.receivedAt,
+    };
+    inquiries.unshift(
+      inquiry(arrival.id, clientId, "new", {
+        event_date: arrival.eventDateTbd ? null : arrival.eventDate,
+        event_date_tbd: arrival.eventDateTbd,
+        event_type: arrival.eventType,
+        venue_text: arrival.venue || null,
+        guest_count: null,
+        budget_range: arrival.budget || null,
+        source: "Website",
+        message: arrival.message || null,
+        received_at: arrival.receivedAt,
+        updated_at: arrival.receivedAt,
+        contacted_at: null,
+        proposal_sent_at: null,
+        booked_at: null,
+        closed_at: null,
+        closed_reason: null,
+      }),
+    );
+  }
+}
+
 export function getDevPreviewPipeline() {
+  hydratePreviewArrivals();
   const rows = inquiries
     .map(withReview)
     .filter((inquiry) => inquiry.detection_status !== "dismissed")
@@ -678,29 +756,51 @@ export function getDevPreviewPipeline() {
   }));
 }
 
-function formMessage(inquiry: InquiryRow): InquiryMessageRow {
+const hoursAgo = (hours: number) => new Date(now - hours * 3_600_000).toISOString();
+
+function spokenDate(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+}
+
+function openingLetter(inquiry: InquiryRow) {
+  const client = clients[inquiry.client_id];
+  const first = client?.name?.split(/\s+/)[0] ?? "there";
   const time = inquiry.message?.match(/^Time:\s*(.+)$/m)?.[1]?.trim();
   const vision = (inquiry.message ?? "")
     .split("\n")
     .filter((line) => !/^(Size|Time|Recipient):/i.test(line.trim()))
-    .join("\n")
+    .join(" ")
     .trim();
-  const body = [
-    vision || "a new inquiry arrived through the form.",
-    inquiry.venue_text ? `place: ${inquiry.venue_text}` : "",
-    inquiry.event_date_tbd ? "date: tbd" : inquiry.event_date ? `date: ${inquiry.event_date}` : "",
-    time ? `time: ${time}` : "",
-    inquiry.budget_range ? `figure: ${inquiry.budget_range}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const place = inquiry.venue_text?.split(",")[0]?.trim();
+  const when = inquiry.event_date_tbd
+    ? "The date is still open."
+    : inquiry.event_date
+      ? `We're hoping for ${spokenDate(inquiry.event_date)}${time ? `, around ${time}` : ""}.`
+      : time
+        ? `Around ${time}.`
+        : "";
+  const figure = inquiry.budget_range ? `We can spend ${inquiry.budget_range}.` : "";
+  const feeling = vision
+    ? `${vision.charAt(0).toUpperCase()}${vision.slice(1).replace(/\.$/, "")}.`
+    : "I'd love your help with the flowers.";
+  const where = place ? `It would be at ${place}.` : "";
+  const body = [`Hi Say Sukii —`, "", [feeling, where, when, figure].filter(Boolean).join(" "), "", first].join("\n");
+  const subject = place ? `flowers for ${place}` : "a note about flowers";
+  return { subject, body };
+}
+
+function formMessage(inquiry: InquiryRow): InquiryMessageRow {
+  const letter = openingLetter(inquiry);
+  const body = letter.body;
 
   return {
     id: `msg-form-${inquiry.id}`,
     inquiry_id: inquiry.id,
     direction: "inbound",
-    channel: "form",
-    subject: "new inquiry",
+    channel: "email",
+    subject: letter.subject,
     body,
     from_address: clients[inquiry.client_id]?.email ?? null,
     to_address: "info@saysukii.com",
@@ -715,6 +815,7 @@ function formMessage(inquiry: InquiryRow): InquiryMessageRow {
 }
 
 export function getDevPreviewInquiryWorkspace(id: string) {
+  hydratePreviewArrivals();
   const slugs = inquirySlugs(inquiries.map((item) => ({ ...item, client: clients[item.client_id] ?? null })));
   const found =
     inquiries.find((item) => item.id === id) ??
@@ -745,6 +846,75 @@ export function getDevPreviewInquiryWorkspace(id: string) {
           },
         ]
       : [formMessage(inquiry)];
+
+  if (inquiry.id === PREVIEW_IDS.inquiryFresh) {
+    const opening = messages[0];
+    if (opening) {
+      opening.sent_at = hoursAgo(8);
+      opening.created_at = opening.sent_at;
+      opening.subject = "october 1 at the hard rock";
+      opening.body = [
+        "Hi Say Sukii —",
+        "",
+        "We're getting married on October 1 at the Seminole Hard Rock. I'm hoping for warm candlelight, garden roses, and a long table that feels like dusk. The ceremony would be around 7pm. We can spend $20,000 or more.",
+        "",
+        "Maya",
+      ].join("\n");
+    }
+    messages.push(
+      {
+        id: "msg-out-maya",
+        inquiry_id: inquiry.id,
+        direction: "outbound",
+        channel: "email",
+        subject: "re: october 1 at the hard rock",
+        body: "Maya — thank you for writing. October 1 at seven is held in my book, and the dusk table is a beautiful place to start. I'll send a first look at scale and palette this week.",
+        from_address: "info@saysukii.com",
+        to_address: client?.email ?? null,
+        gmail_message_id: "gmail-out-maya",
+        gmail_thread_id: "thread-maya",
+        author: "say sukii",
+        sent_at: hoursAgo(5),
+        status: "sent",
+        created_by: null,
+        created_at: hoursAgo(5),
+      },
+      {
+        id: "msg-in-maya",
+        inquiry_id: inquiry.id,
+        direction: "inbound",
+        channel: "email",
+        subject: "re: october 1 at the hard rock",
+        body: "Wonderful. If the weather holds we'd like the ceremony outside, then dinner inside. Garden roses can lead — nothing too precious.\n\nMaya\n\nAttached: ceremony-layout.pdf, reference-photos.zip",
+        from_address: client?.email ?? null,
+        to_address: "info@saysukii.com",
+        gmail_message_id: "gmail-in-maya",
+        gmail_thread_id: "thread-maya",
+        author: client?.name ?? null,
+        sent_at: hoursAgo(2),
+        status: "received",
+        created_by: null,
+        created_at: hoursAgo(2),
+      },
+      {
+        id: "msg-note-maya",
+        inquiry_id: inquiry.id,
+        direction: "note",
+        channel: "note",
+        subject: null,
+        body: "Hold October 1. Ask whether the arch stays at the ceremony or moves inside for dinner.",
+        from_address: null,
+        to_address: null,
+        gmail_message_id: null,
+        gmail_thread_id: null,
+        author: "Sukii",
+        sent_at: hoursAgo(2),
+        status: "sent",
+        created_by: null,
+        created_at: hoursAgo(2),
+      },
+    );
+  }
 
   if (inquiry.id === PREVIEW_IDS.inquiryWedding) {
     messages.push(
@@ -793,13 +963,58 @@ export function getDevPreviewInquiryWorkspace(id: string) {
         to_address: null,
         gmail_message_id: null,
         gmail_thread_id: null,
-        author: "studio",
+        author: "Sukii",
         sent_at: iso(-3),
         status: "sent",
         created_by: null,
         created_at: iso(-3),
       },
     );
+  }
+
+  if ((inquiry.id === PREVIEW_IDS.inquiryArrived || previewArrivalIds.has(inquiry.id)) && client) {
+    const sentAt = new Date(new Date(inquiry.received_at).getTime() + 60_000).toISOString();
+    messages.push({
+      id: `msg-connect-${inquiry.id}`,
+      inquiry_id: inquiry.id,
+      direction: "outbound",
+      channel: "email",
+      subject: CONNECT_SUBJECT,
+      body: connectLetterBody(client.name),
+      from_address: "info@saysukii.com",
+      to_address: client.email,
+      gmail_message_id: inquiry.id === PREVIEW_IDS.inquiryArrived ? "gmail-connect-camila" : null,
+      gmail_thread_id: inquiry.id === PREVIEW_IDS.inquiryArrived ? "thread-camila" : null,
+      author: "say sukii",
+      sent_at: sentAt,
+      status: inquiry.id === PREVIEW_IDS.inquiryArrived ? "sent" : "queued",
+      created_by: null,
+      created_at: sentAt,
+    });
+  }
+
+  if (inquiry.id === PREVIEW_IDS.inquiryProposalOut) {
+    messages.push({
+      id: "msg-out-amelia-proposal",
+      inquiry_id: inquiry.id,
+      direction: "outbound",
+      channel: "email",
+      subject: "re: flowers for vizcaya museum & gardens",
+      body: [
+        "amelia — the proposal is here whenever you want to sit with it.",
+        "",
+        "[your proposal](https://saysukii.com/proposal/preview_amelia8f3c1a9b2d4e6f708192a3b4c5d6e7)",
+      ].join("\n"),
+      from_address: "info@saysukii.com",
+      to_address: client?.email ?? null,
+      gmail_message_id: "gmail-out-amelia-proposal",
+      gmail_thread_id: "thread-amelia-proposal",
+      author: "say sukii",
+      sent_at: iso(-6),
+      status: "sent",
+      created_by: null,
+      created_at: iso(-6),
+    });
   }
 
   const proposalRows = proposals
@@ -811,6 +1026,11 @@ export function getDevPreviewInquiryWorkspace(id: string) {
       total_cents: item.total_cents,
       event_date: item.event_date,
       created_at: item.created_at,
+      access_token: item.access_token,
+      viewed_at: item.viewed_at,
+      deposit_amount_cents: item.deposit_amount_cents,
+      pdf_path: item.pdf_path,
+      notes: item.notes,
     }));
   const summary = resolveInquirySummaryText(
     buildInquirySummaryFacts({
@@ -852,6 +1072,70 @@ export function getDevPreviewInquiryWorkspace(id: string) {
   };
 }
 
+function studioAt(dayOffset: number, hour: number, minute = 0) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+  const day = new Date(Date.UTC(read("year"), read("month") - 1, read("day") + dayOffset));
+  const guess = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), hour, minute);
+  const shown = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(new Date(guess));
+  const num = (type: string) => Number(shown.find((part) => part.type === type)?.value);
+  const asUtc = Date.UTC(num("year"), num("month") - 1, num("day"), num("hour"), num("minute"));
+  return new Date(guess - (asUtc - guess)).toISOString();
+}
+
+export function getDevPreviewAppointments() {
+  return [
+    {
+      id: "preview-talk-maya",
+      startsAt: studioAt(-1, 16),
+      name: "Maya Santos",
+      email: "maya@example.com",
+      note: "hard rock follow-up",
+    },
+    {
+      id: "preview-talk-camila",
+      startsAt: studioAt(0, 15),
+      name: "Camila Reyes",
+      email: "camila.reyes@gmail.com",
+      note: "wedding at the w hotel",
+    },
+    {
+      id: "preview-talk-amelia",
+      startsAt: studioAt(1, 10, 30),
+      name: "Amelia Chen",
+      email: "amelia@example.com",
+      note: "vizcaya palette",
+    },
+    {
+      id: "preview-talk-lumen",
+      startsAt: studioAt(2, 13),
+      name: "Lumen Studio",
+      email: "hello@lumenstudio.co",
+      note: "wynwood walk-through",
+    },
+    {
+      id: "preview-talk-elena",
+      startsAt: studioAt(4, 11),
+      name: "Elena Ruiz",
+      email: "elena@example.com",
+      note: "pamm ceremony",
+    },
+  ];
+}
+
 export function getDevPreviewDashboard() {
   return assembleStudioToday({
     inquiries: getDevPreviewPipeline().filter(isBookInquiry),
@@ -860,6 +1144,7 @@ export function getDevPreviewDashboard() {
       client: clients[project.client_id] ?? null,
     })),
     tasks: getDevPreviewTasks(),
+    appointments: getDevPreviewAppointments(),
   });
 }
 
@@ -1135,8 +1420,8 @@ export function getDevPreviewSettings() {
   const members: ProfileRow[] = [
     {
       id: "00000000-0000-4000-8000-000000000001",
-      full_name: "Studio Preview",
-      email: "preview@saysukii.com",
+      full_name: "Sukii",
+      email: "info@saysukii.com",
       role: "admin",
       active: true,
       created_at: iso(-200),

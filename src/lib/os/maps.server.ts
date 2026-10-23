@@ -32,7 +32,7 @@ export async function searchGooglePlaces(query: string): Promise<PlaceSuggestion
 
   const response = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
     method: "POST",
-    signal: AbortSignal.timeout(1200),
+    signal: AbortSignal.timeout(800),
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": key,

@@ -166,6 +166,79 @@ export const saveClient = createServerFn({ method: "POST" })
     return row;
   });
 
+const importClientInput = z
+  .array(
+    z.object({
+      name: z.string().trim().min(1).max(160),
+      email: z.string().trim().email().max(320),
+      phone: nullableText(50),
+      organization: nullableText(160),
+      type: clientType,
+      source: nullableText(160),
+      notes: nullableText(5000),
+    }),
+  )
+  .max(500);
+
+const importVenueInput = z
+  .array(
+    z.object({
+      name: z.string().trim().min(1).max(200),
+      address: z.string().trim().min(1).max(500),
+      contact_name: nullableText(160),
+      contact_email: z.string().trim().email().max(320).nullable().optional().or(z.literal("")),
+      contact_phone: nullableText(50),
+      load_in_notes: nullableText(5000),
+    }),
+  )
+  .max(500);
+
+const importVendorInput = z
+  .array(
+    z.object({
+      name: z.string().trim().min(1).max(200),
+      type: vendorType,
+      contact_name: nullableText(160),
+      contact_email: z.string().trim().email().max(320).nullable().optional().or(z.literal("")),
+      contact_phone: nullableText(50),
+      ordering_method: nullableText(5000),
+    }),
+  )
+  .max(500);
+
+export const importClients = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((input: unknown) => importClientInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const emails = data.map((row) => row.email.toLowerCase());
+    const { data: existing, error: lookupError } = await context.supabase
+      .from("clients")
+      .select("email")
+      .in("email", emails);
+    if (lookupError) throw new Error(lookupError.message);
+    const seen = new Set((existing ?? []).map((row) => row.email.toLowerCase()));
+    const fresh = data.filter((row) => {
+      const email = row.email.toLowerCase();
+      if (seen.has(email)) return false;
+      seen.add(email);
+      return true;
+    });
+    if (fresh.length === 0) return { added: 0, skipped: data.length };
+    const { error } = await context.supabase.from("clients").insert(
+      fresh.map((row) => ({
+        name: row.name,
+        email: row.email,
+        phone: optional(row.phone),
+        organization: optional(row.organization),
+        type: row.type,
+        source: optional(row.source) ?? "csv",
+        notes: optional(row.notes),
+      })),
+    );
+    if (error) throw new Error(error.message);
+    return { added: fresh.length, skipped: data.length - fresh.length };
+  });
+
 export const archiveClient = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
@@ -252,4 +325,66 @@ export const archiveVendor = createServerFn({ method: "POST" })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const importVenues = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((input: unknown) => importVenueInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: existing, error: lookupError } = await context.supabase
+      .from("venues")
+      .select("name")
+      .eq("archived", false);
+    if (lookupError) throw new Error(lookupError.message);
+    const seen = new Set((existing ?? []).map((row) => row.name.trim().toLowerCase()));
+    const fresh = data.filter((row) => {
+      const name = row.name.trim().toLowerCase();
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+    if (fresh.length === 0) return { added: 0, skipped: data.length };
+    const { error } = await context.supabase.from("venues").insert(
+      fresh.map((row) => ({
+        name: row.name,
+        address: row.address,
+        contact_name: optional(row.contact_name),
+        contact_email: optional(row.contact_email),
+        contact_phone: optional(row.contact_phone),
+        load_in_notes: optional(row.load_in_notes),
+      })),
+    );
+    if (error) throw new Error(error.message);
+    return { added: fresh.length, skipped: data.length - fresh.length };
+  });
+
+export const importVendors = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((input: unknown) => importVendorInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: existing, error: lookupError } = await context.supabase
+      .from("vendors")
+      .select("name")
+      .eq("archived", false);
+    if (lookupError) throw new Error(lookupError.message);
+    const seen = new Set((existing ?? []).map((row) => row.name.trim().toLowerCase()));
+    const fresh = data.filter((row) => {
+      const name = row.name.trim().toLowerCase();
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+    if (fresh.length === 0) return { added: 0, skipped: data.length };
+    const { error } = await context.supabase.from("vendors").insert(
+      fresh.map((row) => ({
+        name: row.name,
+        type: row.type,
+        contact_name: optional(row.contact_name),
+        contact_email: optional(row.contact_email),
+        contact_phone: optional(row.contact_phone),
+        ordering_method: optional(row.ordering_method),
+      })),
+    );
+    if (error) throw new Error(error.message);
+    return { added: fresh.length, skipped: data.length - fresh.length };
   });

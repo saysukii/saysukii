@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
 
 import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
-import { INQUIRE_DELIVERY_TIMES, InquiryDatePicker } from "@/components/inquiry/InquiryDatePicker";
+import { InquiryDatePicker } from "@/components/inquiry/InquiryDatePicker";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 import { EMPTY_INQUIRY_DRAFT, interestLabel, toInquirySubmitValues } from "@/lib/os/inquiry-schema";
 import {
@@ -13,7 +13,6 @@ import {
 import {
   formatInquiryDate,
   formatInquiryPhone,
-  inquiryFirstName,
   isInquiryEmail,
   isInquiryPhone,
   isStepComplete,
@@ -25,17 +24,13 @@ import { cn } from "@/lib/utils";
 
 type GuideChange = <K extends keyof InquiryFormValues>(field: K, value: InquiryFormValues[K]) => void;
 
-const STAMP_LABELS: Record<string, string> = {
-  instagram: "Instagram",
-  "the streets": "Streets",
-  "google search": "Google",
-  "returning client": "Returning",
-  referral: "Referral",
-};
-
-function compactRange(label: string) {
-  if (/not sure/i.test(label)) return "TBD";
-  return label.replaceAll(",000", "k").replace("Under ", "< ");
+function canSendInquiry(values: InquiryFormValues) {
+  if (values.name.trim().length < 2) return false;
+  if (!isInquiryEmail(values.email)) return false;
+  if (values.phone.trim() && !isInquiryPhone(values.phone)) return false;
+  if (!values.interest) return false;
+  if (!values.event_date && !values.event_date_tbd) return false;
+  return true;
 }
 
 export function InquiryGuide({
@@ -64,10 +59,9 @@ export function InquiryGuide({
 
   const last = step?.kind === "review";
   const complete = step ? isStepComplete(step, values) : false;
-  const ready = step?.kind === "email" || step?.kind === "tel" ? complete : import.meta.env.DEV || complete;
-  const firstName = inquiryFirstName(values.name);
-  const title = step ? (usingDrafts ? step.label : personalizeInquiryLabel(step, firstName)) : undefined;
-  const help = step ? personalizeInquiryHelp(step, firstName) : undefined;
+  const ready = last ? canSendInquiry(values) : step?.id === "interest" ? complete : import.meta.env.DEV || complete;
+  const title = step ? personalizeInquiryLabel(step, "") : undefined;
+  const help = step ? personalizeInquiryHelp(step, "") : undefined;
 
   return (
     <section className="auth-panel inquire-panel inquire-guide inquire-guide--path">
@@ -117,7 +111,6 @@ export function InquiryGuide({
               values={values}
               disabled={disabled}
               hideLabel
-              useDraftLabels={usingDrafts}
               onChange={change}
             />
           ) : null}
@@ -212,8 +205,26 @@ function Review({ values }: { values: InquiryFormValues }) {
             <dd>{values.arrangement_size || values.budget_range}</dd>
           </div>
         ) : null}
+        {values.space ? (
+          <div>
+            <dt>Space</dt>
+            <dd>{values.space === "other" && values.space_other?.trim() ? `${values.space} — ${values.space_other.trim()}` : values.space}</dd>
+          </div>
+        ) : null}
+        {values.cadence ? (
+          <div>
+            <dt>Refresh</dt>
+            <dd>{values.cadence}</dd>
+          </div>
+        ) : null}
+        {values.recipient ? (
+          <div>
+            <dt>Recipient</dt>
+            <dd>{values.recipient}</dd>
+          </div>
+        ) : null}
         <div data-review-vision="">
-          <dt>Vision</dt>
+          <dt>{values.interest === "deliveries" ? "Card" : "Vision"}</dt>
           <dd>{values.message.trim() || "—"}</dd>
         </div>
       </dl>
@@ -226,14 +237,12 @@ function GuideField({
   values,
   disabled,
   hideLabel,
-  useDraftLabels = false,
   onChange,
 }: {
   step: InquiryStep;
   values: InquiryFormValues;
   disabled?: boolean;
   hideLabel?: boolean;
-  useDraftLabels?: boolean;
   onChange: GuideChange;
 }) {
   if (step.kind === "choice" || step.kind === "multi") {
@@ -267,18 +276,28 @@ function GuideField({
                   }
                 }}
               >
-                <span>
-                  {step.field === "sources"
-                    ? (useDraftLabels ? option.label : (STAMP_LABELS[option.value] ?? option.label))
-                    : chips
-                      ? compactRange(option.label)
-                      : option.label}
-                </span>
+                <span>{option.label}</span>
                 {on ? <Check className="size-3.5" aria-hidden="true" /> : null}
               </button>
             );
           })}
         </div>
+        {step.kind === "choice" && step.otherField && selected === "other" ? (
+          <label className="auth-field inquire-other">
+            <span className="sr-only">Other</span>
+            <div className="auth-input">
+              <input
+                value={String(values[step.otherField] ?? "")}
+                placeholder={step.otherPlaceholder ?? "Tell us a little more"}
+                disabled={disabled}
+                autoFocus
+                onChange={(event) => {
+                  if (step.kind === "choice" && step.otherField) onChange(step.otherField, event.target.value);
+                }}
+              />
+            </div>
+          </label>
+        ) : null}
       </fieldset>
     );
   }
@@ -290,7 +309,7 @@ function GuideField({
         <InquiryDatePicker
           value={values.event_date}
           time={values.event_time}
-          times={values.interest === "deliveries" ? INQUIRE_DELIVERY_TIMES : undefined}
+          withTime={step.withTime !== false}
           disabled={disabled || values.event_date_tbd}
           onChange={(next) => {
             onChange("event_date", next);
@@ -326,6 +345,7 @@ function GuideField({
           placeholder={step.placeholder}
           disabled={disabled}
           rows={5}
+          maxLength={step.maxLength}
           onChange={(event) => onChange("message", event.target.value)}
         />
       </label>

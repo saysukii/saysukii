@@ -1,3 +1,5 @@
+import { floralAgreementPlain, statementOfWork, type StatementOfWork } from "@/lib/floral-agreement";
+
 export type AgreementType = "standard" | "in_kind_barter";
 
 export const AGREEMENT_TYPE_LABEL: Record<AgreementType, string> = {
@@ -14,6 +16,7 @@ type AgreementContext = {
   totalCents: number;
   depositCents: number;
   proposalNumber: string;
+  statement?: StatementOfWork | null;
 };
 
 function dollars(cents: number): string {
@@ -73,48 +76,22 @@ export function buildAgreementContent(type: AgreementType, ctx: AgreementContext
     );
   }
 
-  return (
-    header +
-    [
-      "1. SCOPE",
-      "The Studio will design, produce, and install the floral and experiential elements described in the referenced proposal. The proposal, including its line items, is incorporated into this agreement by reference. Changes to scope are quoted separately and confirmed in writing.",
-      "",
-      "2. FEES AND PAYMENT",
-      `Total engagement fee: ${dollars(ctx.totalCents)}.`,
-      ctx.depositCents > 0 && ctx.depositCents < ctx.totalCents
-        ? `A non-refundable retainer of ${dollars(ctx.depositCents)} (50%) reserves the date. The remaining balance of ${dollars(ctx.totalCents - ctx.depositCents)} is due no later than fourteen (14) days before the engagement date.`
-        : `Payment in full of ${dollars(ctx.totalCents)} is due on the invoice due date. The date is reserved on receipt of payment.`,
-      "Invoices are payable through the payment link issued with the invoice.",
-      "",
-      "3. RESERVATION OF DATE",
-      "The engagement date is held only once the retainer or full payment is received. Dates are otherwise released without notice.",
-      "",
-      "4. SUBSTITUTIONS",
-      "Botanical material is seasonal and market-dependent. The Studio may substitute stems of equal or greater quality, holding to the agreed palette, scale, and design intent.",
-      "",
-      "5. ACCESS, INSTALL, AND STRIKE",
-      "Client provides load-in access, elevator or freight availability, power where required, and a secured staging area. Strike times are confirmed in production planning. Additional labor required by venue restrictions is billed at the studio rate.",
-      "",
-      "6. RENTALS",
-      "Vessels, structures, and hardware provided by the Studio remain Studio property and are returned at strike. Lost or damaged rental items are billed at replacement value.",
-      "",
-      "7. CANCELLATION AND POSTPONEMENT",
-      "Retainers are non-refundable. Cancellation within thirty (30) days of the engagement date requires payment of the full balance. One postponement may be applied to a mutually available date within twelve (12) months, subject to current pricing.",
-      "",
-      "8. CONTENT RIGHTS",
-      "The Studio retains the right to photograph, film, and publish the work for portfolio and marketing use, and requests credit as floral and experiential designer in published materials.",
-      "",
-      "9. LIABILITY",
-      "The Studio's liability is limited to the total fee paid. The Studio is not responsible for damage caused by guests, weather, venue conditions, or third-party vendors.",
-      "",
-      "10. GOVERNING LAW",
-      "This agreement is governed by the laws of the State of Florida.",
-      "",
-      "Accepted by:",
-      "",
-      "Client signature: ______________________________   Date: ____________",
-      "",
-      "Say Sukii: ______________________________   Date: ____________",
-    ].join("\n")
-  );
+  const balance = Math.max(0, ctx.totalCents - ctx.depositCents);
+  const work = statementOfWork({
+    flowers: ctx.statement?.flowers || ctx.projectTitle,
+    eventWhen: ctx.statement?.eventWhen || ctx.eventDate || "",
+    occasion: ctx.statement?.occasion || ctx.projectTitle,
+    venue: ctx.statement?.venue || ctx.venue || "",
+    delivery: ctx.statement?.delivery,
+    taxes: ctx.statement?.taxes,
+    rentals: ctx.statement?.rentals,
+    rentalDeposit: ctx.statement?.rentalDeposit,
+  });
+  return floralAgreementPlain({
+    ...work,
+    clientName: ctx.clientName,
+    total: dollars(ctx.totalCents),
+    deposit: dollars(ctx.depositCents),
+    balance: dollars(balance),
+  });
 }

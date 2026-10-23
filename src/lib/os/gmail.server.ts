@@ -426,6 +426,38 @@ export async function completeGmailOAuth(code: string, connectedBy: string) {
   return liveGmail().completeOAuth(code, connectedBy);
 }
 
+export async function storeGmailGrant(input: {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresIn?: number;
+  accountEmail: string | null;
+  connectedBy: string;
+}) {
+  const existing = await liveGmailVault.read();
+  const refreshToken =
+    input.refreshToken ??
+    (existing?.encrypted_refresh_token ? decryptSecret(existing.encrypted_refresh_token) : null);
+  if (!refreshToken) {
+    throw new Error("Google did not return a refresh token. Reconnect and allow access.");
+  }
+  const at = new Date();
+  const record: GmailRecord = {
+    id: existing?.id ?? randomUUID(),
+    provider: "gmail",
+    account_email: input.accountEmail,
+    encrypted_access_token: encryptSecret(input.accessToken),
+    encrypted_refresh_token: encryptSecret(refreshToken),
+    token_expires_at: input.expiresIn ? new Date(at.getTime() + input.expiresIn * 1000).toISOString() : null,
+    status: "connected",
+    connected_at: at.toISOString(),
+    connected_by: input.connectedBy,
+    created_at: existing?.created_at ?? at.toISOString(),
+    updated_at: at.toISOString(),
+  };
+  await liveGmailVault.write(record);
+  return toGmailPublicStatus(record);
+}
+
 export async function disconnectGmailConnection() {
   return createGmailIntegration({
     vault: liveGmailVault,

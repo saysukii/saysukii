@@ -17,7 +17,7 @@ export function buildGuideChapters(interest: InquiryFormValues["interest"]): Gui
   const interestStep = byId("interest");
   const setting = byId("event_setting");
   const details = steps.filter((step) =>
-    ["arrangement_size", "event_date", "venue_text", "recipient", "budget_range"].includes(step.id),
+    ["arrangement_size", "event_date", "venue_text", "recipient", "budget_range", "space", "cadence"].includes(step.id),
   );
   const story = [byId("message"), byId("source")].filter(Boolean) as InquiryStep[];
 

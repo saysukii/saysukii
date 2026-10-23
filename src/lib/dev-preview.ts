@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import type { ProfileRow } from "@/integrations/supabase/types";
 
 export {
+  getDevPreviewAppointments,
   getDevPreviewClient,
   getDevPreviewClients,
   getDevPreviewDashboard,
@@ -28,18 +29,18 @@ export function isDevPreviewEnabled() {
 
 export const DEV_PREVIEW_USER = {
   id: "00000000-0000-4000-8000-000000000001",
-  email: "preview@saysukii.com",
+  email: "info@saysukii.com",
   aud: "authenticated",
   role: "authenticated",
   app_metadata: {},
-  user_metadata: { full_name: "Studio Preview" },
+  user_metadata: { full_name: "Sukii" },
   created_at: new Date().toISOString(),
 } as User;
 
 export const DEV_PREVIEW_PROFILE: ProfileRow = {
   id: DEV_PREVIEW_USER.id,
-  full_name: "Studio Preview",
-  email: "preview@saysukii.com",
+  full_name: "Sukii",
+  email: "info@saysukii.com",
   role: "admin",
   active: true,
   created_at: new Date().toISOString(),

@@ -1,15 +1,16 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { StudioChip } from "@/components/portal/studio";
 import type { ClientType } from "@/integrations/supabase/types";
 import { formatDate, formatMoneyExact } from "@/lib/money";
 import { archiveClient, getClient, saveClient } from "@/lib/os/clients.functions";
 import { getDevPreviewClient } from "@/lib/dev-preview";
-import { EVENT_LABEL, STATUS_LABEL, boardStageId } from "@/lib/os/inquiry-desk";
+import { findPreviewClient, previewDirectoryRecord, updatePreviewClient } from "@/lib/preview-clients";
+import { EVENT_LABEL, STATUS_LABEL } from "@/lib/os/inquiry-desk";
 import { useDevPreview } from "@/lib/use-dev-preview";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
@@ -42,7 +43,10 @@ function ClientDetailPage() {
 
   const { data, isPending } = useQuery({
     queryKey: ["os", "client", id, devPreview],
-    queryFn: () => (devPreview ? getDevPreviewClient(id) : fetchClient({ data: { id } })),
+    queryFn: () => {
+      if (!devPreview) return fetchClient({ data: { id } });
+      return previewDirectoryRecord(id) ?? getDevPreviewClient(id);
+    },
     enabled: isAdmin,
   });
 
@@ -65,14 +69,22 @@ function ClientDetailPage() {
   }, [data?.client]);
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (devPreview) {
-        toast.message("preview mode — client not saved");
-        return Promise.resolve(data?.client);
+        const local = data?.client ? findPreviewClient(data.client.id) : null;
+        if (!local) return false;
+        updatePreviewClient(local.id, form);
+        return true;
       }
-      return submitClient({ data: { id: data?.client.id ?? id, ...form } });
+      await submitClient({ data: { id: data?.client.id ?? id, ...form } });
+      return true;
     },
-    onSuccess: () => {
+    onSuccess: (saved) => {
+      if (!saved) {
+        toast.message("preview mode — client not saved");
+        setEditing(false);
+        return;
+      }
       toast.success("client updated");
       setEditing(false);
       void queryClient.invalidateQueries({ queryKey: ["os", "client", id] });
@@ -126,30 +138,53 @@ function ClientDetailPage() {
   const openJob = inquiries.find((inquiry) => inquiry.status !== "closed") ?? inquiries[0];
 
   return (
-    <div className="studio-page">
-      <Link to="/clients" className="auth-text-action" activeOptions={{ exact: true }}>
-        back to clients
-      </Link>
-
-      <div className="studio-crm-top">
+    <div className="studio-home is-book is-record">
+      <div className="studio-lead">
+      <header className="studio-home-hello is-beside">
         <div>
-          <p className="studio-kicker">{client.type.replaceAll("_", " ")}</p>
+          <Link to="/clients" activeOptions={{ exact: true }} className="studio-record-back" aria-label="back to clients">
+            <ArrowLeft aria-hidden="true" strokeWidth={1.5} />
+          </Link>
           <h1>{client.name}</h1>
-          <p>{[client.organization, client.email, client.phone].filter(Boolean).join(" · ")}</p>
         </div>
-        <div className="studio-crm-actions">
+        <p className="studio-hello-meta">
+          {client.organization ? <span>{client.organization}</span> : null}
+          <span>{client.email}</span>
+        </p>
+      </header>
+
+      <section className="studio-module is-rows studio-person">
+        <p className="studio-home-label">the person</p>
+        <dl className="studio-facts">
+          <div>
+            <dt>email</dt>
+            <dd>{client.email}</dd>
+          </div>
+          <div>
+            <dt>phone</dt>
+            <dd>{client.phone || "—"}</dd>
+          </div>
+          <div>
+            <dt>organization</dt>
+            <dd>{client.organization || "—"}</dd>
+          </div>
+          <div>
+            <dt>kind</dt>
+            <dd>{client.type.replaceAll("_", " ")}</dd>
+          </div>
+          <div>
+            <dt>found us</dt>
+            <dd>{client.source || "—"}</dd>
+          </div>
+        </dl>
+        <div className="studio-row-action">
           {openJob ? (
-            <>
-              <Link to="/pipeline/$id" params={{ id: openJob.slug }} className="studio-today-go">
-                open conversation
-              </Link>
-              <Link to="/proposals/new" search={{ inquiry: openJob.id }} className="studio-ghost">
-                create proposal
-              </Link>
-            </>
+            <Link to="/pipeline/$id" params={{ id: openJob.slug }} className="studio-today-go">
+              open conversation
+            </Link>
           ) : null}
           <button type="button" className="studio-ghost" onClick={() => setEditing((open) => !open)}>
-            {editing ? "close editor" : "edit"}
+            {editing ? "close" : "edit"}
           </button>
           <button
             type="button"
@@ -162,12 +197,11 @@ function ClientDetailPage() {
             archive
           </button>
         </div>
-      </div>
+      </section>
 
       {editing ? (
         <form
-          className="studio-panel"
-          style={{ marginTop: 16 }}
+          className="studio-module"
           onSubmit={(event) => {
             event.preventDefault();
             save.mutate();
@@ -240,119 +274,88 @@ function ClientDetailPage() {
         </form>
       ) : null}
 
-      <div className="studio-crm" style={{ marginTop: 16 }}>
-        <section className="studio-crm-main">
-          <div className="studio-panel">
-            <p className="studio-kicker">jobs</p>
-            <h2>inquiries</h2>
-            <p className="studio-muted" style={{ marginTop: 8 }}>
-              conversation, proposals, and project files live on the job — not only the contact.
-            </p>
-            <div className="studio-stack" style={{ marginTop: 16 }}>
-              {inquiries.length === 0 ? <p className="studio-empty">no jobs yet.</p> : null}
-              {inquiries.map((inquiry) => (
-                <Link
-                  key={inquiry.id}
-                  to="/pipeline/$id"
-                  params={{ id: inquiry.slug }}
-                  className="studio-ledger-row"
-                >
-                  <div>
-                    <b>{EVENT_LABEL[inquiry.event_type]}</b>
-                    <p>
-                      {inquiry.event_date_tbd ? "date tbd" : formatDate(inquiry.event_date)}
-                      {inquiry.venue_text ? ` · ${inquiry.venue_text}` : ""}
-                    </p>
-                  </div>
-                  <StudioChip stage={boardStageId(inquiry)}>{STATUS_LABEL[inquiry.status]}</StudioChip>
-                </Link>
-              ))}
-            </div>
-          </div>
+      <section className="studio-module">
+        <p className="studio-home-label">inquiries</p>
+        {inquiries.length === 0 ? <p className="studio-empty">no jobs yet.</p> : null}
+        <div className="studio-book-review-rows">
+          {inquiries.map((inquiry) => (
+            <Link key={inquiry.id} to="/pipeline/$id" params={{ id: inquiry.slug }} className="studio-book-row">
+              <span>
+                <b>{EVENT_LABEL[inquiry.event_type]}</b>
+                <em>
+                  {inquiry.event_date_tbd ? "date tbd" : formatDate(inquiry.event_date)}
+                  {inquiry.venue_text ? ` · ${inquiry.venue_text}` : ""}
+                </em>
+              </span>
+              <small>{STATUS_LABEL[inquiry.status]}</small>
+            </Link>
+          ))}
+        </div>
+      </section>
 
-          <div className="studio-panel">
-            <p className="studio-kicker">work</p>
-            <h2>proposals</h2>
-            <div className="studio-stack" style={{ marginTop: 16 }}>
-              {proposals.length === 0 ? <p className="studio-empty">no proposal yet.</p> : null}
-              {proposals.map((proposal) => (
-                <Link
-                  key={proposal.id}
-                  to="/proposals/$id"
-                  params={{ id: proposal.id }}
-                  className="studio-ledger-row"
-                >
-                  <div>
-                    <b>{proposal.number}</b>
-                    <p>
-                      {formatDate(proposal.event_date)} · {proposal.status}
-                    </p>
-                  </div>
-                  <strong>{formatMoneyExact(proposal.total_cents)}</strong>
-                </Link>
-              ))}
-            </div>
+      <section className="studio-module">
+        <p className="studio-home-label">proposals</p>
+        {proposals.length === 0 ? <p className="studio-empty">no proposal yet.</p> : null}
+        <div className="studio-book-review-rows">
+          {proposals.map((proposal) => (
+            <Link key={proposal.id} to="/proposals/$id" params={{ id: proposal.id }} className="studio-book-row">
+              <span>
+                <b>{proposal.number}</b>
+                <em>
+                  {formatDate(proposal.event_date)} · {proposal.status}
+                </em>
+              </span>
+              <small>{formatMoneyExact(proposal.total_cents)}</small>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {projects.length > 0 ? (
+        <section className="studio-module">
+          <p className="studio-home-label">projects</p>
+          <div className="studio-book-review-rows">
+            {projects.map((project) => (
+              <Link key={project.id} to="/projects/$id" params={{ id: project.id }} className="studio-book-row">
+                <span>
+                  <b>{project.event_name}</b>
+                  <em>
+                    {formatDate(project.event_date)} · {project.status.replaceAll("_", " ")}
+                  </em>
+                </span>
+              </Link>
+            ))}
           </div>
         </section>
+      ) : null}
 
-        <aside className="studio-crm-side">
-          <div className="studio-panel">
-            <p className="studio-kicker">booked work</p>
-            <h2>projects</h2>
-            <div className="studio-stack" style={{ marginTop: 16 }}>
-              {projects.length === 0 ? (
-                <p className="studio-empty">projects appear after a paid deposit.</p>
-              ) : null}
-              {projects.map((project) => (
-                <Link
-                  key={project.id}
-                  to="/projects/$id"
-                  params={{ id: project.id }}
-                  className="studio-ledger-row"
-                >
-                  <div>
-                    <b>{project.event_name}</b>
-                    <p>
-                      {formatDate(project.event_date)} · {project.status.replaceAll("_", " ")}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="studio-panel">
-            <p className="studio-kicker">internal</p>
-            <h2>files</h2>
-            <p className="studio-muted" style={{ marginTop: 8 }}>
-              job files — floor plans, palettes, contracts — sit on the inquiry.
-            </p>
-            <div className="studio-stack" style={{ marginTop: 16 }}>
-              {files.length === 0 ? <p className="studio-empty">no client-level files.</p> : null}
-              {files.map((file) => (
-                <a
-                  key={file.id}
-                  href={file.signed_url ?? undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="studio-ledger-row"
-                >
+      {files.length > 0 ? (
+        <section className="studio-module">
+          <p className="studio-home-label">files</p>
+          <div className="studio-book-review-rows">
+            {files.map((file) => (
+              <a
+                key={file.id}
+                href={file.signed_url ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="studio-book-row"
+              >
+                <span>
                   <b>{file.file_path.split("/").at(-1)}</b>
-                </a>
-              ))}
-            </div>
+                </span>
+              </a>
+            ))}
           </div>
+        </section>
+      ) : null}
 
-          {client.notes ? (
-            <div className="studio-panel">
-              <p className="studio-kicker">studio</p>
-              <h2>notes</h2>
-              <p className="studio-muted" style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>
-                {client.notes}
-              </p>
-            </div>
-          ) : null}
-        </aside>
+      {client.notes ? (
+        <section className="studio-module">
+          <p className="studio-home-label">notes</p>
+          <p className="studio-client-note">{client.notes}</p>
+        </section>
+      ) : null}
       </div>
     </div>
   );

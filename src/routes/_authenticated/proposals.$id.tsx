@@ -133,7 +133,7 @@ function ProposalDetailPage() {
           title="Proposal unavailable"
           description="This proposal could not be found or you do not have access."
         />
-        <EmptyState title="Nothing to show" body="Return to the proposal list and try again." />
+        <EmptyState title="Nothing to show" body="Return to the inquiry and try again." />
       </div>
     );
   }
@@ -149,12 +149,15 @@ function ProposalDetailPage() {
 
   return (
     <div>
-      <Link
-        to="/proposals"
-        className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase hover:text-foreground"
-      >
-        ← Proposals
-      </Link>
+      {inquiry?.id ? (
+        <Link
+          to="/pipeline/$id"
+          params={{ id: inquiry.id }}
+          className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase hover:text-foreground"
+        >
+          ← inquiry
+        </Link>
+      ) : null}
 
       <PageHeader
         eyebrow={`Proposal ${proposal.number}`}

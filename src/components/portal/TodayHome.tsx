@@ -1,7 +1,11 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useState, useEffect, useLayoutEffect, useRef, type FormEvent, type ReactNode } from "react";
+import { toast } from "sonner";
 
+import { TextShimmer } from "@/components/core/text-shimmer";
 import {
   Dialog,
   DialogClose,
@@ -10,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { initials } from "@/lib/os/inquiry-desk";
+import { EVENT_LABEL, inquiryTime, initials, nextMove, recordSlug } from "@/lib/os/inquiry-desk";
 import {
   BUDGET_RANGES,
   DIRECT_OUTREACH_SOURCE,
@@ -22,7 +26,7 @@ import {
   mapInquiryEventType,
   type InquiryInterest,
 } from "@/lib/os/inquiry-schema";
-import type { TaskRow } from "@/integrations/supabase/types";
+import type { InquiryMessageRow, TaskRow } from "@/integrations/supabase/types";
 import {
   DESK_KIND_LABEL,
   dayGreeting,
@@ -31,23 +35,34 @@ import {
   isDeskTask,
   longDate,
   toDeskTask,
+  weekBounds,
   weekFloor,
+  weekLabel,
   type DeskKind,
   type StudioToday,
   type TodayDeskTask,
   type TodayFloorItem,
   type TodayInquiry,
   type TodayProject,
+  type TodayTalk,
 } from "@/lib/os/studio-today";
+import { saveClient } from "@/lib/os/clients.functions";
+import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
+import type { InquiryPipelineItem } from "@/lib/os/inquiries.functions";
+import { useDevPreview } from "@/lib/use-dev-preview";
+import { formatDateNumeric } from "@/lib/money";
+import { readBookings, studioDay } from "@/lib/studio-bookings";
 import { cn } from "@/lib/utils";
 
 const TASK_KINDS: DeskKind[] = ["inquiry", "production", "manual"];
+const glanceShimmer = "[--base-color:#ff4d94] [--base-gradient-color:#ff1493]";
 const HOME_LABELS = {
   calendar: "calendar",
   floor: "week",
   desk: "tasks",
   glance: "detail",
 } as const;
+const FLOOR_PREVIEW = 3;
 
 export type DeskTaskDraft = {
   title: string;
@@ -66,6 +81,12 @@ function stamp(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function shiftDay(day: string, delta: number) {
+  const date = new Date(`${day}T12:00:00`);
+  date.setDate(date.getDate() + delta);
+  return stamp(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 function MonthBoard({
   marks,
   selected,
@@ -78,6 +99,10 @@ function MonthBoard({
   const now = new Date();
   const today = stamp(now.getFullYear(), now.getMonth(), now.getDate());
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  useEffect(() => {
+    const date = new Date(`${selected}T12:00:00`);
+    setView({ year: date.getFullYear(), month: date.getMonth() });
+  }, [selected]);
   const first = new Date(view.year, view.month, 1);
   const startPad = (first.getDay() + 6) % 7;
   const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
@@ -177,6 +202,43 @@ function FloorBeat({
   return <div>{copy}</div>;
 }
 
+function FloorDay({
+  date,
+  when,
+  today,
+  items,
+  open,
+  onToggle,
+  onPick,
+}: {
+  date: string;
+  when: string;
+  today: string;
+  items: TodayFloorItem[];
+  open: boolean;
+  onToggle: () => void;
+  onPick: (id: string) => void;
+}) {
+  const shown = open ? items : items.slice(0, FLOOR_PREVIEW);
+  return (
+    <section className={date === today ? "is-today" : undefined} data-floor-day={date}>
+      <h4>{when}</h4>
+      <ol>
+        {shown.map((item) => (
+          <li key={item.id}>
+            <FloorBeat item={item} onPick={onPick} />
+          </li>
+        ))}
+      </ol>
+      {items.length > FLOOR_PREVIEW ? (
+        <button type="button" className="studio-floor-more" aria-expanded={open} onClick={onToggle}>
+          {open ? "show less" : "view all"}
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
 export function TodayHome({
   data,
   name,
@@ -207,10 +269,36 @@ export function TodayHome({
     const now = new Date();
     return stamp(now.getFullYear(), now.getMonth(), now.getDate());
   });
+  const [weekOf, setWeekOf] = useState(day);
+  const [openDays, setOpenDays] = useState<string[]>([]);
+  const [localTalks, setLocalTalks] = useState<TodayTalk[]>([]);
   const today = useMemo(() => {
     const now = new Date();
     return stamp(now.getFullYear(), now.getMonth(), now.getDate());
   }, []);
+  useEffect(() => {
+    setLocalTalks(
+      readBookings().map((row) => ({
+        id: row.id,
+        startsAt: row.startsAt,
+        name: row.name,
+        email: row.email,
+        note: row.note,
+      })),
+    );
+  }, []);
+  const talks = useMemo(() => {
+    const remote = data.appointments ?? [];
+    const seen = new Set(remote.map((talk) => `${talk.startsAt}|${talk.email.toLowerCase()}`));
+    return [
+      ...remote,
+      ...localTalks.filter((talk) => !seen.has(`${talk.startsAt}|${talk.email.toLowerCase()}`)),
+    ];
+  }, [data.appointments, localTalks]);
+  const marks = useMemo(
+    () => [...new Set([...data.calendarMarks, ...talks.map((talk) => studioDay(talk.startsAt)).filter(Boolean)])],
+    [data.calendarMarks, talks],
+  );
 
   const live = useMemo(() => {
     const extras = added.filter((task) => !data.tasks.some((item) => item.id === task.id));
@@ -230,10 +318,10 @@ export function TodayHome({
   );
   const timeline = useMemo(
     () =>
-      weekFloor({ ...data, tasks: live, desk }, day, today).filter(
+      weekFloor({ ...data, tasks: live, desk, appointments: talks }, weekOf, today).filter(
         (item) => !item.taskId || !retired.includes(item.taskId),
       ),
-    [data, day, desk, live, retired, today],
+    [data, desk, live, retired, talks, today, weekOf],
   );
   const selected = desk.find((task) => task.id === pickedId) ?? desk[0] ?? null;
   const glance = selected ? deskGlance(selected) : null;
@@ -261,6 +349,76 @@ export function TodayHome({
     const projects = data.upcoming.filter((item) => item.event_date === day);
     return { inquiries, projects };
   }, [data.upcoming, data.waiting, day]);
+  const floorRef = useRef<HTMLDivElement>(null);
+  const floorPadRef = useRef<HTMLDivElement>(null);
+  const parkedFloor = useRef<{ week: string; signature: string; top: number } | null>(null);
+  const viewingNow = useMemo(() => {
+    const bounds = weekBounds(weekOf);
+    return today >= bounds.start && today <= bounds.end;
+  }, [today, weekOf]);
+  const floorWhen = weekLabel(weekOf, today);
+  useLayoutEffect(() => {
+    const floor = floorRef.current;
+    const pad = floorPadRef.current;
+    if (!floor) return;
+    if (floorGroups.length === 0) {
+      const weekKey = weekBounds(weekOf).start;
+      if (pad) pad.style.height = "0px";
+      if (parkedFloor.current?.week !== weekKey) {
+        floor.scrollTop = 0;
+        parkedFloor.current = { week: weekKey, signature: "", top: 0 };
+      }
+      return;
+    }
+    const weekKey = weekBounds(weekOf).start;
+    const signature = floorGroups.map((group) => `${group.date}:${group.items.length}`).join("|");
+    const parked = parkedFloor.current;
+    const userMoved =
+      parked?.week === weekKey && Math.abs(floor.scrollTop - parked.top) > 12;
+    if (parked?.week === weekKey && parked.signature === signature) return;
+    if (userMoved) {
+      parkedFloor.current = { week: weekKey, signature, top: floor.scrollTop };
+      return;
+    }
+    if (pad) pad.style.height = "0px";
+    if (!viewingNow) {
+      floor.scrollTop = 0;
+      parkedFloor.current = { week: weekKey, signature, top: 0 };
+      return;
+    }
+    const anchor = floorGroups.find((group) => group.date >= today)?.date;
+    const target = anchor
+      ? floor.querySelector<HTMLElement>(`[data-floor-day="${anchor}"]`)
+      : null;
+    if (!target) {
+      floor.scrollTop = floor.scrollHeight;
+      parkedFloor.current = { week: weekKey, signature, top: floor.scrollTop };
+      return;
+    }
+    const top = Math.max(
+      0,
+      target.getBoundingClientRect().top - floor.getBoundingClientRect().top + floor.scrollTop,
+    );
+    const deficit = top > 8 ? Math.max(0, top + floor.clientHeight - floor.scrollHeight + 1) : 0;
+    if (pad && deficit > 0) pad.style.height = `${deficit}px`;
+    floor.scrollTop = top;
+    parkedFloor.current = { week: weekKey, signature, top };
+    requestAnimationFrame(() => {
+      if (parkedFloor.current?.week !== weekKey || parkedFloor.current.signature !== signature) return;
+      if (Math.abs(floor.scrollTop - top) > 2) floor.scrollTop = top;
+    });
+  }, [floorGroups, today, viewingNow, weekOf]);
+
+  function chooseDay(date: string) {
+    setDay(date);
+    setWeekOf(date);
+  }
+
+  function moveWeek(delta: number) {
+    const next = shiftDay(weekOf, delta * 7);
+    setWeekOf(next);
+    setDay(next);
+  }
 
   async function retire(id: string) {
     setRetired((current) => (current.includes(id) ? current : [...current, id]));
@@ -325,7 +483,7 @@ export function TodayHome({
       <div className="studio-home-stage">
         <aside className="studio-home-day">
           <p className="studio-home-label">{HOME_LABELS.calendar}</p>
-          <MonthBoard marks={data.calendarMarks} selected={day} onSelect={setDay} />
+          <MonthBoard marks={marks} selected={day} onSelect={chooseDay} />
           {(dayMarks.inquiries.length > 0 || dayMarks.projects.length > 0) && (
             <div className="studio-home-daymarks">
               {dayMarks.projects.map((project) => (
@@ -345,29 +503,61 @@ export function TodayHome({
         </aside>
 
         <div className="studio-home-floor">
-          <div className="studio-timeline">
-            <div className="studio-floor-head">
-              <p className="studio-home-label">{HOME_LABELS.floor}</p>
+          <div className="studio-floor-head">
+            <p className="studio-home-label">{HOME_LABELS.floor}</p>
+            <div className="studio-floor-nav">
+              <button
+                type="button"
+                className="studio-cal-nav"
+                aria-label="previous week"
+                onClick={() => moveWeek(-1)}
+              >
+                <ChevronLeft aria-hidden="true" />
+              </button>
+              <span className="studio-floor-when">{floorWhen}</span>
+              {viewingNow ? null : (
+                <button type="button" className="studio-floor-now" onClick={() => chooseDay(today)}>
+                  this week
+                </button>
+              )}
+              <button
+                type="button"
+                className="studio-cal-nav"
+                aria-label="next week"
+                onClick={() => moveWeek(1)}
+              >
+                <ChevronRight aria-hidden="true" />
+              </button>
             </div>
-
-            {timeline.length === 0 ? (
-              <p className="studio-empty">quiet week on the floor.</p>
-            ) : (
-              <div className="studio-floor-run">
-                {floorGroups.map((group) => (
-                  <section key={group.date} className={group.date === today ? "is-today" : undefined}>
-                    <h4>{group.when}</h4>
-                    <ol>
-                      {group.items.map((item) => (
-                        <li key={item.id}>
-                          <FloorBeat item={item} onPick={setPickedId} />
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
-                ))}
-              </div>
-            )}
+          </div>
+          <div className="studio-floor-scroll" ref={floorRef}>
+            <div className="studio-timeline">
+              {timeline.length === 0 ? (
+                <p className="studio-empty">quiet week on the floor.</p>
+              ) : (
+                <div className="studio-floor-run">
+                  {floorGroups.map((group) => (
+                    <FloorDay
+                      key={group.date}
+                      date={group.date}
+                      when={group.when}
+                      today={today}
+                      items={group.items}
+                      open={openDays.includes(group.date)}
+                      onToggle={() =>
+                        setOpenDays((current) =>
+                          current.includes(group.date)
+                            ? current.filter((item) => item !== group.date)
+                            : [...current, group.date],
+                        )
+                      }
+                      onPick={setPickedId}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="studio-floor-pad" ref={floorPadRef} aria-hidden="true" />
           </div>
         </div>
       </div>
@@ -419,7 +609,7 @@ export function TodayHome({
       <AddInquiry
         open={adding}
         busy={creating}
-        marks={data.calendarMarks}
+        marks={marks}
         onOpenChange={setAdding}
         onCreate={onCreateInquiry}
       />
@@ -428,7 +618,7 @@ export function TodayHome({
         open={tasking}
         busy={savingTask}
         today={today}
-        marks={data.calendarMarks}
+        marks={marks}
         inquiries={data.waiting}
         projects={data.projects}
         onOpenChange={setTasking}
@@ -1025,6 +1215,8 @@ function TaskGlance({
   task: TodayDeskTask;
   glance: ReturnType<typeof deskGlance>;
 }) {
+  if (task.inquiry) return <InquiryRecordGlance inquiry={task.inquiry} task={task} />;
+
   return (
     <>
       <div className="studio-home-glance-top">
@@ -1069,6 +1261,323 @@ function TaskGlance({
   );
 }
 
+function inquiryHello(inquiry: InquiryPipelineItem) {
+  const time = inquiryTime(inquiry.message);
+  const when = inquiry.event_date_tbd
+    ? "date tbd"
+    : [formatDateNumeric(inquiry.event_date), time].filter((part) => part && part !== "—").join(" · ");
+  const place = inquiry.venue_text?.split(",")[0]?.trim() ?? "";
+  return {
+    hello: [when, place].filter(Boolean).join(" · "),
+    eventWhen: inquiry.event_date_tbd ? "tbd" : when || "—",
+  };
+}
+
+function glanceSummary(inquiry: InquiryPipelineItem) {
+  const saved = inquiry.summary_text?.trim();
+  if (saved) return saved;
+  const inbound: InquiryMessageRow | null = inquiry.message
+    ? {
+        id: inquiry.id,
+        inquiry_id: inquiry.id,
+        direction: "inbound",
+        channel: "form",
+        subject: null,
+        body: inquiry.message,
+        from_address: inquiry.client?.email ?? null,
+        to_address: null,
+        gmail_message_id: null,
+        gmail_thread_id: null,
+        author: inquiry.client?.name ?? null,
+        sent_at: inquiry.received_at,
+        status: "received",
+        created_by: null,
+        created_at: inquiry.received_at,
+      }
+    : null;
+  return resolveInquirySummaryText(
+    buildInquirySummaryFacts({
+      status: inquiry.status,
+      contacted_at: inquiry.contacted_at,
+      messages: inbound ? [inbound] : [],
+      proposals: inquiry.proposal_sent_at ? [{ status: "sent", created_at: inquiry.proposal_sent_at }] : [],
+    }),
+  );
+}
+
+function InquiryRecordGlance({ inquiry, task }: { inquiry: InquiryPipelineItem; task: TodayDeskTask }) {
+  const client = inquiry.client;
+  const name = client?.name ?? "client";
+  const { hello, eventWhen } = inquiryHello(inquiry);
+  const next = nextMove(inquiry.status);
+  const summary = glanceSummary(inquiry);
+
+  const place = inquiry.venue_text?.trim() || "—";
+  const figure = inquiry.budget_range?.trim() || "—";
+
+  return (
+    <>
+      <GlanceHead name={name} hello={hello} task={task} />
+      {summary ? <SummaryCard summary={summary} /> : null}
+      <article className="studio-glance-card is-next">
+        <p className="studio-glance-label">
+          <span className="studio-next-mark" aria-hidden="true" />
+          up next
+        </p>
+        <b>{next.title}</b>
+        <p>{next.note}</p>
+      </article>
+      <div className="studio-glance-split">
+        <article className="studio-glance-card">
+          <p className="studio-glance-label">the moment</p>
+          <dl>
+            <div>
+              <dt>date</dt>
+              <dd>{eventWhen}</dd>
+            </div>
+            <div>
+              <dt>place</dt>
+              <dd>{place}</dd>
+            </div>
+            <div>
+              <dt>investment</dt>
+              <dd>{figure}</dd>
+            </div>
+          </dl>
+          <ClientForm inquiry={inquiry} eventWhen={eventWhen} />
+        </article>
+        <article className="studio-glance-card">
+          <p className="studio-glance-label">client details</p>
+          <dl>
+            <div>
+              <dt>name</dt>
+              <dd>{name}</dd>
+            </div>
+            <div>
+              <dt>email</dt>
+              <dd>{dash(client?.email)}</dd>
+            </div>
+            {client?.phone ? (
+              <div>
+                <dt>phone</dt>
+                <dd>{client.phone}</dd>
+              </div>
+            ) : null}
+          </dl>
+          <ClientFile clientName={client?.name} />
+        </article>
+      </div>
+    </>
+  );
+}
+
+function GlanceHead({ name, hello, task }: { name: string; hello: string; task: TodayDeskTask }) {
+  return (
+    <header className="studio-glance-head">
+      <div>
+        <b>{name}</b>
+        {hello ? (
+          <p>
+            <TextShimmer duration={1.2} className={glanceShimmer}>
+              {hello}
+            </TextShimmer>
+          </p>
+        ) : null}
+      </div>
+      <GlanceGo task={task} />
+    </header>
+  );
+}
+
+function SummaryLabel() {
+  return (
+    <p className="studio-glance-label" title="written by studio intelligence">
+      <span className="studio-summary-mark" aria-hidden="true" />
+      summary
+      <span className="sr-only">written by studio intelligence</span>
+    </p>
+  );
+}
+
+function SummaryCard({ summary }: { summary: string }) {
+  return (
+    <article className="studio-glance-card">
+      <SummaryLabel />
+      <p>{summary}</p>
+    </article>
+  );
+}
+
+function ClientFile({ clientName }: { clientName?: string | null }) {
+  if (!clientName) return null;
+  return (
+    <Link to="/clients/$id" params={{ id: recordSlug(clientName) }} className="studio-ghost">
+      <TextShimmer duration={1.2} className={glanceShimmer}>
+        client file
+      </TextShimmer>
+    </Link>
+  );
+}
+
+function answeredVision(message: string | null) {
+  return (message ?? "")
+    .split("\n")
+    .filter((line) => !/^(Size|Time|Recipient):/i.test(line.trim()))
+    .join("\n")
+    .trim();
+}
+
+function ClientForm({ inquiry, eventWhen }: { inquiry: InquiryPipelineItem; eventWhen: string }) {
+  const client = inquiry.client;
+  const devPreview = useDevPreview();
+  const queryClient = useQueryClient();
+  const submitClient = useServerFn(saveClient);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", phone: "" });
+
+  const keepClient = useMutation({
+    mutationFn: async () => {
+      if (!client) throw new Error("this client could not be opened.");
+      const name = form.name.trim();
+      const email = form.email.trim();
+      if (!name || !email) throw new Error("name and email hold the record.");
+      if (devPreview) {
+        toast.message("preview mode — client not saved");
+        return client;
+      }
+      return submitClient({
+        data: {
+          id: client.id,
+          name,
+          email,
+          phone: form.phone,
+          organization: client.organization,
+          type: client.type,
+          source: client.source,
+          notes: client.notes,
+        },
+      });
+    },
+    onSuccess: () => {
+      if (!devPreview) toast.success("client updated");
+      setOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["inquiry-dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["os", "clients"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  if (!client) return null;
+  const vision = answeredVision(inquiry.message);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="studio-ghost"
+        aria-expanded={open}
+        onClick={() => {
+          setForm({ name: client.name, email: client.email ?? "", phone: client.phone ?? "" });
+          setOpen(true);
+        }}
+      >
+        <TextShimmer duration={1.2} className={glanceShimmer}>
+          client form
+        </TextShimmer>
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+          <div className="studio-task-head">
+            <DialogClose className="studio-task-close" aria-label="Close">
+              <X aria-hidden="true" />
+            </DialogClose>
+          </div>
+          <DialogTitle className="sr-only">client form</DialogTitle>
+          <DialogDescription className="sr-only">their details, and what they answered.</DialogDescription>
+          <form
+            className="studio-task-form"
+            onSubmit={(event: FormEvent) => {
+              event.preventDefault();
+              keepClient.mutate();
+            }}
+          >
+            <label className="studio-task-composer-title">
+              <span className="sr-only">name</span>
+              <input
+                autoFocus
+                value={form.name}
+                maxLength={160}
+                autoComplete="name"
+                placeholder="who is this…"
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+              />
+            </label>
+            <div className="studio-ask-grid is-two">
+              <label className="studio-ask-field">
+                <span className="studio-ask-label">email</span>
+                <input
+                  type="email"
+                  value={form.email}
+                  maxLength={320}
+                  autoComplete="email"
+                  required
+                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                />
+              </label>
+              <label className="studio-ask-field">
+                <span className="studio-ask-label">phone</span>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  maxLength={40}
+                  autoComplete="tel"
+                  onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                />
+              </label>
+              <span className="studio-ask-label studio-ask-span">they answered</span>
+              <ReadAnswer label="interest" value={EVENT_LABEL[inquiry.event_type]} />
+              <ReadAnswer label="date" value={eventWhen || "tbd"} />
+              {inquiry.venue_text ? <ReadAnswer label="venue" value={inquiry.venue_text} wide /> : null}
+              {inquiry.budget_range ? <ReadAnswer label="budget" value={inquiry.budget_range} /> : null}
+              {inquiry.guest_count ? <ReadAnswer label="guests" value={String(inquiry.guest_count)} /> : null}
+              {inquiry.source ? <ReadAnswer label="source" value={inquiry.source} /> : null}
+              {vision ? <ReadAnswer label="vision" value={vision} wide lines /> : null}
+            </div>
+            <div className="studio-ask-foot">
+              <button
+                type="submit"
+                className="studio-today-go"
+                disabled={keepClient.isPending || !form.name.trim() || !form.email.trim()}
+              >
+                {keepClient.isPending ? "saving…" : "keep"}
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function ReadAnswer({
+  label,
+  value,
+  wide = false,
+  lines = false,
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+  lines?: boolean;
+}) {
+  return (
+    <label className={cn("studio-ask-field", wide && "studio-ask-span")}>
+      <span className="studio-ask-label">{label}</span>
+      {lines ? <textarea readOnly value={value} /> : <input readOnly value={value} />}
+    </label>
+  );
+}
+
 function GlanceGo({ task }: { task: TodayDeskTask }) {
   if (task.inquiry) {
     return (
@@ -1076,16 +1585,20 @@ function GlanceGo({ task }: { task: TodayDeskTask }) {
         <Link
           to="/pipeline/$id"
           params={{ id: task.inquiry.slug }}
-          className="studio-home-glance-link is-blush"
+          className="studio-ghost"
         >
-          open inquiry
+          <TextShimmer duration={1.2} className={glanceShimmer}>
+            open inquiry
+          </TextShimmer>
         </Link>
         <Link
           to="/proposals/new"
           search={{ inquiry: task.inquiry.id }}
-          className="studio-home-glance-link is-ink"
+          className="studio-ghost"
         >
-          create proposal
+          <TextShimmer duration={1.2} className={glanceShimmer}>
+            create proposal
+          </TextShimmer>
         </Link>
       </nav>
     );

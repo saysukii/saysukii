@@ -31,7 +31,8 @@ export type LineItem = {
 };
 
 function money(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatted = `$${Math.abs(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return cents < 0 ? `−${formatted}` : formatted;
 }
 
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -306,12 +307,25 @@ export async function renderInvoicePdf(args: {
   balanceCents: number;
   dueDate: string | null;
   paymentLink: string | null;
+  sharedOn?: string | null;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Say Sukii Invoice ${args.meta.number}`);
   const fonts = await loadFonts(doc);
   const page = doc.addPage([PAGE_W, PAGE_H]);
   let y = drawHeader(page, fonts, args.meta);
+  y -= 36;
+  if (args.sharedOn) {
+    const shared = `Shared ${args.sharedOn}`;
+    page.drawText(shared, {
+      x: PAGE_W - MARGIN - fonts.body.widthOfTextAtSize(shared, 10),
+      y,
+      size: 10,
+      font: fonts.body,
+      color: MUTED,
+    });
+    y -= 28;
+  }
   y = drawMetaBlock(page, fonts, args.meta, y);
 
   page.drawText("DUE", { x: MARGIN, y, size: 7, font: fonts.bold, color: MUTED });
@@ -324,8 +338,25 @@ export async function renderInvoicePdf(args: {
   });
   y -= 44;
 
-  page.drawText("SCOPE", { x: MARGIN, y, size: 7, font: fonts.bold, color: MUTED });
-  page.drawText("TOTAL", { x: 505, y, size: 7, font: fonts.bold, color: MUTED });
+  const qtyX = 390;
+  const priceX = 470;
+  const amountX = PAGE_W - MARGIN;
+  const heads: Array<[string, number]> = [
+    ["ITEM", MARGIN],
+    ["QUANTITY", qtyX],
+    ["PRICE", priceX],
+    ["AMOUNT", amountX],
+  ];
+  for (const [label, right] of heads) {
+    const width = fonts.bold.widthOfTextAtSize(label, 7);
+    page.drawText(label, {
+      x: label === "ITEM" ? MARGIN : right - width,
+      y,
+      size: 7,
+      font: fonts.bold,
+      color: MUTED,
+    });
+  }
   y -= 8;
   page.drawLine({
     start: { x: MARGIN, y },
@@ -337,16 +368,21 @@ export async function renderInvoicePdf(args: {
 
   for (const item of args.items) {
     if (y < 200) break;
-    const label = `${item.name}${item.qty !== 1 ? `  ×${item.qty}` : ""}`;
-    page.drawText(label.slice(0, 70), { x: MARGIN, y, size: 10.5, font: fonts.body, color: INK });
-    const totalText = money(item.lineTotalCents);
-    page.drawText(totalText, {
-      x: PAGE_W - MARGIN - fonts.body.widthOfTextAtSize(totalText, 10.5),
-      y,
-      size: 10.5,
-      font: fonts.body,
-      color: MUTED,
-    });
+    page.drawText(item.name.slice(0, 42), { x: MARGIN, y, size: 10.5, font: fonts.body, color: INK });
+    const cells: Array<[string, number]> = [
+      [String(item.qty), qtyX],
+      [money(item.unitPriceCents), priceX],
+      [money(item.lineTotalCents), amountX],
+    ];
+    for (const [text, right] of cells) {
+      page.drawText(text, {
+        x: right - fonts.body.widthOfTextAtSize(text, 10.5),
+        y,
+        size: 10.5,
+        font: fonts.body,
+        color: INK,
+      });
+    }
     y -= 17;
   }
 
@@ -381,6 +417,14 @@ export async function renderInvoicePdf(args: {
   }
 
   y -= 16;
+  page.drawText("Thank you for choosing Say Sukii! We appreciate your business.", {
+    x: MARGIN,
+    y,
+    size: 10,
+    font: fonts.italic,
+    color: INK,
+  });
+  y -= 28;
   if (args.paymentLink) {
     page.drawText("Pay online", { x: MARGIN, y, size: 7, font: fonts.bold, color: MUTED });
     page.drawText(args.paymentLink.slice(0, 80), {

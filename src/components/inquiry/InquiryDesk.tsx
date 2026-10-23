@@ -1,12 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { InquiryLeadPane } from "@/components/inquiry/InquiryLeadPane";
 import { AddInquiry } from "@/components/portal/TodayHome";
-import { getDevPreviewPipeline } from "@/lib/dev-preview";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { getDevPreviewPipeline, previewReviewDecision } from "@/lib/dev-preview";
 import { formatDateNumeric } from "@/lib/money";
 import {
   BOARD_COLUMNS,
@@ -14,13 +22,17 @@ import {
   EVENT_LABEL,
   confidenceLabel,
   daysWaiting,
-  initials,
   waitingLabel,
   waitingTone,
 } from "@/lib/os/inquiry-desk";
 import { isReviewCandidate } from "@/lib/os/inquiry-detection";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
-import { createAdminInquiry, listInquiryPipeline, type InquiryPipelineItem } from "@/lib/os/inquiries.functions";
+import {
+  createAdminInquiry,
+  listInquiryPipeline,
+  reviewDetectedInquiry,
+  type InquiryPipelineItem,
+} from "@/lib/os/inquiries.functions";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +42,9 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
   const queryClient = useQueryClient();
   const fetchInquiries = useServerFn(listInquiryPipeline);
   const saveInquiry = useServerFn(createAdminInquiry);
+  const reviewInquiry = useServerFn(reviewDetectedInquiry);
   const [adding, setAdding] = useState(false);
+  const [reading, setReading] = useState<InquiryPipelineItem | null>(null);
 
   const {
     data: inquiries = [],
@@ -89,6 +103,24 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const decide = useMutation({
+    mutationFn: async (decision: "approve" | "dismiss") => {
+      if (!reading) throw new Error("nothing to review");
+      if (devPreview) {
+        previewReviewDecision(reading.id, decision);
+        return { ok: true as const, decision };
+      }
+      return reviewInquiry({ data: { id: reading.id, decision } });
+    },
+    onSuccess: async (result) => {
+      setReading(null);
+      toast.success(result.decision === "approve" ? "in the book — waiting" : "left off the book");
+      await queryClient.invalidateQueries({ queryKey: ["inquiry-pipeline"] });
+      void queryClient.invalidateQueries({ queryKey: ["inquiry-dashboard"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const waitingCount = inquiries.filter(
     (inquiry) => !isReviewCandidate(inquiry) && ["new", "contacted", "in_conversation"].includes(inquiry.status),
   ).length;
@@ -128,7 +160,7 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
 
       {!isPending && inquiries.length > 0 ? (
         <div className="studio-book-body">
-          {review.length > 0 ? <ReviewStrip items={review} /> : null}
+          {review.length > 0 ? <ReviewStrip items={review} onOpen={setReading} /> : null}
           <div className="studio-kanban is-glass">
             <div className="studio-kanban-lanes">
               {columns.map((column) => (
@@ -159,38 +191,153 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
           await createInquiry.mutateAsync(values);
         }}
       />
+      <ReviewMessage
+        inquiry={reading}
+        busy={decide.isPending}
+        onOpenChange={(open) => {
+          if (!open) setReading(null);
+        }}
+        onDecide={(decision) => decide.mutate(decision)}
+      />
     </div>
   );
 }
 
-function ReviewStrip({ items }: { items: InquiryPipelineItem[] }) {
+function ReviewStrip({
+  items,
+  onOpen,
+}: {
+  items: InquiryPipelineItem[];
+  onOpen: (inquiry: InquiryPipelineItem) => void;
+}) {
   return (
     <section className="studio-book-review" aria-label="needs review">
-      <p className="studio-home-label">
+      <p className="studio-home-label" title="flagged by studio intelligence">
+        <span className="studio-summary-mark" aria-hidden="true" />
         needs review
         <span>{items.length}</span>
+        <span className="sr-only">flagged by studio intelligence</span>
       </p>
       <div className="studio-book-review-rows">
-        {items.map((inquiry) => {
-          const event = EVENT_LABEL[inquiry.event_type];
-          const date = inquiry.event_date_tbd ? "tbd" : formatDateNumeric(inquiry.event_date);
-          const place = inquiry.venue_text?.split(",")[0]?.trim() ?? "";
-          return (
-            <Link key={inquiry.id} to="/pipeline/$id" params={{ id: inquiry.slug }} className="studio-book-row">
-              <span className="studio-desk-avatar is-sm" aria-hidden="true">
-                {initials(inquiry.client?.name)}
-              </span>
+        {items.map((inquiry) => (
+            <button key={inquiry.id} type="button" className="studio-book-row" onClick={() => onOpen(inquiry)}>
               <span>
                 <b>{inquiry.client?.name ?? "client"}</b>
-                <em>{[event, place, date].filter(Boolean).join(" · ")}</em>
+                <em>{messagePreview(inquiry)}</em>
               </span>
               <small>{confidenceLabel(inquiry.detection_confidence) ?? "look"}</small>
-            </Link>
-          );
-        })}
+            </button>
+        ))}
       </div>
     </section>
   );
+}
+
+function ReviewMessage({
+  inquiry,
+  busy,
+  onOpenChange,
+  onDecide,
+}: {
+  inquiry: InquiryPipelineItem | null;
+  busy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDecide: (decision: "approve" | "dismiss") => void;
+}) {
+  const [pending, setPending] = useState<"approve" | "dismiss" | null>(null);
+  const choice = useRef<"approve" | "dismiss" | null>(null);
+  if (pending) choice.current = pending;
+  const peek = inquiry?.source_peek;
+  const when = messageWhen(inquiry?.received_at);
+  const from = peek?.from_addr?.trim() || inquiry?.client?.email || "";
+  const body = peek?.body?.trim() || inquiry?.message?.trim() || "the message isn't here yet.";
+  const decision = pending ?? choice.current;
+  const confirm =
+    decision === "approve"
+      ? "add this inquiry? it goes in as waiting."
+      : decision === "dismiss"
+        ? "skip this inquiry? it stays off the book."
+        : "";
+
+  useEffect(() => {
+    setPending(null);
+  }, [inquiry?.id]);
+
+  return (
+    <Dialog open={Boolean(inquiry)} onOpenChange={onOpenChange}>
+      <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask is-soft" hideClose>
+        <div className="studio-task-head">
+          <DialogClose className="studio-task-close" aria-label="Close">
+            <X aria-hidden="true" />
+          </DialogClose>
+        </div>
+        <DialogTitle className="sr-only">{when || "a note from gmail"}</DialogTitle>
+        <DialogDescription className="sr-only">the gmail message. add it to the book, or skip it.</DialogDescription>
+        <div className="studio-task-form">
+          <div className="studio-review-stack">
+            {when ? <p className="studio-ask-hint is-when">{when}</p> : null}
+            {from ? <p className="studio-ask-hint">from: {from}</p> : null}
+          </div>
+          <p className="studio-review-mail">{body}</p>
+          <div className="studio-ask-foot is-pair is-spread">
+            <button type="button" className="studio-ghost" disabled={busy} onClick={() => setPending("dismiss")}>
+              skip this inquiry
+            </button>
+            <button type="button" className="studio-today-go" disabled={busy} onClick={() => setPending("approve")}>
+              add this inquiry
+            </button>
+          </div>
+        </div>
+        <Dialog open={pending !== null} onOpenChange={(open) => { if (!open) setPending(null); }}>
+          <DialogContent
+            overlayClassName="studio-task-veil z-[60]"
+            className="studio-task-modal is-ask is-confirm is-soft z-[60]"
+            hideClose
+          >
+            <div className="studio-task-head">
+              <DialogClose className="studio-task-close" aria-label="Close">
+                <X aria-hidden="true" />
+              </DialogClose>
+            </div>
+            <DialogTitle className="sr-only">{confirm || "confirm"}</DialogTitle>
+            <DialogDescription className="sr-only">confirm before the book changes.</DialogDescription>
+            <div className="studio-task-form">
+              <p className="studio-review-confirm">{confirm}</p>
+              <div className="studio-ask-foot is-pair is-spread">
+                <button type="button" className="studio-ghost" disabled={busy} onClick={() => setPending(null)}>
+                  back
+                </button>
+                <button
+                  type="button"
+                  className="studio-today-go"
+                  disabled={busy}
+                  onClick={() => decision && onDecide(decision)}
+                >
+                  {busy ? "saving…" : decision === "approve" ? "yes, add it" : "yes, skip it"}
+                </button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function messagePreview(inquiry: InquiryPipelineItem) {
+  const raw = inquiry.source_peek?.body?.trim() || inquiry.message?.trim() || "";
+  return raw.replace(/\s+/g, " ");
+}
+
+function messageWhen(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = String(date.getFullYear()).slice(-2);
+  const time = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  return `${month}/${day}/${year} · ${time}`;
 }
 
 function glance(inquiry: InquiryPipelineItem) {

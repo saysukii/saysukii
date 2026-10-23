@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, EventType, InquiryStatus } from "@/integrations/supabase/types";
 import { inquirySlugs, isRecordUuid } from "@/lib/os/inquiry-desk";
 import { assembleStudioToday } from "@/lib/os/studio-today";
@@ -16,6 +16,9 @@ import {
 import { listStudioTasks, syncInquiryAutoTaskFor, syncInquiryAutoTasks } from "@/lib/os/tasks.functions";
 import { refreshInquirySummarySafe, summarizeInquiryRecord } from "@/lib/os/inquiry-summary.server";
 import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
+import { CONNECT_SUBJECT, connectLetterBody, connectLetterPlain } from "@/lib/os/connect-letter";
+import { noteWriter, signatureName, signatureText, STUDIO_OWNER, wroteNote } from "@/lib/os/mail-signature";
+import { letterWithProposalUrl, proposalCards } from "@/lib/proposal-link";
 
 const eventType = z.enum([
   "wedding",
@@ -132,9 +135,11 @@ function formThreadBody(input: {
   budget_range?: string | null;
 }) {
   const time = input.message?.match(/^Time:\s*(.+)$/m)?.[1]?.trim();
+  const space = input.message?.match(/^Space:\s*(.+)$/m)?.[1]?.trim();
+  const cadence = input.message?.match(/^Cadence:\s*(.+)$/m)?.[1]?.trim();
   const vision = (input.message ?? "")
     .split("\n")
-    .filter((line) => !/^(Size|Time|Recipient):/i.test(line.trim()))
+    .filter((line) => !/^(Size|Time|Recipient|Space|Cadence):/i.test(line.trim()))
     .join("\n")
     .trim();
 
@@ -143,6 +148,8 @@ function formThreadBody(input: {
     input.venue_text ? `place: ${input.venue_text}` : "",
     input.event_date_tbd ? "date: tbd" : input.event_date ? `date: ${input.event_date}` : "",
     time ? `time: ${time}` : "",
+    space ? `space: ${space}` : "",
+    cadence ? `cadence: ${cadence}` : "",
     input.budget_range ? `figure: ${input.budget_range}` : "",
   ]
     .filter(Boolean)
@@ -192,6 +199,60 @@ async function createInquiryWithClient(
     await syncInquiryAutoTaskFor(client, inquiry.id);
     await refreshInquirySummarySafe(client, inquiry.id);
     return inquiry;
+}
+
+async function sendConnectLetter(
+  client: StudioClient,
+  input: { inquiryId: string; name: string; email: string },
+) {
+  const body = connectLetterBody(input.name);
+  const sentAt = new Date().toISOString();
+  const fromAddress = process.env["GMAIL_INBOX"] ?? "info@saysukii.com";
+  let from = fromAddress;
+  let gmailMessageId: string | null = null;
+  let gmailThreadId: string | null = null;
+  let status: "sent" | "queued" = "queued";
+
+  try {
+    const { getGmailPublicStatus, validGmailAccessToken } = await import("@/lib/os/gmail.server");
+    const gmail = await getGmailPublicStatus();
+    if (gmail.status === "connected") {
+      const { sendInquiryEmail } = await import("@/lib/os/gmail-outbound.server");
+      const accessToken = await validGmailAccessToken();
+      from = gmail.account_email || fromAddress;
+      const sent = await sendInquiryEmail({
+        from,
+        fromName: "Say Sukii",
+        to: input.email,
+        toName: input.name,
+        subject: CONNECT_SUBJECT,
+        body: `${connectLetterPlain(input.name)}\n\n${signatureText(STUDIO_OWNER)}`,
+        threadId: null,
+        accessToken,
+      });
+      gmailMessageId = sent.gmail_message_id;
+      gmailThreadId = sent.gmail_thread_id;
+      status = "sent";
+    }
+  } catch (error) {
+    console.error("[inquiry] connect letter stayed in the book:", error);
+  }
+
+  const { error } = await client.from("inquiry_messages").insert({
+    inquiry_id: input.inquiryId,
+    direction: "outbound",
+    channel: "email",
+    subject: CONNECT_SUBJECT,
+    body,
+    from_address: from,
+    to_address: input.email,
+    gmail_message_id: gmailMessageId,
+    gmail_thread_id: gmailThreadId,
+    author: "say sukii",
+    sent_at: sentAt,
+    status,
+  });
+  if (error) console.error("[inquiry] connect letter was not saved:", error.message);
 }
 
 export type InquirySourcePeek = {
@@ -261,7 +322,17 @@ export const submitPublicInquiry = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => publicInquiryInput.parse(input))
   .handler(async ({ data }) => {
     // Honeypot submissions get a normal success response without touching the database.
-    if (data.website.trim()) return { ok: true as const };
+    if (data.website.trim()) return { ok: true as const, preview: false as const };
+
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      if (import.meta.env.DEV) {
+        console.warn("[inquiry] kept in this browser. SUPABASE_SERVICE_ROLE_KEY is not set.");
+        return { ok: true as const, preview: true as const };
+      }
+      throw new Error(
+        "Missing Supabase environment variable(s): SUPABASE_SERVICE_ROLE_KEY.",
+      );
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const inquiry = await createInquiryWithClient(supabaseAdmin, data, null);
@@ -273,7 +344,40 @@ export const submitPublicInquiry = createServerFn({ method: "POST" })
       eventType: inquiry.event_type,
       venue: inquiry.venue_text,
     });
-    return { ok: true as const };
+    await sendConnectLetter(supabaseAdmin, {
+      inquiryId: inquiry.id,
+      name: data.name,
+      email: data.email.toLowerCase(),
+    });
+    return { ok: true as const, preview: false as const };
+  });
+
+export const listFreshArrivals = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }) => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const inquiryResult = await context.supabase
+      .from("inquiries")
+      .select("id, client_id")
+      .eq("archived", false)
+      .eq("origin", "form")
+      .eq("status", "new")
+      .gte("received_at", since)
+      .order("received_at", { ascending: false })
+      .limit(8);
+    if (inquiryResult.error) throw new Error(inquiryResult.error.message);
+    const rows = inquiryResult.data ?? [];
+    if (rows.length === 0) return [];
+    const clientResult = await context.supabase
+      .from("clients")
+      .select("id, name")
+      .in(
+        "id",
+        rows.map((row) => row.client_id),
+      );
+    if (clientResult.error) throw new Error(clientResult.error.message);
+    const names = new Map((clientResult.data ?? []).map((row) => [row.id, row.name]));
+    return rows.map((row) => ({ id: row.id, name: names.get(row.client_id) ?? "someone" }));
   });
 
 export const createAdminInquiry = createServerFn({ method: "POST" })
@@ -293,7 +397,7 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const horizon = new Date();
     horizon.setDate(horizon.getDate() + 45);
-    const [inquiries, projectsResult, clientsResult, tasks] = await Promise.all([
+    const [inquiries, projectsResult, clientsResult, tasks, appointmentsResult] = await Promise.all([
       listInquiriesWithClients(context.supabase),
       context.supabase
         .from("projects")
@@ -304,6 +408,11 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
         .order("event_date", { ascending: true }),
       context.supabase.from("clients").select("*"),
       listStudioTasks(context.supabase),
+      context.supabase
+        .from("appointments")
+        .select("id, starts_at, guest_name, guest_email, note")
+        .gte("starts_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .order("starts_at"),
     ]);
     if (projectsResult.error) throw new Error(projectsResult.error.message);
     if (clientsResult.error) throw new Error(clientsResult.error.message);
@@ -320,6 +429,15 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
         client: projectClients.get(project.client_id) ?? null,
       })),
       tasks: latestTasks,
+      appointments: appointmentsResult.error
+        ? []
+        : (appointmentsResult.data ?? []).map((row) => ({
+            id: row.id,
+            startsAt: row.starts_at,
+            name: row.guest_name,
+            email: row.guest_email,
+            note: row.note ?? "",
+          })),
     });
   });
 
@@ -424,28 +542,19 @@ function formatFloridaAddress(properties: NonNullable<PhotonFeature["properties"
   return [headline, city, "FL"].filter(Boolean).join(", ");
 }
 
-export const searchFloridaAddresses = createServerFn({ method: "GET" })
-  .inputValidator((input: unknown) => floridaAddressSearch.parse(input))
-  .handler(async ({ data }) => {
-    const { searchGooglePlaces } = await import("@/lib/os/maps.server");
-    try {
-      const googlePlaces = await searchGooglePlaces(data.q);
-      if (googlePlaces?.length) return googlePlaces;
-    } catch {
-      // Places timed out or failed — use the public fallback.
-    }
-
+async function searchPhotonPlaces(query: string) {
+  try {
     const url = new URL("https://photon.komoot.io/api/");
-    url.searchParams.set("q", data.q);
+    url.searchParams.set("q", query);
     url.searchParams.set("limit", "12");
     url.searchParams.set("lang", "en");
     url.searchParams.set("bbox", "-87.6348,24.3963,-79.9743,31.000");
 
     const response = await fetch(url.toString(), {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(2500),
+      signal: AbortSignal.timeout(1200),
     });
-    if (!response.ok) throw new Error("Address search unavailable");
+    if (!response.ok) return [];
 
     const payload = (await response.json()) as { features?: PhotonFeature[] };
     const seen = new Set<string>();
@@ -474,6 +583,33 @@ export const searchFloridaAddresses = createServerFn({ method: "GET" })
     }
 
     return suggestions;
+  } catch {
+    return [];
+  }
+}
+
+export const searchFloridaAddresses = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => floridaAddressSearch.parse(input))
+  .handler(async ({ data }) => {
+    const { searchGooglePlaces } = await import("@/lib/os/maps.server");
+    const google = searchGooglePlaces(data.q).catch(() => null);
+    const photon = searchPhotonPlaces(data.q);
+
+    return new Promise<
+      Array<{ id: string; label: string; value: string; provider?: string }>
+    >((resolve) => {
+      let pending = 2;
+      const finish = (places: Array<{ id: string; label: string; value: string }> | null) => {
+        if (places?.length) {
+          resolve(places);
+          return;
+        }
+        pending -= 1;
+        if (pending === 0) resolve([]);
+      };
+      void google.then(finish);
+      void photon.then(finish);
+    });
   });
 
 async function resolveInquiryId(client: StudioClient, key: string) {
@@ -508,7 +644,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
           .order("sent_at", { ascending: true }),
         context.supabase
           .from("proposals")
-          .select("id, number, status, total_cents, event_date, created_at")
+          .select("id, number, status, total_cents, event_date, created_at, access_token, deposit_amount_cents, pdf_path, notes, viewed_at")
           .eq("inquiry_id", inquiryId)
           .eq("archived", false)
           .order("created_at", { ascending: false }),
@@ -677,6 +813,8 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
         channel: z.enum(["email", "note"]),
         body: z.string().trim().min(1).max(8000),
         subject: z.string().trim().max(200).optional().default(""),
+        fresh: z.boolean().optional(),
+        thread_id: z.string().trim().max(200).nullable().optional(),
       })
       .parse(input),
   )
@@ -711,7 +849,7 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
         to_address: null,
         gmail_message_id: null,
         gmail_thread_id: null,
-        author: context.profile.full_name?.trim() || "studio",
+        author: noteWriter(context.profile),
         sent_at: sentAt,
         status: "sent",
         created_by: context.profile.id,
@@ -741,11 +879,19 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
     const { fetchGmailReplyHeaders, replySubject, resolveReplyContext, sendInquiryEmail } = await import(
       "@/lib/os/gmail-outbound.server"
     );
-    const reply = resolveReplyContext(prior.data ?? []);
+    const fresh = Boolean(data.fresh);
+    if (fresh && !data.subject.trim()) throw new Error("Add a subject for the new conversation.");
+    const rows = prior.data ?? [];
+    const scoped = fresh
+      ? []
+      : data.thread_id
+        ? rows.filter((row) => row.gmail_thread_id === data.thread_id)
+        : rows;
+    const reply = resolveReplyContext(scoped);
     const accessToken = await validGmailAccessToken();
     let inReplyTo: string | null = null;
     let references: string | null = null;
-    if (reply.replyToMessageId) {
+    if (!fresh && reply.replyToMessageId) {
       try {
         const headers = await fetchGmailReplyHeaders(reply.replyToMessageId, accessToken);
         inReplyTo = headers.messageId;
@@ -756,15 +902,16 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
     }
 
     const from = gmail.account_email || fromAddress;
-    const subject = data.subject.trim() || replySubject(reply.subject);
+    const subject = fresh ? data.subject.trim() : data.subject.trim() || replySubject(reply.subject);
+    const sender = signatureName(context.profile.full_name);
     const sent = await sendInquiryEmail({
       from,
       fromName: "Say Sukii",
       to,
       toName: clientResult.data.name,
       subject,
-      body: data.body,
-      threadId: reply.threadId,
+      body: `${letterWithProposalUrl(data.body.trim())}\n\n${signatureText(sender)}`,
+      threadId: fresh ? null : reply.threadId,
       inReplyTo,
       references,
       accessToken,
@@ -780,14 +927,20 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
       to_address: to,
       gmail_message_id: sent.gmail_message_id,
       gmail_thread_id: sent.gmail_thread_id,
-      author: "say sukii",
+      author: sender,
       sent_at: sentAt,
       status: "sent",
       created_by: context.profile.id,
     });
     if (error) throw new Error(error.message);
+    const { markProposalsSentInLetter } = await import("@/lib/os/proposal-send.server");
+    await markProposalsSentInLetter(data.inquiry_id, data.body);
 
-    if (inquiryResult.data.status === "new" && !isReviewCandidate(inquiryResult.data)) {
+    if (
+      inquiryResult.data.status === "new" &&
+      !isReviewCandidate(inquiryResult.data) &&
+      proposalCards(data.body).cards.length === 0
+    ) {
       await context.supabase
         .from("inquiries")
         .update({
@@ -800,6 +953,54 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
     await syncInquiryAutoTaskFor(context.supabase, data.inquiry_id);
     await refreshInquirySummarySafe(context.supabase, data.inquiry_id);
     return { ok: true as const, channel: "email" as const };
+  });
+
+async function studioNote(id: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("inquiry_messages")
+    .select("id, inquiry_id, channel, direction, created_by, author")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data || (data.channel !== "note" && data.direction !== "note")) {
+    throw new Error("only a note can be changed.");
+  }
+  return data;
+}
+
+export const updateInquiryNote = createServerFn({ method: "POST" })
+  .middleware([requireStudioAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        body: z.string().trim().min(1).max(8000),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const note = await studioNote(data.id);
+    if (!wroteNote(note, context.profile)) {
+      throw new Error("you can edit a note you wrote.");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const writer = context.profile.role === "admin" ? context.supabase : supabaseAdmin;
+    const { error } = await writer.from("inquiry_messages").update({ body: data.body }).eq("id", note.id);
+    if (error) throw new Error(error.message);
+    await refreshInquirySummarySafe(writer, note.inquiry_id);
+    return { ok: true as const };
+  });
+
+export const deleteInquiryNote = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const note = await studioNote(data.id);
+    const { error } = await context.supabase.from("inquiry_messages").delete().eq("id", note.id);
+    if (error) throw new Error(error.message);
+    await refreshInquirySummarySafe(context.supabase, note.inquiry_id);
+    return { ok: true as const };
   });
 
 export const attachInquiryFile = createServerFn({ method: "POST" })

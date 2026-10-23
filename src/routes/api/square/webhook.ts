@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
-import { emailFrame, sendStudioEmail } from "@/lib/os/email.server";
+import { renderSaySukiiEmail } from "@/lib/os/email-layout";
+import { sendStudioEmail } from "@/lib/os/email.server";
 import { pushProjectToGoogleCalendar } from "@/lib/os/google.server";
 import { verifySquareWebhook } from "@/lib/os/square.server";
 
@@ -104,14 +105,17 @@ async function processCompletedPayment(payment: SquarePayment) {
   };
   await sendStudioEmail({
     to: proposal.clients.email,
-    subject: `Deposit received · ${proposal.number}`,
+    subject: `your date is held · ${proposal.number}`,
     eventType: "deposit_received",
     referenceType: "proposal",
     referenceId: invoice.proposal_id,
-    html: emailFrame(
-      "Your date is reserved.",
-      `<p>Thank you, ${proposal.clients.name}. Your deposit is complete and your project has moved into the studio.</p>`,
-    ),
+    html: renderSaySukiiEmail({
+      eyebrow: "deposit",
+      eyebrowColor: "#6F8A72",
+      headline: "your date is held",
+      body: `thank you, ${proposal.clients.name}. your deposit is complete and your project has moved into the studio.`,
+      facts: [{ label: "proposal", value: proposal.number }],
+    }),
   });
 
   if (projectId) {
