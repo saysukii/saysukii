@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
+import { shownName, isPersonType } from "@/components/studio/PersonName";
 import type { ClientRow } from "@/integrations/supabase/types";
 import { getDevPreviewClients } from "@/lib/dev-preview";
 import { importClients, listClients } from "@/lib/os/clients.functions";
@@ -134,7 +135,7 @@ function ClientDirectoryPage() {
               className="studio-book-row"
             >
               <span>
-                <b>{client.name}</b>
+                <b>{shownName(client.name, isPersonType(client.type))}</b>
                 <em>{client.organization || client.email}</em>
               </span>
               <small>{client.type.replaceAll("_", " ")}</small>

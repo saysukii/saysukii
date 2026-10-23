@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { CalendarHours } from "@/components/portal/CalendarHours";
 import { StudioChip } from "@/components/portal/studio";
+import { PersonName } from "@/components/studio/PersonName";
 import {
   beginGoogleOAuth,
   beginSquareOAuth,
@@ -351,7 +352,7 @@ function SettingsPage() {
         {members.map((member) => (
           <div key={member.id} className="studio-member">
             <div>
-              <b>{member.full_name || member.email}</b>
+              <b>{member.full_name ? <PersonName name={member.full_name} /> : member.email}</b>
               <p>{member.email}</p>
               <p>last seen {formatSeen(member.last_seen_at)}</p>
             </div>

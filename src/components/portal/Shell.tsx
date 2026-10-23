@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Wordmark } from "./bits";
+import { PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
 import { listFreshArrivals } from "@/lib/os/inquiries.functions";
@@ -105,7 +106,7 @@ export function Shell({ children }: { children: ReactNode }) {
     if (!devPreview) return;
     pushNotice({
       id: "inquiry-arrived-camila",
-      title: "camila wrote in",
+      title: "Camila wrote in",
       body: "a new wedding inquiry is in the book.",
       href: "/pipeline/camilareyes",
     });
@@ -119,7 +120,7 @@ export function Shell({ children }: { children: ReactNode }) {
         const rows = await arrivals();
         if (stop) return;
         for (const row of rows) {
-          const who = firstName(row.name).toLowerCase();
+          const who = firstName(row.name);
           pushNotice({
             id: `inquiry-${row.id}`,
             title: `${who} wrote in`,
@@ -151,7 +152,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const email = user?.email ?? "";
   const isAdmin = profile.role === "admin";
   const navItems = isAdmin ? ADMIN_NAV : TEAM_NAV;
-  const displayName = profile.full_name?.trim() || email;
+  const givenName = profile.full_name?.trim() || "";
+  const displayName = givenName || email;
   const initial = (displayName || email || "s").charAt(0).toLowerCase();
 
   return (
@@ -186,7 +188,7 @@ export function Shell({ children }: { children: ReactNode }) {
               {initial}
             </span>
             <span className="min-w-0 flex-1">
-              <b>{displayName}</b>
+              <b>{givenName ? <PersonName name={givenName} /> : email}</b>
               <span>{email}</span>
             </span>
             <div className="studio-pearl-drawer-actions">
@@ -213,6 +215,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <NoticeBell unread={noticeModal.unread} onOpen={noticeModal.show} />
             <AccountMenu
               displayName={displayName}
+              givenName={givenName}
               email={email}
               initial={initial}
               isAdmin={isAdmin}
@@ -429,6 +432,7 @@ function NoticeBell({ unread, onOpen }: { unread: boolean; onOpen: () => void })
 
 function AccountMenu({
   displayName,
+  givenName = "",
   email,
   initial,
   isAdmin,
@@ -436,19 +440,21 @@ function AccountMenu({
   compact = false,
 }: {
   displayName: string;
+  givenName?: string;
   email: string;
   initial: string;
   isAdmin: boolean;
   onSignOut: () => void;
   compact?: boolean;
 }) {
+  const who = givenName ? <PersonName name={givenName} /> : displayName;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn("studio-pearl-account", compact && "w-auto")}>
         <span className="studio-pearl-initial">{initial}</span>
         {!compact ? (
           <span className="min-w-0 flex-1">
-            <b className="truncate">{displayName}</b>
+            <b className="truncate">{who}</b>
             <span className="studio-pearl-role">{isAdmin ? "administrator" : "team member"}</span>
           </span>
         ) : null}
@@ -461,7 +467,7 @@ function AccountMenu({
         className="studio-account-menu"
       >
         <div className="studio-account-who">
-          <b>{displayName}</b>
+          <b>{who}</b>
           <span>{email}</span>
         </div>
         {isAdmin ? (

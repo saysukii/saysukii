@@ -739,6 +739,15 @@ function hydratePreviewArrivals() {
   }
 }
 
+function previewStudioWrote(id: string) {
+  return (
+    id === PREVIEW_IDS.inquiryFresh ||
+    id === PREVIEW_IDS.inquiryWedding ||
+    id === PREVIEW_IDS.inquiryArrived ||
+    id === PREVIEW_IDS.inquiryProposalOut
+  );
+}
+
 export function getDevPreviewPipeline() {
   hydratePreviewArrivals();
   const rows = inquiries
@@ -748,6 +757,7 @@ export function getDevPreviewPipeline() {
   const slugs = inquirySlugs(rows);
   return rows.map((inquiry) => ({
     ...inquiry,
+    studio_wrote: previewStudioWrote(inquiry.id),
     slug: slugs.get(inquiry.id) ?? inquiry.id,
     source_peek:
       inquiry.id === PREVIEW_IDS.inquiryCandidate && inquiry.detection_status === "candidate"

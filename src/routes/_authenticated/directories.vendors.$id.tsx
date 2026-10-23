@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { DirectoryHome } from "@/components/portal/DirectoryHome";
+import { PersonName } from "@/components/studio/PersonName";
 import { getDevPreviewDirectories } from "@/lib/dev-preview";
 import { listDirectories } from "@/lib/os/clients.functions";
 import { useDevPreview } from "@/lib/use-dev-preview";
@@ -53,7 +54,7 @@ function VendorPage() {
     );
   }
 
-  const contact = [vendor.contact_name, vendor.contact_email, vendor.contact_phone].filter(Boolean);
+  const rest = [vendor.contact_email, vendor.contact_phone].filter(Boolean).join(" · ");
 
   return (
     <DirectoryHome title={vendor.name} back={{ to: "/directories/vendors", label: "vendors" }} lede={vendor.type}>
@@ -61,7 +62,17 @@ function VendorPage() {
         <dl>
           <div>
             <dt>contact</dt>
-            <dd>{contact.length ? contact.join(" · ") : "—"}</dd>
+            <dd>
+              {vendor.contact_name || rest ? (
+                <>
+                  {vendor.contact_name ? <PersonName name={vendor.contact_name} /> : null}
+                  {vendor.contact_name && rest ? " · " : null}
+                  {rest}
+                </>
+              ) : (
+                "—"
+              )}
+            </dd>
           </div>
         </dl>
         <p className="studio-directory-note">{vendor.ordering_method || "no ordering notes yet."}</p>

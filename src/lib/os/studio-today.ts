@@ -9,6 +9,7 @@ export type TodayAging = "fresh" | "due" | "overdue";
 export type TodayInquiry = InquiryPipelineItem & {
   days_waiting: number;
   aging: TodayAging;
+  studio_wrote: boolean;
 };
 
 export type TodayProject = ProjectRow & {
@@ -30,7 +31,9 @@ export type TodayFloorItem = {
   date: string;
   when: string;
   title: string;
+  titlePerson?: boolean;
   detail: string;
+  detailPerson?: string | null;
   kind: DeskKind | "event" | "talk";
   taskId?: string;
   at?: string;
@@ -163,16 +166,23 @@ export function formatFloorWhen(iso: string, today: string) {
   return `${weekday} ${date.getDate()}`;
 }
 
-function floorPerson(
-  task: TaskRow,
-  inquiries: TodayInquiry[],
-  projects: TodayProject[],
+function organizationName(
+  name: string,
+  inquiries: Array<{ client?: { name: string; type: string } | null }>,
+  projects: Array<{ client?: { name: string; type: string } | null }>,
 ) {
+  const key = name.trim().toLowerCase();
+  return [...inquiries, ...projects].some(
+    (row) => row.client && row.client.type !== "individual" && row.client.name.trim().toLowerCase() === key,
+  );
+}
+
+function floorClient(task: TaskRow, inquiries: TodayInquiry[], projects: TodayProject[]) {
   if (task.linked_type === "inquiry" && task.linked_id) {
-    return inquiries.find((inquiry) => inquiry.id === task.linked_id)?.client?.name ?? null;
+    return inquiries.find((inquiry) => inquiry.id === task.linked_id)?.client ?? null;
   }
   if (task.linked_type === "project" && task.linked_id) {
-    return projects.find((project) => project.id === task.linked_id)?.client?.name ?? null;
+    return projects.find((project) => project.id === task.linked_id)?.client ?? null;
   }
   return null;
 }
@@ -194,6 +204,7 @@ export function weekFloor(
       when: formatFloorWhen(project.event_date, today),
       title: project.event_name,
       detail: ["event", project.client?.name ?? project.venue_text].filter(Boolean).join(" · "),
+      detailPerson: project.client?.type === "individual" ? project.client.name : null,
       kind: "event",
       taskId: data.desk.find((task) => task.linked_id === project.id)?.id,
     });
@@ -209,6 +220,7 @@ export function weekFloor(
       date: inquiry.event_date,
       when: formatFloorWhen(inquiry.event_date, today),
       title: inquiry.client?.name ?? EVENT_LABEL[inquiry.event_type],
+      titlePerson: inquiry.client?.type === "individual" && Boolean(inquiry.client.name),
       detail: ["event", EVENT_LABEL[inquiry.event_type]].join(" · "),
       kind: "event",
       taskId: data.desk.find((task) => task.linked_id === inquiry.id)?.id,
@@ -223,6 +235,7 @@ export function weekFloor(
       date,
       when: formatFloorWhen(date, today),
       title: talk.name,
+      titlePerson: !organizationName(talk.name, data.waiting, data.projects),
       detail: ["meeting", studioClock(talk.startsAt)].filter(Boolean).join(" · "),
       kind: "talk",
       at: talk.startsAt,
@@ -237,13 +250,15 @@ export function weekFloor(
     const overdueHere = currentWeek && due !== null && due < today;
     if (!inWeek && !overdueHere && !(currentWeek && !due)) continue;
     const kind = deskKind(task);
+    const client = floorClient(task, data.waiting, data.projects);
     const whenDate = inWeek ? date : today;
     items.push({
       id: `task-${task.id}`,
       date: whenDate,
       when: formatFloorWhen(whenDate, today),
       title: task.title,
-      detail: [DESK_KIND_LABEL[kind], floorPerson(task, data.waiting, data.projects)].filter(Boolean).join(" · "),
+      detail: [DESK_KIND_LABEL[kind], client?.name].filter(Boolean).join(" · "),
+      detailPerson: client?.type === "individual" ? client.name : null,
       kind,
       taskId: task.id,
     });

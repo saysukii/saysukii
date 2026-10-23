@@ -6,6 +6,7 @@ import { useMemo, useState, useEffect, useLayoutEffect, useRef, type FormEvent, 
 import { toast } from "sonner";
 
 import { TextShimmer } from "@/components/core/text-shimmer";
+import { PersonName, isPersonType, markPerson, shownName } from "@/components/studio/PersonName";
 import {
   Dialog,
   DialogClose,
@@ -31,7 +32,6 @@ import {
   DESK_KIND_LABEL,
   dayGreeting,
   deskGlance,
-  firstName,
   isDeskTask,
   longDate,
   toDeskTask,
@@ -51,7 +51,7 @@ import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/in
 import type { InquiryPipelineItem } from "@/lib/os/inquiries.functions";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { formatDateNumeric } from "@/lib/money";
-import { readBookings, studioDay } from "@/lib/studio-bookings";
+import { readBookings, studioClock, studioDay } from "@/lib/studio-bookings";
 import { cn } from "@/lib/utils";
 
 const TASK_KINDS: DeskKind[] = ["inquiry", "production", "manual"];
@@ -70,6 +70,24 @@ export type DeskTaskDraft = {
   linked_id: string | null;
   due_at: string;
 };
+
+function givenName(fullName: string | null | undefined) {
+  const name = fullName?.trim().split(/\s+/)[0];
+  if (name && !/^(studio|preview)$/i.test(name)) return name;
+  return "Sukii";
+}
+
+function LineBits({ bits }: { bits: Array<{ text: string; person?: boolean }> }) {
+  return bits.map((bit, index) =>
+    bit.person ? <PersonName key={index} name={bit.text} /> : <span key={index}>{bit.text}</span>,
+  );
+}
+
+function wroteWhen(days: number) {
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
+}
 
 function shortDay(date: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
@@ -188,8 +206,8 @@ function FloorBeat({
 }) {
   const copy = (
     <div>
-      <b>{item.title}</b>
-      <p>{item.detail}</p>
+      <b>{item.titlePerson ? <PersonName name={item.title} /> : item.title}</b>
+      <p>{markPerson(item.detail, item.detailPerson)}</p>
     </div>
   );
   if (item.taskId) {
@@ -242,7 +260,6 @@ function FloorDay({
 export function TodayHome({
   data,
   name,
-  email,
   creating = false,
   completingId = null,
   savingTask = false,
@@ -261,6 +278,8 @@ export function TodayHome({
   onCreateTask: (values: DeskTaskDraft) => Promise<TaskRow>;
 }) {
   const [adding, setAdding] = useState(false);
+  const [leadsOpen, setLeadsOpen] = useState(false);
+  const [bookedOpen, setBookedOpen] = useState(false);
   const [tasking, setTasking] = useState(false);
   const [added, setAdded] = useState<TaskRow[]>([]);
   const [retired, setRetired] = useState<string[]>([]);
@@ -325,6 +344,68 @@ export function TodayHome({
   );
   const selected = desk.find((task) => task.id === pickedId) ?? desk[0] ?? null;
   const glance = selected ? deskGlance(selected) : null;
+  const freshLeads = data.waiting
+    .filter((inquiry) => inquiry.origin === "form" && inquiry.status === "new" && !inquiry.studio_wrote)
+    .sort((left, right) => right.received_at.localeCompare(left.received_at));
+  const todayPlan = useMemo(() => {
+    const covered = new Set(data.projects.map((project) => `${project.client_id}:${project.event_date}`));
+    const organizations = new Set(
+      [...data.waiting, ...data.projects]
+        .map((row) => row.client)
+        .filter((client) => client && client.type !== "individual")
+        .map((client) => client.name.trim().toLowerCase()),
+    );
+    const meetings = talks
+      .filter((talk) => studioDay(talk.startsAt) === today)
+      .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
+      .map((talk) => {
+        const clock = studioClock(talk.startsAt);
+        return {
+          id: talk.id,
+          bits: [
+            { text: talk.name, person: !organizations.has(talk.name.trim().toLowerCase()) },
+            ...(clock ? [{ text: ` · ${clock}` }] : []),
+          ],
+        };
+      });
+    const events = [
+      ...data.projects
+        .filter((project) => project.event_date === today)
+        .map((project) => ({ id: project.id, bits: [{ text: project.event_name }] })),
+      ...data.waiting
+        .filter(
+          (inquiry) =>
+            inquiry.event_date === today &&
+            !inquiry.event_date_tbd &&
+            !covered.has(`${inquiry.client_id}:${inquiry.event_date}`),
+        )
+        .map((inquiry) => {
+          const person = isPersonType(inquiry.client?.type) && Boolean(inquiry.client?.name?.trim());
+          return {
+            id: inquiry.id,
+            bits: [
+              {
+                text: person ? inquiry.client!.name.trim() : inquiry.client?.name?.trim() || EVENT_LABEL[inquiry.event_type],
+                person,
+              },
+            ],
+          };
+        }),
+    ];
+    const due = live
+      .filter((task) => task.status === "open" && task.due_at?.slice(0, 10) === today)
+      .map((task) => ({ id: task.id, bits: [{ text: task.title }] }));
+    return [...meetings, ...events, ...due];
+  }, [data.projects, data.waiting, live, talks, today]);
+  const booked = [...data.projects].sort((left, right) => left.event_date.localeCompare(right.event_date));
+  const leadBits = freshLeads.map((lead) => ({
+    id: lead.id,
+    name: lead.client?.name?.trim() || "someone new",
+    person: isPersonType(lead.client?.type),
+  }));
+  const bookedLine = booked
+    .map((project) => `${shortDay(project.event_date)} ${project.event_name}`)
+    .join(" · ");
   const needProposal = data.counts.new + data.counts.contacted + data.counts.in_conversation;
   const followUp = data.counts.proposal_sent;
   const pendingCount = needProposal + followUp;
@@ -334,7 +415,6 @@ export function TodayHome({
   ]
     .filter(Boolean)
     .join(" · ");
-  const nextBooked = data.upcoming[0] ?? null;
   const floorGroups = useMemo(() => {
     const groups: Array<{ date: string; when: string; items: TodayFloorItem[] }> = [];
     for (const item of timeline) {
@@ -435,7 +515,7 @@ export function TodayHome({
         <div>
           <p className="studio-kicker">{longDate()}</p>
           <h1>
-            {dayGreeting()}, {firstName(name, email)}
+            {dayGreeting()}, <PersonName name={givenName(name)} />
           </h1>
           <p>
             {desk.length === 0
@@ -456,29 +536,134 @@ export function TodayHome({
       <div className="studio-home-metrics">
         <article className="studio-metric is-mist">
           <p className="studio-kicker">today</p>
-          <strong>{desk.length || "—"}</strong>
-          <p>{desk[0]?.title ?? "a quiet floor"}</p>
+          <strong>{todayPlan.length || "—"}</strong>
+          <p className="is-clip">{todayPlan[0] ? <LineBits bits={todayPlan[0].bits} /> : "a quiet day"}</p>
         </article>
-        <article className="studio-metric is-sage">
-          <p className="studio-kicker">outreach</p>
-          <strong>—</strong>
-          <p>a space we’ll open soon</p>
-        </article>
+        <button type="button" className="studio-metric is-sage" onClick={() => setLeadsOpen(true)}>
+          <p className="studio-kicker">new leads</p>
+          <strong>{freshLeads.length || "—"}</strong>
+          <p className="is-clip">
+            {leadBits.length === 0
+              ? "no one new just yet"
+              : leadBits.map((lead, index) => (
+                  <span key={lead.id}>
+                    {index > 0 ? " · " : null}
+                    {shownName(lead.name, lead.person)}
+                  </span>
+                ))}
+          </p>
+        </button>
         <article className="studio-metric is-sand">
           <p className="studio-kicker">pending</p>
           <strong>{pendingCount || "—"}</strong>
           <p>{pendingLine || "the path is clear"}</p>
         </article>
-        <article className="studio-metric is-blush">
+        <button type="button" className="studio-metric is-blush" onClick={() => setBookedOpen(true)}>
           <p className="studio-kicker">booked</p>
-          <strong>{data.upcoming.length || "—"}</strong>
-          <p className="is-clip">
-            {nextBooked
-              ? `${shortDay(nextBooked.event_date)} · ${nextBooked.event_name}`
-              : "nothing on the books yet"}
-          </p>
-        </article>
+          <strong>{booked.length || "—"}</strong>
+          <p className="is-clip">{bookedLine || "nothing on the books yet"}</p>
+        </button>
       </div>
+
+      <Dialog open={leadsOpen} onOpenChange={setLeadsOpen}>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+          <div className="studio-task-head">
+            <DialogClose className="studio-task-close" aria-label="Close">
+              <X aria-hidden="true" />
+            </DialogClose>
+          </div>
+          <DialogTitle className="sr-only">new leads</DialogTitle>
+          <DialogDescription className="sr-only">
+            they filled the form, and haven’t heard back yet.
+          </DialogDescription>
+          <div className="studio-task-form">
+            <div className="studio-task-composer-title">
+              <p>new leads</p>
+            </div>
+            <div className="studio-ask-grid studio-ask-stack-form">
+              {freshLeads.length === 0 ? (
+                <p className="studio-ask-label is-prompt">no one new just yet.</p>
+              ) : (
+                <div className="studio-lead-glance">
+                  {freshLeads.map((lead) => {
+                    const next = nextMove(lead.status);
+                    return (
+                      <GlanceListCard
+                        key={lead.id}
+                        name={lead.client?.name?.trim() || "someone new"}
+                        person={isPersonType(lead.client?.type)}
+                        hello={inquiryHello(lead).hello}
+                        nextTitle={next.title}
+                        nextNote={next.note}
+                        action={
+                          <Link
+                            to="/pipeline/$id"
+                            params={{ id: lead.slug }}
+                            className="studio-ghost"
+                            onClick={() => setLeadsOpen(false)}
+                          >
+                            <TextShimmer duration={1.2} className={glanceShimmer}>
+                              open inquiry
+                            </TextShimmer>
+                          </Link>
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bookedOpen} onOpenChange={setBookedOpen}>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+          <div className="studio-task-head">
+            <DialogClose className="studio-task-close" aria-label="Close">
+              <X aria-hidden="true" />
+            </DialogClose>
+          </div>
+          <DialogTitle className="sr-only">booked</DialogTitle>
+          <DialogDescription className="sr-only">the projects on the books.</DialogDescription>
+          <div className="studio-task-form">
+            <div className="studio-task-composer-title">
+              <p>booked</p>
+            </div>
+            <div className="studio-ask-grid studio-ask-stack-form">
+              {booked.length === 0 ? (
+                <p className="studio-ask-label is-prompt">nothing on the books yet.</p>
+              ) : (
+                <div className="studio-lead-glance">
+                  {booked.map((project) => {
+                    const place = project.venue_text?.split(",")[0]?.trim() ?? "";
+                    const hello = [formatDateNumeric(project.event_date), place].filter((part) => part && part !== "—").join(" · ");
+                    const nextTask = live
+                      .filter(
+                        (task) =>
+                          task.status === "open" && task.linked_type === "project" && task.linked_id === project.id,
+                      )
+                      .sort((left, right) => (left.due_at ?? "").localeCompare(right.due_at ?? ""))[0];
+                    const nextTitle = nextTask?.title ?? "the date is held";
+                    const nextNote = nextTask?.due_at
+                      ? `due ${shortDay(nextTask.due_at.slice(0, 10))}`
+                      : project.notes?.trim() || "the date is on the books.";
+                    return (
+                      <GlanceListCard
+                        key={project.id}
+                        name={project.event_name}
+                        hello={hello}
+                        nextTitle={nextTitle}
+                        nextNote={nextNote}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="studio-home-stage">
         <aside className="studio-home-day">
@@ -494,7 +679,7 @@ export function TodayHome({
               ))}
               {dayMarks.inquiries.map((inquiry) => (
                 <p key={inquiry.id}>
-                  <b>{inquiry.client?.name}</b>
+                  <b>{shownName(inquiry.client?.name ?? "", isPersonType(inquiry.client?.type))}</b>
                   <span>inquiry date</span>
                 </p>
               ))}
@@ -1183,7 +1368,14 @@ function TaskRow({
       <button type="button" className="studio-home-row-pick" onClick={onPick}>
         <span className="studio-home-row-copy">
           <b>{task.title}</b>
-          <em>{task.person ?? "studio"}</em>
+          <em>
+            {task.person
+              ? shownName(
+                  task.person,
+                  isPersonType(task.inquiry?.client?.type) || isPersonType(task.project?.client?.type),
+                )
+              : "studio"}
+          </em>
           <small>
             <span className={cn("studio-home-kind", `is-${task.kind}`)}>{DESK_KIND_LABEL[task.kind]}</span>
             {dueHint(task)}
@@ -1228,7 +1420,13 @@ function TaskGlance({
           {initials(glance.name)}
         </span>
         <div>
-          <h3>{glance.name}</h3>
+          <h3>
+            {shownName(
+              glance.name,
+              isPersonType(task.inquiry?.client?.type) ||
+                (isPersonType(task.project?.client?.type) && glance.name === task.project?.client?.name),
+            )}
+          </h3>
           <p>{glance.kicker}</p>
         </div>
       </div>
@@ -1305,6 +1503,48 @@ function glanceSummary(inquiry: InquiryPipelineItem) {
   );
 }
 
+function GlanceListCard({
+  name,
+  person = false,
+  hello,
+  nextTitle,
+  nextNote,
+  action,
+}: {
+  name: string;
+  person?: boolean;
+  hello: string;
+  nextTitle: string;
+  nextNote: string;
+  action?: ReactNode;
+}) {
+  return (
+    <article className="studio-home-glance">
+      <header className="studio-glance-head">
+        <div>
+          <b>{shownName(name, person)}</b>
+          {hello ? (
+            <p>
+              <TextShimmer duration={1.2} className={glanceShimmer}>
+                {hello}
+              </TextShimmer>
+            </p>
+          ) : null}
+        </div>
+        {action}
+      </header>
+      <article className="studio-glance-card is-next">
+        <p className="studio-glance-label">
+          <span className="studio-next-mark" aria-hidden="true" />
+          up next
+        </p>
+        <b>{nextTitle}</b>
+        <p>{nextNote}</p>
+      </article>
+    </article>
+  );
+}
+
 function InquiryRecordGlance({ inquiry, task }: { inquiry: InquiryPipelineItem; task: TodayDeskTask }) {
   const client = inquiry.client;
   const name = client?.name ?? "client";
@@ -1317,7 +1557,7 @@ function InquiryRecordGlance({ inquiry, task }: { inquiry: InquiryPipelineItem; 
 
   return (
     <>
-      <GlanceHead name={name} hello={hello} task={task} />
+      <GlanceHead name={name} hello={hello} task={task} person={isPersonType(client?.type)} />
       {summary ? <SummaryCard summary={summary} /> : null}
       <article className="studio-glance-card is-next">
         <p className="studio-glance-label">
@@ -1351,7 +1591,7 @@ function InquiryRecordGlance({ inquiry, task }: { inquiry: InquiryPipelineItem; 
           <dl>
             <div>
               <dt>name</dt>
-              <dd>{name}</dd>
+              <dd>{shownName(name, isPersonType(client?.type))}</dd>
             </div>
             <div>
               <dt>email</dt>
@@ -1371,11 +1611,21 @@ function InquiryRecordGlance({ inquiry, task }: { inquiry: InquiryPipelineItem; 
   );
 }
 
-function GlanceHead({ name, hello, task }: { name: string; hello: string; task: TodayDeskTask }) {
+function GlanceHead({
+  name,
+  hello,
+  task,
+  person = false,
+}: {
+  name: string;
+  hello: string;
+  task: TodayDeskTask;
+  person?: boolean;
+}) {
   return (
     <header className="studio-glance-head">
       <div>
-        <b>{name}</b>
+        <b>{shownName(name, person)}</b>
         {hello ? (
           <p>
             <TextShimmer duration={1.2} className={glanceShimmer}>
@@ -1590,29 +1840,6 @@ function GlanceGo({ task }: { task: TodayDeskTask }) {
           <TextShimmer duration={1.2} className={glanceShimmer}>
             open inquiry
           </TextShimmer>
-        </Link>
-        <Link
-          to="/proposals/new"
-          search={{ inquiry: task.inquiry.id }}
-          className="studio-ghost"
-        >
-          <TextShimmer duration={1.2} className={glanceShimmer}>
-            create proposal
-          </TextShimmer>
-        </Link>
-      </nav>
-    );
-  }
-
-  if (task.project) {
-    return (
-      <nav className="studio-home-glance-go" aria-label="open this record">
-        <Link
-          to="/projects/$id"
-          params={{ id: task.project.id }}
-          className="studio-home-glance-link is-blush"
-        >
-          see the work
         </Link>
       </nav>
     );

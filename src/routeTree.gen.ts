@@ -17,8 +17,6 @@ import { Route as EmailPreviewRouteImport } from './routes/email-preview'
 import { Route as InquireRouteImport } from './routes/inquire'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedFilesRouteImport } from './routes/_authenticated/files'
-import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
 import { Route as AuthenticatedScheduleRouteImport } from './routes/_authenticated/schedule'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedShelfRouteImport } from './routes/_authenticated/shelf'
@@ -26,20 +24,12 @@ import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as InquireIndexRouteImport } from './routes/inquire.index'
 import { Route as InquirePreviewRouteImport } from './routes/inquire.preview'
 import { Route as ProposalTokenRouteImport } from './routes/proposal.$token'
-import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated/clients.index'
 import { Route as AuthenticatedClientsIdRouteImport } from './routes/_authenticated/clients.$id'
-import { Route as AuthenticatedDirectoriesIndexRouteImport } from './routes/_authenticated/directories.index'
 import { Route as AuthenticatedDirectoriesClientsRouteImport } from './routes/_authenticated/directories.clients'
 import { Route as AuthenticatedDirectoriesVendorsRouteImport } from './routes/_authenticated/directories.vendors'
 import { Route as AuthenticatedDirectoriesVenuesRouteImport } from './routes/_authenticated/directories.venues'
 import { Route as AuthenticatedPipelineIndexRouteImport } from './routes/_authenticated/pipeline.index'
 import { Route as AuthenticatedPipelineIdRouteImport } from './routes/_authenticated/pipeline.$id'
-import { Route as AuthenticatedPipelineExploreRouteImport } from './routes/_authenticated/pipeline.explore'
-import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects.index'
-import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects.$id'
-import { Route as AuthenticatedProposalsIdRouteImport } from './routes/_authenticated/proposals.$id'
-import { Route as AuthenticatedProposalsNewRouteImport } from './routes/_authenticated/proposals.new'
-import { Route as AuthenticatedSettingsDirectoriesRouteImport } from './routes/_authenticated/settings.directories'
 import { Route as ApiCronGmailInboundRouteImport } from './routes/api/cron/gmail-inbound'
 import { Route as ApiCronGmailRouteRouteImport } from './routes/api/cron/gmail-route'
 import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
@@ -47,7 +37,6 @@ import { Route as AuthenticatedDirectoriesVendorsIndexRouteImport } from './rout
 import { Route as AuthenticatedDirectoriesVendorsIdRouteImport } from './routes/_authenticated/directories.vendors.$id'
 import { Route as AuthenticatedDirectoriesVenuesIndexRouteImport } from './routes/_authenticated/directories.venues.index'
 import { Route as AuthenticatedDirectoriesVenuesIdRouteImport } from './routes/_authenticated/directories.venues.$id'
-import { Route as AuthenticatedLibraryProjectIdShoppingListRouteImport } from './routes/_authenticated/library.$projectId.shopping-list'
 import { Route as ApiIntegrationsGmailCallbackRouteImport } from './routes/api/integrations/gmail/callback'
 import { Route as ApiIntegrationsGoogleCallbackRouteImport } from './routes/api/integrations/google/callback'
 import { Route as ApiIntegrationsSquareCallbackRouteImport } from './routes/api/integrations/square/callback'
@@ -91,16 +80,6 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedFilesRoute = AuthenticatedFilesRouteImport.update({
-  id: '/files',
-  path: '/files',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedLibraryRoute = AuthenticatedLibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedScheduleRoute = AuthenticatedScheduleRouteImport.update({
   id: '/schedule',
   path: '/schedule',
@@ -136,23 +115,11 @@ const ProposalTokenRoute = ProposalTokenRouteImport.update({
   path: '/proposal/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedClientsIndexRoute =
-  AuthenticatedClientsIndexRouteImport.update({
-    id: '/clients/',
-    path: '/clients/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedClientsIdRoute = AuthenticatedClientsIdRouteImport.update({
   id: '/clients/$id',
   path: '/clients/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedDirectoriesIndexRoute =
-  AuthenticatedDirectoriesIndexRouteImport.update({
-    id: '/directories/',
-    path: '/directories/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedDirectoriesClientsRoute =
   AuthenticatedDirectoriesClientsRouteImport.update({
     id: '/directories/clients',
@@ -182,41 +149,6 @@ const AuthenticatedPipelineIdRoute = AuthenticatedPipelineIdRouteImport.update({
   path: '/pipeline/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedPipelineExploreRoute =
-  AuthenticatedPipelineExploreRouteImport.update({
-    id: '/pipeline/explore',
-    path: '/pipeline/explore',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedProjectsIndexRoute =
-  AuthenticatedProjectsIndexRouteImport.update({
-    id: '/projects/',
-    path: '/projects/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedProjectsIdRoute = AuthenticatedProjectsIdRouteImport.update({
-  id: '/projects/$id',
-  path: '/projects/$id',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedProposalsIdRoute =
-  AuthenticatedProposalsIdRouteImport.update({
-    id: '/proposals/$id',
-    path: '/proposals/$id',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedProposalsNewRoute =
-  AuthenticatedProposalsNewRouteImport.update({
-    id: '/proposals/new',
-    path: '/proposals/new',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedSettingsDirectoriesRoute =
-  AuthenticatedSettingsDirectoriesRouteImport.update({
-    id: '/directories',
-    path: '/directories',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
 const ApiCronGmailInboundRoute = ApiCronGmailInboundRouteImport.update({
   id: '/api/cron/gmail-inbound',
   path: '/api/cron/gmail-inbound',
@@ -256,12 +188,6 @@ const AuthenticatedDirectoriesVenuesIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedDirectoriesVenuesRoute,
   } as any)
-const AuthenticatedLibraryProjectIdShoppingListRoute =
-  AuthenticatedLibraryProjectIdShoppingListRouteImport.update({
-    id: '/$projectId/shopping-list',
-    path: '/$projectId/shopping-list',
-    getParentRoute: () => AuthenticatedLibraryRoute,
-  } as any)
 const ApiIntegrationsGmailCallbackRoute =
   ApiIntegrationsGmailCallbackRouteImport.update({
     id: '/api/integrations/gmail/callback',
@@ -289,10 +215,8 @@ export interface FileRoutesByFullPath {
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/files': typeof AuthenticatedFilesRoute
-  '/library': typeof AuthenticatedLibraryRouteWithChildren
   '/schedule': typeof AuthenticatedScheduleRoute
-  '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/inquire/preview': typeof InquirePreviewRoute
@@ -303,21 +227,12 @@ export interface FileRoutesByFullPath {
   '/directories/vendors': typeof AuthenticatedDirectoriesVendorsRouteWithChildren
   '/directories/venues': typeof AuthenticatedDirectoriesVenuesRouteWithChildren
   '/pipeline/$id': typeof AuthenticatedPipelineIdRoute
-  '/pipeline/explore': typeof AuthenticatedPipelineExploreRoute
-  '/projects/$id': typeof AuthenticatedProjectsIdRoute
-  '/proposals/$id': typeof AuthenticatedProposalsIdRoute
-  '/proposals/new': typeof AuthenticatedProposalsNewRoute
-  '/settings/directories': typeof AuthenticatedSettingsDirectoriesRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
-  '/clients/': typeof AuthenticatedClientsIndexRoute
-  '/directories/': typeof AuthenticatedDirectoriesIndexRoute
   '/pipeline/': typeof AuthenticatedPipelineIndexRoute
-  '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
   '/directories/venues/$id': typeof AuthenticatedDirectoriesVenuesIdRoute
-  '/library/$projectId/shopping-list': typeof AuthenticatedLibraryProjectIdShoppingListRoute
   '/api/integrations/gmail/callback': typeof ApiIntegrationsGmailCallbackRoute
   '/api/integrations/google/callback': typeof ApiIntegrationsGoogleCallbackRoute
   '/api/integrations/square/callback': typeof ApiIntegrationsSquareCallbackRoute
@@ -331,10 +246,8 @@ export interface FileRoutesByTo {
   '/email-preview': typeof EmailPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/files': typeof AuthenticatedFilesRoute
-  '/library': typeof AuthenticatedLibraryRouteWithChildren
   '/schedule': typeof AuthenticatedScheduleRoute
-  '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/inquire/preview': typeof InquirePreviewRoute
@@ -343,21 +256,12 @@ export interface FileRoutesByTo {
   '/clients/$id': typeof AuthenticatedClientsIdRoute
   '/directories/clients': typeof AuthenticatedDirectoriesClientsRoute
   '/pipeline/$id': typeof AuthenticatedPipelineIdRoute
-  '/pipeline/explore': typeof AuthenticatedPipelineExploreRoute
-  '/projects/$id': typeof AuthenticatedProjectsIdRoute
-  '/proposals/$id': typeof AuthenticatedProposalsIdRoute
-  '/proposals/new': typeof AuthenticatedProposalsNewRoute
-  '/settings/directories': typeof AuthenticatedSettingsDirectoriesRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
-  '/clients': typeof AuthenticatedClientsIndexRoute
-  '/directories': typeof AuthenticatedDirectoriesIndexRoute
   '/pipeline': typeof AuthenticatedPipelineIndexRoute
-  '/projects': typeof AuthenticatedProjectsIndexRoute
   '/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
   '/directories/venues/$id': typeof AuthenticatedDirectoriesVenuesIdRoute
-  '/library/$projectId/shopping-list': typeof AuthenticatedLibraryProjectIdShoppingListRoute
   '/api/integrations/gmail/callback': typeof ApiIntegrationsGmailCallbackRoute
   '/api/integrations/google/callback': typeof ApiIntegrationsGoogleCallbackRoute
   '/api/integrations/square/callback': typeof ApiIntegrationsSquareCallbackRoute
@@ -374,10 +278,8 @@ export interface FileRoutesById {
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/files': typeof AuthenticatedFilesRoute
-  '/_authenticated/library': typeof AuthenticatedLibraryRouteWithChildren
   '/_authenticated/schedule': typeof AuthenticatedScheduleRoute
-  '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/inquire/preview': typeof InquirePreviewRoute
@@ -388,21 +290,12 @@ export interface FileRoutesById {
   '/_authenticated/directories/vendors': typeof AuthenticatedDirectoriesVendorsRouteWithChildren
   '/_authenticated/directories/venues': typeof AuthenticatedDirectoriesVenuesRouteWithChildren
   '/_authenticated/pipeline/$id': typeof AuthenticatedPipelineIdRoute
-  '/_authenticated/pipeline/explore': typeof AuthenticatedPipelineExploreRoute
-  '/_authenticated/projects/$id': typeof AuthenticatedProjectsIdRoute
-  '/_authenticated/proposals/$id': typeof AuthenticatedProposalsIdRoute
-  '/_authenticated/proposals/new': typeof AuthenticatedProposalsNewRoute
-  '/_authenticated/settings/directories': typeof AuthenticatedSettingsDirectoriesRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
-  '/_authenticated/clients/': typeof AuthenticatedClientsIndexRoute
-  '/_authenticated/directories/': typeof AuthenticatedDirectoriesIndexRoute
   '/_authenticated/pipeline/': typeof AuthenticatedPipelineIndexRoute
-  '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/_authenticated/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
   '/_authenticated/directories/venues/$id': typeof AuthenticatedDirectoriesVenuesIdRoute
-  '/_authenticated/library/$projectId/shopping-list': typeof AuthenticatedLibraryProjectIdShoppingListRoute
   '/api/integrations/gmail/callback': typeof ApiIntegrationsGmailCallbackRoute
   '/api/integrations/google/callback': typeof ApiIntegrationsGoogleCallbackRoute
   '/api/integrations/square/callback': typeof ApiIntegrationsSquareCallbackRoute
@@ -419,8 +312,6 @@ export interface FileRouteTypes {
     | '/inquire'
     | '/onboarding'
     | '/dashboard'
-    | '/files'
-    | '/library'
     | '/schedule'
     | '/settings'
     | '/shelf'
@@ -433,21 +324,12 @@ export interface FileRouteTypes {
     | '/directories/vendors'
     | '/directories/venues'
     | '/pipeline/$id'
-    | '/pipeline/explore'
-    | '/projects/$id'
-    | '/proposals/$id'
-    | '/proposals/new'
-    | '/settings/directories'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/square/webhook'
-    | '/clients/'
-    | '/directories/'
     | '/pipeline/'
-    | '/projects/'
     | '/directories/vendors/$id'
     | '/directories/venues/$id'
-    | '/library/$projectId/shopping-list'
     | '/api/integrations/gmail/callback'
     | '/api/integrations/google/callback'
     | '/api/integrations/square/callback'
@@ -461,8 +343,6 @@ export interface FileRouteTypes {
     | '/email-preview'
     | '/onboarding'
     | '/dashboard'
-    | '/files'
-    | '/library'
     | '/schedule'
     | '/settings'
     | '/shelf'
@@ -473,21 +353,12 @@ export interface FileRouteTypes {
     | '/clients/$id'
     | '/directories/clients'
     | '/pipeline/$id'
-    | '/pipeline/explore'
-    | '/projects/$id'
-    | '/proposals/$id'
-    | '/proposals/new'
-    | '/settings/directories'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/square/webhook'
-    | '/clients'
-    | '/directories'
     | '/pipeline'
-    | '/projects'
     | '/directories/vendors/$id'
     | '/directories/venues/$id'
-    | '/library/$projectId/shopping-list'
     | '/api/integrations/gmail/callback'
     | '/api/integrations/google/callback'
     | '/api/integrations/square/callback'
@@ -503,8 +374,6 @@ export interface FileRouteTypes {
     | '/inquire'
     | '/onboarding'
     | '/_authenticated/dashboard'
-    | '/_authenticated/files'
-    | '/_authenticated/library'
     | '/_authenticated/schedule'
     | '/_authenticated/settings'
     | '/_authenticated/shelf'
@@ -517,21 +386,12 @@ export interface FileRouteTypes {
     | '/_authenticated/directories/vendors'
     | '/_authenticated/directories/venues'
     | '/_authenticated/pipeline/$id'
-    | '/_authenticated/pipeline/explore'
-    | '/_authenticated/projects/$id'
-    | '/_authenticated/proposals/$id'
-    | '/_authenticated/proposals/new'
-    | '/_authenticated/settings/directories'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/square/webhook'
-    | '/_authenticated/clients/'
-    | '/_authenticated/directories/'
     | '/_authenticated/pipeline/'
-    | '/_authenticated/projects/'
     | '/_authenticated/directories/vendors/$id'
     | '/_authenticated/directories/venues/$id'
-    | '/_authenticated/library/$projectId/shopping-list'
     | '/api/integrations/gmail/callback'
     | '/api/integrations/google/callback'
     | '/api/integrations/square/callback'
@@ -614,20 +474,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/files': {
-      id: '/_authenticated/files'
-      path: '/files'
-      fullPath: '/files'
-      preLoaderRoute: typeof AuthenticatedFilesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/library': {
-      id: '/_authenticated/library'
-      path: '/library'
-      fullPath: '/library'
-      preLoaderRoute: typeof AuthenticatedLibraryRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/schedule': {
       id: '/_authenticated/schedule'
       path: '/schedule'
@@ -677,25 +523,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProposalTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/clients/': {
-      id: '/_authenticated/clients/'
-      path: '/clients'
-      fullPath: '/clients/'
-      preLoaderRoute: typeof AuthenticatedClientsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/clients/$id': {
       id: '/_authenticated/clients/$id'
       path: '/clients/$id'
       fullPath: '/clients/$id'
       preLoaderRoute: typeof AuthenticatedClientsIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/directories/': {
-      id: '/_authenticated/directories/'
-      path: '/directories'
-      fullPath: '/directories/'
-      preLoaderRoute: typeof AuthenticatedDirectoriesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/directories/clients': {
@@ -732,48 +564,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/pipeline/$id'
       preLoaderRoute: typeof AuthenticatedPipelineIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/pipeline/explore': {
-      id: '/_authenticated/pipeline/explore'
-      path: '/pipeline/explore'
-      fullPath: '/pipeline/explore'
-      preLoaderRoute: typeof AuthenticatedPipelineExploreRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/projects/': {
-      id: '/_authenticated/projects/'
-      path: '/projects'
-      fullPath: '/projects/'
-      preLoaderRoute: typeof AuthenticatedProjectsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/projects/$id': {
-      id: '/_authenticated/projects/$id'
-      path: '/projects/$id'
-      fullPath: '/projects/$id'
-      preLoaderRoute: typeof AuthenticatedProjectsIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/proposals/$id': {
-      id: '/_authenticated/proposals/$id'
-      path: '/proposals/$id'
-      fullPath: '/proposals/$id'
-      preLoaderRoute: typeof AuthenticatedProposalsIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/proposals/new': {
-      id: '/_authenticated/proposals/new'
-      path: '/proposals/new'
-      fullPath: '/proposals/new'
-      preLoaderRoute: typeof AuthenticatedProposalsNewRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/settings/directories': {
-      id: '/_authenticated/settings/directories'
-      path: '/directories'
-      fullPath: '/settings/directories'
-      preLoaderRoute: typeof AuthenticatedSettingsDirectoriesRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/api/cron/gmail-inbound': {
       id: '/api/cron/gmail-inbound'
@@ -824,13 +614,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDirectoriesVenuesIdRouteImport
       parentRoute: typeof AuthenticatedDirectoriesVenuesRoute
     }
-    '/_authenticated/library/$projectId/shopping-list': {
-      id: '/_authenticated/library/$projectId/shopping-list'
-      path: '/$projectId/shopping-list'
-      fullPath: '/library/$projectId/shopping-list'
-      preLoaderRoute: typeof AuthenticatedLibraryProjectIdShoppingListRouteImport
-      parentRoute: typeof AuthenticatedLibraryRoute
-    }
     '/api/integrations/gmail/callback': {
       id: '/api/integrations/gmail/callback'
       path: '/api/integrations/gmail/callback'
@@ -854,31 +637,6 @@ declare module '@tanstack/react-router' {
     }
   }
 }
-
-interface AuthenticatedLibraryRouteChildren {
-  AuthenticatedLibraryProjectIdShoppingListRoute: typeof AuthenticatedLibraryProjectIdShoppingListRoute
-}
-
-const AuthenticatedLibraryRouteChildren: AuthenticatedLibraryRouteChildren = {
-  AuthenticatedLibraryProjectIdShoppingListRoute:
-    AuthenticatedLibraryProjectIdShoppingListRoute,
-}
-
-const AuthenticatedLibraryRouteWithChildren =
-  AuthenticatedLibraryRoute._addFileChildren(AuthenticatedLibraryRouteChildren)
-
-interface AuthenticatedSettingsRouteChildren {
-  AuthenticatedSettingsDirectoriesRoute: typeof AuthenticatedSettingsDirectoriesRoute
-}
-
-const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
-  AuthenticatedSettingsDirectoriesRoute: AuthenticatedSettingsDirectoriesRoute,
-}
-
-const AuthenticatedSettingsRouteWithChildren =
-  AuthenticatedSettingsRoute._addFileChildren(
-    AuthenticatedSettingsRouteChildren,
-  )
 
 interface AuthenticatedDirectoriesVendorsRouteChildren {
   AuthenticatedDirectoriesVendorsIdRoute: typeof AuthenticatedDirectoriesVendorsIdRoute
@@ -918,32 +676,21 @@ const AuthenticatedDirectoriesVenuesRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedFilesRoute: typeof AuthenticatedFilesRoute
-  AuthenticatedLibraryRoute: typeof AuthenticatedLibraryRouteWithChildren
   AuthenticatedScheduleRoute: typeof AuthenticatedScheduleRoute
-  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShelfRoute: typeof AuthenticatedShelfRoute
   AuthenticatedClientsIdRoute: typeof AuthenticatedClientsIdRoute
   AuthenticatedDirectoriesClientsRoute: typeof AuthenticatedDirectoriesClientsRoute
   AuthenticatedDirectoriesVendorsRoute: typeof AuthenticatedDirectoriesVendorsRouteWithChildren
   AuthenticatedDirectoriesVenuesRoute: typeof AuthenticatedDirectoriesVenuesRouteWithChildren
   AuthenticatedPipelineIdRoute: typeof AuthenticatedPipelineIdRoute
-  AuthenticatedPipelineExploreRoute: typeof AuthenticatedPipelineExploreRoute
-  AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
-  AuthenticatedProposalsIdRoute: typeof AuthenticatedProposalsIdRoute
-  AuthenticatedProposalsNewRoute: typeof AuthenticatedProposalsNewRoute
-  AuthenticatedClientsIndexRoute: typeof AuthenticatedClientsIndexRoute
-  AuthenticatedDirectoriesIndexRoute: typeof AuthenticatedDirectoriesIndexRoute
   AuthenticatedPipelineIndexRoute: typeof AuthenticatedPipelineIndexRoute
-  AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedFilesRoute: AuthenticatedFilesRoute,
-  AuthenticatedLibraryRoute: AuthenticatedLibraryRouteWithChildren,
   AuthenticatedScheduleRoute: AuthenticatedScheduleRoute,
-  AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShelfRoute: AuthenticatedShelfRoute,
   AuthenticatedClientsIdRoute: AuthenticatedClientsIdRoute,
   AuthenticatedDirectoriesClientsRoute: AuthenticatedDirectoriesClientsRoute,
@@ -952,14 +699,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDirectoriesVenuesRoute:
     AuthenticatedDirectoriesVenuesRouteWithChildren,
   AuthenticatedPipelineIdRoute: AuthenticatedPipelineIdRoute,
-  AuthenticatedPipelineExploreRoute: AuthenticatedPipelineExploreRoute,
-  AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
-  AuthenticatedProposalsIdRoute: AuthenticatedProposalsIdRoute,
-  AuthenticatedProposalsNewRoute: AuthenticatedProposalsNewRoute,
-  AuthenticatedClientsIndexRoute: AuthenticatedClientsIndexRoute,
-  AuthenticatedDirectoriesIndexRoute: AuthenticatedDirectoriesIndexRoute,
   AuthenticatedPipelineIndexRoute: AuthenticatedPipelineIndexRoute,
-  AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

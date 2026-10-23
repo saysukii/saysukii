@@ -6,6 +6,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
+import { PersonName } from "@/components/studio/PersonName";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { VendorRow } from "@/integrations/supabase/types";
 import { getDevPreviewDirectories } from "@/lib/dev-preview";
@@ -165,7 +166,11 @@ function VendorDirectoryPage() {
             <Link key={vendor.id} to="/directories/vendors/$id" params={{ id: vendor.id }} className="studio-book-row">
               <span>
                 <b>{vendor.name}</b>
-                <em>{vendor.ordering_method || vendor.contact_email || vendor.contact_name || "no ordering notes"}</em>
+                <em>
+                  {vendor.ordering_method ||
+                    vendor.contact_email ||
+                    (vendor.contact_name ? <PersonName name={vendor.contact_name} /> : "no ordering notes")}
+                </em>
               </span>
               <small>{vendor.type}</small>
             </Link>

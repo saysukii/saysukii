@@ -10,6 +10,7 @@ import { FloralAgreement } from "@/components/proposal/FloralAgreement";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Wordmark } from "@/components/portal/bits";
+import { PersonName, isPersonType } from "@/components/studio/PersonName";
 import { isStudioOwner, noteAuthor, noteWriter, SIGNATURE_LINKS, signatureName, wroteNote } from "@/lib/os/mail-signature";
 import { applyTemplate, loadTemplates, saveTemplates, type MailTemplate } from "@/lib/os/mail-templates";
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
@@ -233,7 +234,7 @@ function MailSignature({ name }: { name: string }) {
       <Wordmark tone="white" className="studio-mail-sign-mark" />
       <p>
         <strong>
-          {person} | Say Sukii
+          <PersonName name={person} /> | Say Sukii
         </strong>
       </p>
       {isStudioOwner(person) ? <p>Floral Artist, Founder & Creative Director</p> : null}
@@ -954,7 +955,7 @@ function RecordMast({
   time,
   place,
 }: {
-  title: string;
+  title: ReactNode;
   date: string;
   time: string;
   place: string;
@@ -1191,11 +1192,13 @@ function proposalOpenHref(token: string, href: string) {
 function MailFace({
   messages,
   clientName,
+  person = false,
   fileHrefs,
   viewedAtByToken,
 }: {
   messages: InquiryMessageRow[];
   clientName: string | null | undefined;
+  person?: boolean;
   fileHrefs: Record<string, string>;
   viewedAtByToken: Record<string, string>;
 }) {
@@ -1216,7 +1219,15 @@ function MailFace({
           return (
             <div key={mail.id} className="studio-mail-turn">
               {stamp ? <p className="studio-mail-stamp">{stamp}</p> : null}
-              {!studio && !sameRun ? <p className="studio-mail-name">{mail.name}</p> : null}
+              {!studio && !sameRun ? (
+                <p className="studio-mail-name">
+                  {person && clientName && mail.name.trim().toLowerCase() === clientName.trim().toLowerCase() ? (
+                    <PersonName name={mail.name} />
+                  ) : (
+                    mail.name
+                  )}
+                </p>
+              ) : null}
               <article className={cn("studio-mail-face-item", studio && "is-out", mail.note && "is-note")}>
                 {runEnds ? (
                   <span className="studio-mail-avatar" aria-hidden="true">
@@ -2155,7 +2166,9 @@ export function InquiryLeadPane({
       <>
       <div className="studio-lead-top is-mast">
       <RecordMast
-        title={client?.name ?? "client"}
+        title={
+          isPersonType(client?.type) && client?.name ? <PersonName name={client.name} /> : (client?.name ?? "client")
+        }
         date={inquiry.event_date_tbd ? "date tbd" : formatDateNumeric(inquiry.event_date)}
         time={inquiry.event_date_tbd ? "" : time}
         place={place}
@@ -2387,7 +2400,9 @@ export function InquiryLeadPane({
           <dl className="studio-facts">
             <div>
               <dt>name</dt>
-              <dd>{client?.name ?? "client"}</dd>
+              <dd>
+                {isPersonType(client?.type) && client?.name ? <PersonName name={client.name} /> : (client?.name ?? "client")}
+              </dd>
             </div>
             <div>
               <dt>email</dt>
@@ -2545,7 +2560,13 @@ export function InquiryLeadPane({
                 }}
               />
             ) : (
-              <MailFace messages={threadedMessages} clientName={client?.name} fileHrefs={fileHrefs} viewedAtByToken={viewedAtByToken} />
+              <MailFace
+                messages={threadedMessages}
+                clientName={client?.name}
+                person={isPersonType(client?.type)}
+                fileHrefs={fileHrefs}
+                viewedAtByToken={viewedAtByToken}
+              />
             )}
           </div>
           {showSideThread ? null : composer}

@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import type { ClientType } from "@/integrations/supabase/types";
-import { formatDate, formatMoneyExact } from "@/lib/money";
+import { shownName, isPersonType } from "@/components/studio/PersonName";
+import { formatDate } from "@/lib/money";
 import { archiveClient, getClient, saveClient } from "@/lib/os/clients.functions";
 import { getDevPreviewClient } from "@/lib/dev-preview";
 import { findPreviewClient, previewDirectoryRecord, updatePreviewClient } from "@/lib/preview-clients";
@@ -126,7 +127,7 @@ function ClientDetailPage() {
   if (!data) {
     return (
       <div className="studio-page">
-        <Link to="/clients" className="auth-text-action">
+        <Link to="/directories/clients" className="auth-text-action">
           back to clients
         </Link>
         <p className="studio-pearl-note">this client could not be found.</p>
@@ -134,7 +135,7 @@ function ClientDetailPage() {
     );
   }
 
-  const { client, inquiries, proposals, projects, files } = data;
+  const { client, inquiries, files } = data;
   const openJob = inquiries.find((inquiry) => inquiry.status !== "closed") ?? inquiries[0];
 
   return (
@@ -142,10 +143,10 @@ function ClientDetailPage() {
       <div className="studio-lead">
       <header className="studio-home-hello is-beside">
         <div>
-          <Link to="/clients" activeOptions={{ exact: true }} className="studio-record-back" aria-label="back to clients">
+          <Link to="/directories/clients" className="studio-record-back" aria-label="back to clients">
             <ArrowLeft aria-hidden="true" strokeWidth={1.5} />
           </Link>
-          <h1>{client.name}</h1>
+          <h1>{shownName(client.name, isPersonType(client.type))}</h1>
         </div>
         <p className="studio-hello-meta">
           {client.organization ? <span>{client.organization}</span> : null}
@@ -292,42 +293,6 @@ function ClientDetailPage() {
           ))}
         </div>
       </section>
-
-      <section className="studio-module">
-        <p className="studio-home-label">proposals</p>
-        {proposals.length === 0 ? <p className="studio-empty">no proposal yet.</p> : null}
-        <div className="studio-book-review-rows">
-          {proposals.map((proposal) => (
-            <Link key={proposal.id} to="/proposals/$id" params={{ id: proposal.id }} className="studio-book-row">
-              <span>
-                <b>{proposal.number}</b>
-                <em>
-                  {formatDate(proposal.event_date)} · {proposal.status}
-                </em>
-              </span>
-              <small>{formatMoneyExact(proposal.total_cents)}</small>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {projects.length > 0 ? (
-        <section className="studio-module">
-          <p className="studio-home-label">projects</p>
-          <div className="studio-book-review-rows">
-            {projects.map((project) => (
-              <Link key={project.id} to="/projects/$id" params={{ id: project.id }} className="studio-book-row">
-                <span>
-                  <b>{project.event_name}</b>
-                  <em>
-                    {formatDate(project.event_date)} · {project.status.replaceAll("_", " ")}
-                  </em>
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       {files.length > 0 ? (
         <section className="studio-module">

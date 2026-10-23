@@ -5104,6 +5104,26 @@
   text-transform: lowercase;
 }
 
+.is-person {
+  text-transform: none;
+}
+
+.studio-today :is(button, select),
+.studio-task-modal :is(button, select),
+.studio-desk :is(button, select),
+.studio-home.is-book :is(button, select),
+.studio-schedule :is(button, select) {
+  text-transform: lowercase;
+}
+
+.studio-today :is(input, textarea),
+.studio-task-modal :is(input, textarea),
+.studio-desk :is(input, textarea),
+.studio-home.is-book :is(input, textarea),
+.studio-schedule :is(input, textarea) {
+  text-transform: none;
+}
+
 .studio-today-top {
   display: flex;
   flex-wrap: wrap;
@@ -5416,6 +5436,70 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+button.studio-metric {
+  width: 100%;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.studio-metric:hover {
+  background: var(--studio-veil-on);
+}
+
+.studio-task-modal .studio-task-composer-title p {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;
+  color: #24221f;
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+}
+
+.studio-lead-glance {
+  display: grid;
+  gap: 12px;
+}
+
+.studio-task-modal .studio-lead-glance .studio-home-glance {
+  --studio-veil: rgba(255, 244, 246, 0.9);
+  --studio-veil-on: #fff;
+  --auth-ink: #24221f;
+  --auth-muted: rgba(36, 34, 31, 0.52);
+  background: var(--studio-veil);
+}
+
+.studio-task-modal .studio-lead-glance .studio-glance-head b,
+.studio-task-modal .studio-lead-glance .studio-glance-card b {
+  display: block;
+  margin: 0;
+  color: #24221f;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.studio-task-modal .studio-lead-glance .studio-glance-head p,
+.studio-task-modal .studio-lead-glance .studio-glance-card p {
+  margin: 2px 0 0;
+  color: rgba(36, 34, 31, 0.52);
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1.45;
+}
+
+.studio-task-modal .studio-lead-glance .studio-glance-label {
+  margin: 0;
+  color: rgba(36, 34, 31, 0.52);
+  font-size: 9px;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
 }
 
 .studio-home-tasks {

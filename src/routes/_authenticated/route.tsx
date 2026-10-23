@@ -10,6 +10,14 @@ import {
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async () => {
+    if (isDevPreviewEnabled()) {
+      return {
+        user: DEV_PREVIEW_USER,
+        profile: DEV_PREVIEW_PROFILE,
+        devPreview: true as const,
+      };
+    }
+
     const { data, error } = await supabase.auth.getUser();
     if (!error && data.user) {
       const { data: profile, error: profileError } = await supabase
@@ -21,14 +29,6 @@ export const Route = createFileRoute("/_authenticated")({
       if (!profileError && profile) {
         return { user: data.user, profile, devPreview: false as const };
       }
-    }
-
-    if (isDevPreviewEnabled()) {
-      return {
-        user: DEV_PREVIEW_USER,
-        profile: DEV_PREVIEW_PROFILE,
-        devPreview: true as const,
-      };
     }
 
     if (data.user) await supabase.auth.signOut();

@@ -89,7 +89,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "The studio operating system for Say Sukii.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "https://inside.saysukii.com/og.jpg" },
+      { property: "og:image:type", content: "image/jpeg" },
+      { property: "og:image:width", content: "750" },
+      { property: "og:image:height", content: "924" },
+      {
+        property: "og:image:alt",
+        content: "A long table dressed with anthuriums, roses, and glassware.",
+      },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: "https://inside.saysukii.com/og.jpg" },
+      {
+        name: "twitter:image:alt",
+        content: "A long table dressed with anthuriums, roses, and glassware.",
+      },
     ],
     links: [
       {

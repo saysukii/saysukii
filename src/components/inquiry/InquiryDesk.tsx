@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { InquiryLeadPane } from "@/components/inquiry/InquiryLeadPane";
+import { PersonName, isPersonType } from "@/components/studio/PersonName";
 import { AddInquiry } from "@/components/portal/TodayHome";
 import {
   Dialog,
@@ -222,7 +223,13 @@ function ReviewStrip({
         {items.map((inquiry) => (
             <button key={inquiry.id} type="button" className="studio-book-row" onClick={() => onOpen(inquiry)}>
               <span>
-                <b>{inquiry.client?.name ?? "client"}</b>
+                <b>
+                  {isPersonType(inquiry.client?.type) && inquiry.client?.name ? (
+                    <PersonName name={inquiry.client.name} />
+                  ) : (
+                    inquiry.client?.name ?? "client"
+                  )}
+                </b>
                 <em>{messagePreview(inquiry)}</em>
               </span>
               <small>{confidenceLabel(inquiry.detection_confidence) ?? "look"}</small>
@@ -359,7 +366,13 @@ function BoardCard({ inquiry }: { inquiry: InquiryPipelineItem }) {
   return (
     <Link to="/pipeline/$id" params={{ id: inquiry.slug }} className="studio-kanban-card is-glass is-labels">
       <header>
-        <b>{item.name}</b>
+        <b>
+          {isPersonType(inquiry.client?.type) && inquiry.client?.name ? (
+            <PersonName name={inquiry.client.name} />
+          ) : (
+            item.name
+          )}
+        </b>
         <small className={cn("studio-desk-wait", `is-${item.tone}`)}>{item.wait}</small>
       </header>
       <dl>

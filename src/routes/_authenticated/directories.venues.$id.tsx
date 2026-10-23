@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { DirectoryHome } from "@/components/portal/DirectoryHome";
+import { PersonName } from "@/components/studio/PersonName";
 import { getDevPreviewDirectories } from "@/lib/dev-preview";
 import { listDirectories } from "@/lib/os/clients.functions";
 import { useDevPreview } from "@/lib/use-dev-preview";
@@ -53,7 +54,7 @@ function VenuePage() {
     );
   }
 
-  const contact = [venue.contact_name, venue.contact_email, venue.contact_phone].filter(Boolean);
+  const rest = [venue.contact_email, venue.contact_phone].filter(Boolean).join(" · ");
 
   return (
     <DirectoryHome title={venue.name} back={{ to: "/directories/venues", label: "venues" }} lede={venue.address}>
@@ -61,7 +62,17 @@ function VenuePage() {
         <dl>
           <div>
             <dt>contact</dt>
-            <dd>{contact.length ? contact.join(" · ") : "—"}</dd>
+            <dd>
+              {venue.contact_name || rest ? (
+                <>
+                  {venue.contact_name ? <PersonName name={venue.contact_name} /> : null}
+                  {venue.contact_name && rest ? " · " : null}
+                  {rest}
+                </>
+              ) : (
+                "—"
+              )}
+            </dd>
           </div>
         </dl>
         <p className="studio-directory-note">{venue.load_in_notes || "no load-in notes yet."}</p>

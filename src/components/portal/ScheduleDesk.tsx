@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { CalendarHours } from "@/components/portal/CalendarHours";
+import { PersonName } from "@/components/studio/PersonName";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { readLocalCalendar } from "@/lib/calendar-settings";
 import {
@@ -173,7 +174,9 @@ export function ScheduleDesk({
                         onClick={() => openMeeting(booking)}
                       >
                         <em>{studioClock(booking.startsAt)}</em>
-                        <span>{booking.name}</span>
+                        <span>
+                          <PersonName name={booking.name} />
+                        </span>
                       </button>
                     ))}
                     {items.length > shown.length ? (
@@ -248,7 +251,9 @@ function DayList({
         {bookings.map((booking) => (
           <button key={booking.id} type="button" className="studio-book-row" onClick={() => onOpen(booking)}>
             <span>
-              <b>{booking.name}</b>
+              <b>
+                <PersonName name={booking.name} />
+              </b>
               <em>{booking.note || booking.email}</em>
             </span>
             <small>{studioClock(booking.startsAt)}</small>
@@ -282,7 +287,9 @@ function MeetingRecord({
       <button type="button" className="studio-ghost" onClick={onBack}>
         back
       </button>
-      <h2>{booking.name}</h2>
+      <h2>
+        <PersonName name={booking.name} />
+      </h2>
       <p className="studio-meet-when">{bookingWindow(booking.startsAt, minutes)}</p>
       {brief ? (
         <Link to="/pipeline/$id" params={{ id: brief.slug }} className="studio-meet-brief">

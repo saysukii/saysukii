@@ -235,7 +235,7 @@ export function nextMove(status: InquiryStatus) {
     case "in_conversation":
       return {
         title: "send proposal",
-        note: "the vision is clear enough to price from the library.",
+        note: "the vision is clear enough to send a proposal.",
         action: "create proposal",
         focus: "proposal" as const,
       };

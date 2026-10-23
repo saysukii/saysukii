@@ -6,6 +6,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
+import { PersonName } from "@/components/studio/PersonName";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { VenueRow } from "@/integrations/supabase/types";
 import { getDevPreviewDirectories } from "@/lib/dev-preview";
@@ -167,7 +168,11 @@ function VenueDirectoryPage() {
                 <b>{venue.name}</b>
                 <em>{venue.address}</em>
               </span>
-              {venue.contact_name ? <small>{venue.contact_name}</small> : null}
+              {venue.contact_name ? (
+                <small>
+                  <PersonName name={venue.contact_name} />
+                </small>
+              ) : null}
             </Link>
           ))}
         </div>

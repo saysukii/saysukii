@@ -395,16 +395,12 @@ export const listInquiryPipeline = createServerFn({ method: "GET" })
 export const getInquiryDashboard = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async ({ context }) => {
-    const horizon = new Date();
-    horizon.setDate(horizon.getDate() + 45);
     const [inquiries, projectsResult, clientsResult, tasks, appointmentsResult] = await Promise.all([
       listInquiriesWithClients(context.supabase),
       context.supabase
         .from("projects")
         .select("*")
         .eq("archived", false)
-        .gte("event_date", dateOnly(new Date()))
-        .lte("event_date", dateOnly(horizon))
         .order("event_date", { ascending: true }),
       context.supabase.from("clients").select("*"),
       listStudioTasks(context.supabase),
@@ -417,13 +413,33 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
     if (projectsResult.error) throw new Error(projectsResult.error.message);
     if (clientsResult.error) throw new Error(clientsResult.error.message);
 
+    const wrote = new Set<string>();
+    if (inquiries.length > 0) {
+      const heard = await context.supabase
+        .from("inquiry_messages")
+        .select("inquiry_id")
+        .eq("direction", "outbound")
+        .eq("channel", "email")
+        .eq("status", "sent")
+        .in(
+          "inquiry_id",
+          inquiries.map((inquiry) => inquiry.id),
+        );
+      if (heard.error) throw new Error(heard.error.message);
+      for (const row of heard.data ?? []) wrote.add(row.inquiry_id);
+    }
+    const leads = inquiries.map((inquiry) => ({
+      ...inquiry,
+      studio_wrote: wrote.has(inquiry.id),
+    }));
+
     const names = new Map((clientsResult.data ?? []).map((client) => [client.id, client.name]));
-    await syncInquiryAutoTasks(context.supabase, inquiries, names, tasks);
+    await syncInquiryAutoTasks(context.supabase, leads, names, tasks);
     const latestTasks = await listStudioTasks(context.supabase);
 
     const projectClients = new Map((clientsResult.data ?? []).map((client) => [client.id, client]));
     return assembleStudioToday({
-      inquiries,
+      inquiries: leads,
       projects: (projectsResult.data ?? []).map((project) => ({
         ...project,
         client: projectClients.get(project.client_id) ?? null,
