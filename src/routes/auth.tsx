@@ -15,7 +15,8 @@ export const Route = createFileRoute("/auth")({
         content:
           "Private sign-in for the Say Sukii studio portal: proposals, agreements, invoices, and production.",
       },
-      { property: "og:title", content: "Say Sukii OS" },
+      { property: "og:title", content: "say sukii" },
+      { property: "og:site_name", content: "say sukii" },
       {
         property: "og:description",
         content: "Private sign-in for the Say Sukii floral studio operating system.",

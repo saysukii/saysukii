@@ -9,7 +9,8 @@ export const Route = createFileRoute("/")({
         content:
           "The internal operating system for Say Sukii: pipeline, proposals, agreements, and invoices for every floral installation.",
       },
-      { property: "og:title", content: "Say Sukii Portal" },
+      { property: "og:title", content: "say sukii" },
+      { property: "og:site_name", content: "say sukii" },
       {
         property: "og:description",
         content: "Pipeline, proposals, agreements, and invoices for the Say Sukii floral studio.",

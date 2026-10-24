@@ -83,7 +83,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { name: "author", content: "Say Sukii" },
       { name: "theme-color", content: "#F2EFF0" },
-      { property: "og:title", content: "Say Sukii OS" },
+      { property: "og:title", content: "say sukii" },
+      { property: "og:site_name", content: "say sukii" },
       {
         property: "og:description",
         content: "The studio operating system for Say Sukii.",
@@ -98,6 +99,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "A long table dressed with anthuriums, roses, and glassware.",
       },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "say sukii" },
       { name: "twitter:image", content: "https://inside.saysukii.com/og.jpg" },
       {
         name: "twitter:image:alt",
