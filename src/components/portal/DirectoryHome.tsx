@@ -10,7 +10,7 @@ export function DirectoryHome({
 }: {
   title: string;
   lede?: string;
-  back?: { to: "/shelf" | "/directories/vendors" | "/directories/venues"; label: string };
+  back?: { to: "/library" | "/directories/vendors" | "/directories/venues"; label: string };
   action?: ReactNode;
   children: ReactNode;
 }) {

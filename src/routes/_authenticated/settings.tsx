@@ -399,8 +399,8 @@ function SettingsPage() {
       <p className="studio-muted" style={{ marginTop: 18 }}>
         default deposits stay on the server for v1. proposal-specific amounts are set when you send.
       </p>
-      <Link to="/shelf" className="auth-text-action" style={{ marginTop: 12, display: "inline-flex" }}>
-        shelf
+      <Link to="/library" className="auth-text-action" style={{ marginTop: 12, display: "inline-flex" }}>
+        library
       </Link>
     </section>
   );

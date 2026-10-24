@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
+import { AskField } from "@/components/portal/ask-form";
 import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
 import { PersonName } from "@/components/studio/PersonName";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -111,18 +112,29 @@ function VenueDirectoryPage() {
 
   const createVenue = useMutation({
     mutationFn: async () => {
-      if (devPreview) return null;
+      if (devPreview) {
+        const now = new Date().toISOString();
+        return {
+          id: crypto.randomUUID(),
+          name: form.name.trim(),
+          address: form.address.trim(),
+          contact_name: form.contact_name.trim() || null,
+          contact_email: form.contact_email.trim() || null,
+          contact_phone: form.contact_phone.trim() || null,
+          load_in_notes: form.load_in_notes.trim() || null,
+          archived: false,
+          created_at: now,
+          updated_at: now,
+        } satisfies VenueRow;
+      }
       return submitVenue({ data: form });
     },
     onSuccess: async (row) => {
-      if (!row) {
-        toast.message("preview — not saved");
-        return;
-      }
+      if (devPreview) setBroughtIn((current) => [row, ...current]);
       toast.success("added");
       setAdding(false);
       setForm(emptyForm);
-      await queryClient.invalidateQueries({ queryKey: ["os", "directories"] });
+      if (!devPreview) await queryClient.invalidateQueries({ queryKey: ["os", "directories"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -143,7 +155,7 @@ function VenueDirectoryPage() {
   return (
     <DirectoryHome
       title="venues"
-      back={{ to: "/shelf", label: "shelf" }}
+      back={{ to: "/library", label: "library" }}
       lede={isPending ? "gathering…" : `${venues.length} ${venues.length === 1 ? "venue" : "venues"}`}
       action={
         <>
@@ -185,63 +197,76 @@ function VenueDirectoryPage() {
           if (!open) setForm(emptyForm);
         }}
       >
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask is-soft" hideClose>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
           <div className="studio-task-head">
             <DialogClose className="studio-task-close" aria-label="Close">
               <X aria-hidden="true" />
             </DialogClose>
           </div>
           <DialogTitle className="sr-only">add a venue</DialogTitle>
-          <DialogDescription className="sr-only">name, address, and how to load in.</DialogDescription>
+          <DialogDescription className="sr-only">a room or a garden.</DialogDescription>
           <form className="studio-task-form" onSubmit={submit}>
-            <p className="studio-ask-hint">a room or a garden, added by hand.</p>
-            <label className="studio-field">
-              <span>name</span>
+            <label className="studio-task-composer-title">
+              <span className="sr-only">the place</span>
               <input
-                required
-                className="studio-input"
+                autoFocus
                 value={form.name}
+                maxLength={200}
+                placeholder="the place…"
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
             </label>
-            <label className="studio-field">
-              <span>address</span>
-              <input
-                required
-                className="studio-input"
-                value={form.address}
-                onChange={(event) => setForm({ ...form, address: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>contact</span>
-              <input
-                className="studio-input"
-                value={form.contact_name}
-                onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>email</span>
-              <input
-                type="email"
-                className="studio-input"
-                value={form.contact_email}
-                onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>load-in</span>
-              <textarea
-                className="studio-textarea"
-                rows={3}
-                value={form.load_in_notes}
-                onChange={(event) => setForm({ ...form, load_in_notes: event.target.value })}
-              />
-            </label>
+            <div className="studio-ask-grid is-two studio-ask-stack-form">
+              <AskField label="address" className="studio-ask-span">
+                <input
+                  required
+                  value={form.address}
+                  maxLength={500}
+                  onChange={(event) => setForm({ ...form, address: event.target.value })}
+                />
+              </AskField>
+              <AskField label="contact">
+                <input
+                  value={form.contact_name}
+                  maxLength={160}
+                  autoComplete="name"
+                  onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
+                />
+              </AskField>
+              <AskField label="email">
+                <input
+                  type="email"
+                  value={form.contact_email}
+                  maxLength={320}
+                  autoComplete="email"
+                  onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
+                />
+              </AskField>
+              <AskField label="phone">
+                <input
+                  type="tel"
+                  value={form.contact_phone}
+                  maxLength={50}
+                  autoComplete="tel"
+                  onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
+                />
+              </AskField>
+              <AskField label="load-in" className="studio-ask-span">
+                <textarea
+                  value={form.load_in_notes}
+                  maxLength={5000}
+                  placeholder="how to arrive…"
+                  onChange={(event) => setForm({ ...form, load_in_notes: event.target.value })}
+                />
+              </AskField>
+            </div>
             <div className="studio-ask-foot">
-              <button type="submit" className="studio-today-go" disabled={createVenue.isPending}>
-                {createVenue.isPending ? "adding…" : "add"}
+              <button
+                type="submit"
+                className="studio-today-go"
+                disabled={!form.name.trim() || !form.address.trim() || createVenue.isPending}
+              >
+                {createVenue.isPending ? "saving…" : "create"}
               </button>
             </div>
           </form>

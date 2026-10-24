@@ -323,7 +323,7 @@ export type OrderItemRow = {
 
 export type FileRow = {
   id: string;
-  owner_type: "client" | "proposal" | "project" | "venue" | "inquiry";
+  owner_type: "client" | "proposal" | "project" | "venue" | "inquiry" | "studio";
   owner_id: string;
   file_path: string;
   file_type: string | null;

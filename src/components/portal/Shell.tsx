@@ -45,7 +45,7 @@ const ADMIN_NAV: NavItem[] = [
   { to: "/dashboard", label: "today" },
   { to: "/pipeline", label: "inquiries" },
   { to: "/schedule", label: "schedule" },
-  { to: "/shelf", label: "shelf" },
+  { to: "/library", label: "library" },
 ];
 
 const TEAM_NAV = ADMIN_NAV.filter(({ label }) => label === "today");
@@ -61,17 +61,17 @@ function PrimaryNav({
   return (
     <nav aria-label="Primary" className="studio-pearl-nav">
       {items.map(({ to, label }) => {
-        const onShelf =
-          to === "/shelf" &&
-          (pathname === "/shelf" || pathname.startsWith("/directories") || pathname.startsWith("/files"));
+        const onLibrary =
+          to === "/library" &&
+          (pathname === "/library" || pathname.startsWith("/directories") || pathname.startsWith("/files"));
         return (
           <Link
             key={to}
             to={to as "/dashboard"}
             onClick={onNavigate}
-            activeOptions={{ exact: to === "/dashboard" || to === "/shelf" }}
+            activeOptions={{ exact: to === "/dashboard" || to === "/library" }}
             activeProps={{ className: "is-on" }}
-            className={onShelf ? "is-on" : undefined}
+            className={onLibrary ? "is-on" : undefined}
           >
             {label}
           </Link>

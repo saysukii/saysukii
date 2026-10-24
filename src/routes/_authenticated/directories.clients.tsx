@@ -113,7 +113,7 @@ function ClientDirectoryPage() {
   return (
     <DirectoryHome
       title="clients"
-      back={{ to: "/shelf", label: "shelf" }}
+      back={{ to: "/library", label: "library" }}
       lede={isPending ? "gathering…" : `${people.length} ${people.length === 1 ? "person" : "people"}`}
       action={
         <DirectoryImport

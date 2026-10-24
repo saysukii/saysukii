@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
+import { AskChips, AskField } from "@/components/portal/ask-form";
 import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
 import { PersonName } from "@/components/studio/PersonName";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +21,13 @@ export const Route = createFileRoute("/_authenticated/directories/vendors/")({
   }),
   component: VendorDirectoryPage,
 });
+
+const VENDOR_KINDS: Array<{ value: VendorRow["type"]; label: string }> = [
+  { value: "warehouse", label: "warehouse" },
+  { value: "wholesaler", label: "wholesaler" },
+  { value: "rental", label: "rental" },
+  { value: "other", label: "other" },
+];
 
 const emptyForm = {
   name: "",
@@ -111,18 +119,29 @@ function VendorDirectoryPage() {
 
   const createVendor = useMutation({
     mutationFn: async () => {
-      if (devPreview) return null;
+      if (devPreview) {
+        const now = new Date().toISOString();
+        return {
+          id: crypto.randomUUID(),
+          name: form.name.trim(),
+          type: form.type,
+          contact_name: form.contact_name.trim() || null,
+          contact_email: form.contact_email.trim() || null,
+          contact_phone: form.contact_phone.trim() || null,
+          ordering_method: form.ordering_method.trim() || null,
+          archived: false,
+          created_at: now,
+          updated_at: now,
+        } satisfies VendorRow;
+      }
       return submitVendor({ data: form });
     },
     onSuccess: async (row) => {
-      if (!row) {
-        toast.message("preview — not saved");
-        return;
-      }
+      if (devPreview) setBroughtIn((current) => [row, ...current]);
       toast.success("added");
       setAdding(false);
       setForm(emptyForm);
-      await queryClient.invalidateQueries({ queryKey: ["os", "directories"] });
+      if (!devPreview) await queryClient.invalidateQueries({ queryKey: ["os", "directories"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -143,7 +162,7 @@ function VendorDirectoryPage() {
   return (
     <DirectoryHome
       title="vendors"
-      back={{ to: "/shelf", label: "shelf" }}
+      back={{ to: "/library", label: "library" }}
       lede={isPending ? "gathering…" : `${vendors.length} ${vendors.length === 1 ? "vendor" : "vendors"}`}
       action={
         <>
@@ -185,67 +204,74 @@ function VendorDirectoryPage() {
           if (!open) setForm(emptyForm);
         }}
       >
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask is-soft" hideClose>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
           <div className="studio-task-head">
             <DialogClose className="studio-task-close" aria-label="Close">
               <X aria-hidden="true" />
             </DialogClose>
           </div>
           <DialogTitle className="sr-only">add a vendor</DialogTitle>
-          <DialogDescription className="sr-only">name, how to order, and who to call.</DialogDescription>
+          <DialogDescription className="sr-only">a market, a wholesaler, or a rental.</DialogDescription>
           <form className="studio-task-form" onSubmit={submit}>
-            <p className="studio-ask-hint">a supplier, added by hand.</p>
-            <label className="studio-field">
-              <span>name</span>
+            <label className="studio-task-composer-title">
+              <span className="sr-only">who is this</span>
               <input
-                required
-                className="studio-input"
+                autoFocus
                 value={form.name}
+                maxLength={200}
+                placeholder="who is this…"
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
               />
             </label>
-            <label className="studio-field">
-              <span>type</span>
-              <select
-                className="studio-select"
-                value={form.type}
-                onChange={(event) => setForm({ ...form, type: event.target.value as VendorRow["type"] })}
-              >
-                <option value="warehouse">warehouse</option>
-                <option value="wholesaler">wholesaler</option>
-                <option value="rental">rental</option>
-                <option value="other">other</option>
-              </select>
-            </label>
-            <label className="studio-field">
-              <span>contact</span>
-              <input
-                className="studio-input"
-                value={form.contact_name}
-                onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>email</span>
-              <input
-                type="email"
-                className="studio-input"
-                value={form.contact_email}
-                onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>how to order</span>
-              <textarea
-                className="studio-textarea"
-                rows={3}
-                value={form.ordering_method}
-                onChange={(event) => setForm({ ...form, ordering_method: event.target.value })}
-              />
-            </label>
+            <AskChips
+              label="kind"
+              options={VENDOR_KINDS}
+              value={form.type}
+              onPick={(type) => setForm({ ...form, type })}
+            />
+            <div className="studio-ask-grid is-two studio-ask-stack-form">
+              <AskField label="contact">
+                <input
+                  value={form.contact_name}
+                  maxLength={160}
+                  autoComplete="name"
+                  onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
+                />
+              </AskField>
+              <AskField label="email">
+                <input
+                  type="email"
+                  value={form.contact_email}
+                  maxLength={320}
+                  autoComplete="email"
+                  onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
+                />
+              </AskField>
+              <AskField label="phone">
+                <input
+                  type="tel"
+                  value={form.contact_phone}
+                  maxLength={50}
+                  autoComplete="tel"
+                  onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
+                />
+              </AskField>
+              <AskField label="how to order" className="studio-ask-span">
+                <textarea
+                  value={form.ordering_method}
+                  maxLength={5000}
+                  placeholder="how to order…"
+                  onChange={(event) => setForm({ ...form, ordering_method: event.target.value })}
+                />
+              </AskField>
+            </div>
             <div className="studio-ask-foot">
-              <button type="submit" className="studio-today-go" disabled={createVendor.isPending}>
-                {createVendor.isPending ? "adding…" : "add"}
+              <button
+                type="submit"
+                className="studio-today-go"
+                disabled={!form.name.trim() || createVendor.isPending}
+              >
+                {createVendor.isPending ? "saving…" : "create"}
               </button>
             </div>
           </form>

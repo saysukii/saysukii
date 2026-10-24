@@ -11721,6 +11721,56 @@ button.studio-metric:hover {
   }
 }
 
+.studio-library-index {
+  display: grid;
+  gap: 28px;
+  align-content: start;
+  min-width: 0;
+}
+
+.studio-library-index > section > .studio-home-label {
+  margin-bottom: 8px;
+}
+
+.studio-library-files {
+  display: grid;
+  gap: 12px;
+}
+
+.studio-library-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  color: rgba(36, 34, 31, 0.48);
+  box-shadow: inset 0 0 0 1px var(--studio-veil-line);
+}
+
+.studio-library-drop.is-over {
+  background: var(--studio-veil);
+  color: #ff4d94;
+}
+
+.studio-library-drop button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 300;
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-library-drop button:disabled {
+  cursor: default;
+}
+
 .studio-file-card {
   display: grid;
   gap: 10px;
