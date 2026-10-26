@@ -319,8 +319,11 @@ export const liveGmailOAuth: GmailOAuthClient = {
 
 const liveGmailVault: GmailVault = {
   async read() {
-    const fromDb = await readSupabaseRecord();
-    if (fromDb) return fromDb;
+    const fromInbox = await readSupabaseRecord();
+    if (fromInbox?.status === "connected" && fromInbox.encrypted_refresh_token) return fromInbox;
+    const fromGoogle = await readGoogleConnectionRecord();
+    if (fromGoogle) return fromGoogle;
+    if (fromInbox) return fromInbox;
     const fromFile = await readFileRecord();
     if (fromFile) return fromFile;
     return memoryRecord;
@@ -514,6 +517,42 @@ function supabaseConfigured() {
 
 const GMAIL_STORE_SELECT =
   "id, provider, account_email, encrypted_access_token, encrypted_refresh_token, token_expires_at, status, connected_at, connected_by, created_at, updated_at";
+
+async function readGoogleConnectionRecord(): Promise<GmailRecord | null> {
+  if (!supabaseConfigured()) return null;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("integration_connections")
+      .select("id, encrypted_access_token, encrypted_refresh_token, expires_at, status, metadata, connected_by, updated_at")
+      .eq("provider", "google")
+      .eq("status", "connected")
+      .maybeSingle();
+    if (error || !data?.encrypted_refresh_token) return null;
+    const metadata =
+      data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata) ? data.metadata : {};
+    const scopeValue = metadata["scope"];
+    const scope = typeof scopeValue === "string" ? scopeValue : "";
+    if (scope && !scope.includes("gmail.send")) return null;
+    const accountValue = metadata["account_email"];
+    const account = typeof accountValue === "string" ? accountValue : null;
+    return {
+      id: data.id,
+      provider: "gmail",
+      account_email: account,
+      encrypted_access_token: data.encrypted_access_token,
+      encrypted_refresh_token: data.encrypted_refresh_token,
+      token_expires_at: data.expires_at,
+      status: "connected",
+      connected_at: data.updated_at,
+      connected_by: data.connected_by,
+      created_at: data.updated_at,
+      updated_at: data.updated_at,
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function readSupabaseRecord() {
   if (!supabaseConfigured()) return null;

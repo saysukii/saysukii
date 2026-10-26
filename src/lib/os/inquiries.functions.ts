@@ -201,41 +201,98 @@ async function createInquiryWithClient(
     return inquiry;
 }
 
+async function sendConnectLetterThroughGmail(input: {
+  fromAddress: string;
+  to: string;
+  toName: string;
+  plain: string;
+}) {
+  const { getGmailPublicStatus, validGmailAccessToken } = await import("@/lib/os/gmail.server");
+  const gmail = await getGmailPublicStatus();
+  if (gmail.status !== "connected") return null;
+  const { sendInquiryEmail } = await import("@/lib/os/gmail-outbound.server");
+  const accessToken = await validGmailAccessToken();
+  const from = gmail.account_email || input.fromAddress;
+  const sent = await sendInquiryEmail({
+    from,
+    fromName: "Say Sukii",
+    to: input.to,
+    toName: input.toName,
+    subject: CONNECT_SUBJECT,
+    body: input.plain,
+    threadId: null,
+    accessToken,
+  });
+  return { from, gmailMessageId: sent.gmail_message_id, gmailThreadId: sent.gmail_thread_id };
+}
+
+async function sendConnectLetterThroughResend(input: { fromAddress: string; to: string; plain: string }) {
+  const apiKey = process.env["RESEND_API_KEY"];
+  if (!apiKey) return null;
+  const { Resend } = await import("resend");
+  const from = process.env["RESEND_FROM_EMAIL"] ?? `Say Sukii <${input.fromAddress}>`;
+  const resend = new Resend(apiKey);
+  const { error } = await resend.emails.send({
+    from,
+    to: input.to,
+    replyTo: input.fromAddress,
+    subject: CONNECT_SUBJECT,
+    text: input.plain,
+  });
+  if (error) throw new Error(error.message);
+  return { from: input.fromAddress };
+}
+
 async function sendConnectLetter(
   client: StudioClient,
   input: { inquiryId: string; name: string; email: string },
 ) {
   const body = connectLetterBody(input.name);
+  const plain = `${connectLetterPlain(input.name)}\n\n${signatureText(STUDIO_OWNER)}`;
   const sentAt = new Date().toISOString();
   const fromAddress = process.env["GMAIL_INBOX"] ?? "info@saysukii.com";
+
   let from = fromAddress;
   let gmailMessageId: string | null = null;
   let gmailThreadId: string | null = null;
-  let status: "sent" | "queued" = "queued";
+  let delivered = false;
 
   try {
-    const { getGmailPublicStatus, validGmailAccessToken } = await import("@/lib/os/gmail.server");
-    const gmail = await getGmailPublicStatus();
-    if (gmail.status === "connected") {
-      const { sendInquiryEmail } = await import("@/lib/os/gmail-outbound.server");
-      const accessToken = await validGmailAccessToken();
-      from = gmail.account_email || fromAddress;
-      const sent = await sendInquiryEmail({
-        from,
-        fromName: "Say Sukii",
-        to: input.email,
-        toName: input.name,
-        subject: CONNECT_SUBJECT,
-        body: `${connectLetterPlain(input.name)}\n\n${signatureText(STUDIO_OWNER)}`,
-        threadId: null,
-        accessToken,
-      });
-      gmailMessageId = sent.gmail_message_id;
-      gmailThreadId = sent.gmail_thread_id;
-      status = "sent";
+    const gmailSent = await sendConnectLetterThroughGmail({
+      fromAddress,
+      to: input.email,
+      toName: input.name,
+      plain,
+    });
+    if (gmailSent) {
+      from = gmailSent.from;
+      gmailMessageId = gmailSent.gmailMessageId;
+      gmailThreadId = gmailSent.gmailThreadId;
+      delivered = true;
     }
   } catch (error) {
-    console.error("[inquiry] connect letter stayed in the book:", error);
+    console.error("[inquiry] connect letter gmail send failed:", error);
+  }
+
+  if (!delivered) {
+    try {
+      const resendSent = await sendConnectLetterThroughResend({
+        fromAddress,
+        to: input.email,
+        plain,
+      });
+      if (resendSent) {
+        from = resendSent.from;
+        delivered = true;
+      }
+    } catch (error) {
+      console.error("[inquiry] connect letter resend send failed:", error);
+    }
+  }
+
+  if (!delivered) {
+    console.error("[inquiry] connect letter was not sent. Connect Gmail, or set RESEND_API_KEY.");
+    return;
   }
 
   const { error } = await client.from("inquiry_messages").insert({
@@ -250,9 +307,27 @@ async function sendConnectLetter(
     gmail_thread_id: gmailThreadId,
     author: "say sukii",
     sent_at: sentAt,
-    status,
+    status: "sent",
   });
-  if (error) console.error("[inquiry] connect letter was not saved:", error.message);
+  if (error) {
+    console.error("[inquiry] connect letter was sent but not saved:", error.message);
+    return;
+  }
+
+  const { error: statusError } = await client
+    .from("inquiries")
+    .update({ status: "contacted", contacted_at: sentAt })
+    .eq("id", input.inquiryId)
+    .eq("status", "new");
+  if (statusError) {
+    console.error("[inquiry] connect letter did not move the lead:", statusError.message);
+    return;
+  }
+  try {
+    await syncInquiryAutoTaskFor(client, input.inquiryId);
+  } catch (error) {
+    console.error("[inquiry] connect letter task was not updated:", error);
+  }
 }
 
 export type InquirySourcePeek = {
@@ -344,6 +419,7 @@ export const submitPublicInquiry = createServerFn({ method: "POST" })
       eventType: inquiry.event_type,
       venue: inquiry.venue_text,
     });
+    // Form arrivals only. Manual entries and detected mail do not send this letter.
     await sendConnectLetter(supabaseAdmin, {
       inquiryId: inquiry.id,
       name: data.name,
@@ -671,7 +747,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
     if (inquiryResult.error) throw new Error(inquiryResult.error.message);
     if (!inquiryResult.data) throw new Error("Inquiry not found");
 
-    const [clientResult, messagesResult, proposalsResult, filesResult, gmailResult, inboxResult, meetingsResult] =
+    const [clientResult, messagesResult, proposalsResult, filesResult, gmailResult, googleResult, inboxResult, meetingsResult] =
       await Promise.all([
         context.supabase.from("clients").select("*").eq("id", inquiryResult.data.client_id).maybeSingle(),
         context.supabase
@@ -692,6 +768,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
           .eq("owner_id", inquiryId)
           .order("created_at", { ascending: false }),
         context.supabase.from("integration_connections").select("status").eq("provider", "gmail").maybeSingle(),
+        context.supabase.from("integration_connections").select("status").eq("provider", "google").maybeSingle(),
         context.supabase.from("email_integration").select("status").eq("provider", "gmail").maybeSingle(),
         context.supabase
           .from("meetings")
@@ -768,7 +845,9 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
       files,
       source_message,
       gmailConnected:
-        inboxResult.data?.status === "connected" || gmailResult.data?.status === "connected",
+        inboxResult.data?.status === "connected" ||
+        gmailResult.data?.status === "connected" ||
+        googleResult.data?.status === "connected",
     };
   });
 

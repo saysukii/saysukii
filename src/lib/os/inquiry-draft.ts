@@ -51,6 +51,17 @@ export function stepKindLabel(step: InquiryStep) {
   }
 }
 
+function withMissingSteps(saved: string[] | undefined, fallback: string[]) {
+  if (!saved?.length) return fallback;
+  const allowed = new Set(fallback);
+  const kept = saved.filter((id) => allowed.has(id));
+  const missing = fallback.filter((id) => !kept.includes(id));
+  if (missing.length === 0) return kept;
+  const reviewAt = kept.lastIndexOf("review");
+  if (reviewAt === -1) return [...kept, ...missing];
+  return [...kept.slice(0, reviewAt), ...missing.filter((id) => id !== "review"), ...kept.slice(reviewAt)];
+}
+
 function snapshotCopy(step: InquiryStep): InquiryPathCopy {
   return {
     label: step.label,
@@ -105,12 +116,16 @@ export function resolveInquirySteps(
   const sharedDraft = drafts.shared;
   const pathDraft = interest ? drafts[interest] : undefined;
 
-  const sharedOrder =
-    sharedDraft?.order.filter((id) => isSharedInquiryStep(id) && byId.has(id)) ??
-    steps.filter((step) => isSharedInquiryStep(step.id)).map((step) => step.id);
-  const restOrder =
-    pathDraft?.order.filter((id) => !isSharedInquiryStep(id) && byId.has(id)) ??
-    steps.filter((step) => !isSharedInquiryStep(step.id)).map((step) => step.id);
+  const sharedFallback = steps.filter((step) => isSharedInquiryStep(step.id)).map((step) => step.id);
+  const restFallback = steps.filter((step) => !isSharedInquiryStep(step.id)).map((step) => step.id);
+  const sharedOrder = withMissingSteps(
+    sharedDraft?.order.filter((id) => isSharedInquiryStep(id) && byId.has(id)),
+    sharedFallback,
+  );
+  const restOrder = withMissingSteps(
+    pathDraft?.order.filter((id) => !isSharedInquiryStep(id) && byId.has(id)),
+    restFallback,
+  );
 
   return [...sharedOrder, ...restOrder]
     .map((id) => byId.get(id))

@@ -224,7 +224,13 @@ function Review({ values }: { values: InquiryFormValues }) {
           </div>
         ) : null}
         <div data-review-vision="">
-          <dt>{values.interest === "deliveries" ? "Card" : "Vision"}</dt>
+          <dt>
+            {values.interest === "deliveries"
+              ? "Card"
+              : values.interest === "subscriptions"
+                ? "Anything else"
+                : "Vision"}
+          </dt>
           <dd>{values.message.trim() || "—"}</dd>
         </div>
       </dl>

@@ -280,6 +280,15 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
         required: true,
       },
       sourceStep("How did you hear about us?", "pick any that are true."),
+      {
+        id: "message",
+        kind: "textarea",
+        field: "message",
+        label: "Is there anything else you'd like to share?",
+        placeholder: "",
+        required: false,
+        optional: true,
+      },
       review,
     ];
   }
