@@ -145,13 +145,89 @@ export function initials(name: string | null | undefined) {
   return ((parts[0]?.[0] ?? "s") + (parts[1]?.[0] ?? "")).toLowerCase();
 }
 
-export function visionNote(message: string | null | undefined) {
-  if (!message) return "";
-  return message
+const STRUCTURED_LINE = /^(size|time|recipient|space|cadence|place|date|figure):/i;
+
+export function formLine(message: string | null | undefined, label: string) {
+  const match = (message ?? "").match(new RegExp(`^${label}:\\s*(.+)$`, "im"));
+  return match?.[1]?.trim() ?? "";
+}
+
+export function shareNote(message: string | null | undefined) {
+  const seen = new Set<string>();
+  return (message ?? "")
     .split("\n")
-    .filter((line) => !/^(Size|Time|Recipient):/i.test(line.trim()))
-    .join(" ")
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (!line || STRUCTURED_LINE.test(line) || /^new inquiry$/i.test(line)) return false;
+      const key = line.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join("\n")
     .trim();
+}
+
+export function visionNote(message: string | null | undefined) {
+  return shareNote(message);
+}
+
+export type InquiryAnswer = {
+  label: string;
+  value: string;
+  wide?: boolean;
+  lines?: boolean;
+};
+
+export function inquiryAnswers(input: {
+  event_type: EventType;
+  message: string | null | undefined;
+  venue_text?: string | null;
+  budget_range?: string | null;
+  guest_count?: number | null;
+  source?: string | null;
+  eventWhen: string;
+}): InquiryAnswer[] {
+  const space = formLine(input.message, "space");
+  const cadence = formLine(input.message, "cadence");
+  const size = formLine(input.message, "size");
+  const recipient = formLine(input.message, "recipient");
+  const note = shareNote(input.message);
+  const delivery = Boolean(size || recipient);
+  const fields: InquiryAnswer[] = [
+    {
+      label: "interest",
+      value:
+        input.event_type === "subscription"
+          ? "concierge + subscriptions"
+          : delivery
+            ? "deliveries"
+            : EVENT_LABEL[input.event_type],
+    },
+  ];
+
+  if (input.event_type === "subscription") {
+    if (space) fields.push({ label: "space", value: space });
+    fields.push({ label: "start", value: input.eventWhen || "tbd" });
+    if (cadence) fields.push({ label: "cadence", value: cadence });
+  } else if (delivery) {
+    if (size) fields.push({ label: "size", value: size });
+    fields.push({ label: "date", value: input.eventWhen || "tbd" });
+    if (input.venue_text) fields.push({ label: "address", value: input.venue_text, wide: true });
+    if (recipient) fields.push({ label: "recipient", value: recipient });
+  } else {
+    fields.push({ label: "date", value: input.eventWhen || "tbd" });
+    if (input.venue_text) fields.push({ label: "venue", value: input.venue_text, wide: true });
+    if (input.budget_range) fields.push({ label: "budget", value: input.budget_range });
+    if (input.guest_count) fields.push({ label: "guests", value: String(input.guest_count) });
+  }
+
+  if (input.source) fields.push({ label: "heard from", value: input.source });
+  if (note) {
+    const label = input.event_type === "subscription" ? "anything else" : delivery ? "card" : "vision";
+    fields.push({ label, value: note, wide: true, lines: true });
+  }
+  return fields;
 }
 
 export function inquiryTime(message: string | null | undefined) {

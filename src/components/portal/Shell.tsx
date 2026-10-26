@@ -24,7 +24,7 @@ import { Wordmark } from "./bits";
 import { PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
-import { listFreshArrivals } from "@/lib/os/inquiries.functions";
+import { listFreshArrivals, syncStudioInbox } from "@/lib/os/inquiries.functions";
 import { PREVIEW_ARRIVALS_KEY } from "@/lib/preview-arrivals";
 import {
   dismissNotice,
@@ -88,6 +88,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, profile, devPreview } = useRouteContext({ from: "/_authenticated" });
   const arrivals = useServerFn(listFreshArrivals);
+  const syncInbox = useServerFn(syncStudioInbox);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -111,6 +112,30 @@ export function Shell({ children }: { children: ReactNode }) {
       href: "/pipeline/camilareyes",
     });
   }, [devPreview]);
+
+  useEffect(() => {
+    if (devPreview || profile.role !== "admin") return;
+    let stop = false;
+    async function readInbox() {
+      try {
+        const result = await syncInbox();
+        if (stop) return;
+        if (result.inserted > 0 || result.candidates > 0 || result.attached > 0) {
+          void queryClient.invalidateQueries({ queryKey: ["inquiry-pipeline"] });
+          void queryClient.invalidateQueries({ queryKey: ["inquiry-dashboard"] });
+          void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace"] });
+        }
+      } catch {
+        // gmail can be quiet until it is connected
+      }
+    }
+    void readInbox();
+    const timer = window.setInterval(() => void readInbox(), 120_000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [devPreview, profile.role, queryClient, syncInbox]);
 
   useEffect(() => {
     if (devPreview || profile.role !== "admin") return;

@@ -709,24 +709,112 @@ export async function routeUnprocessedInbound(deps: {
   return publicRoutingResult(result);
 }
 
+const INQUIRY_CUES =
+  /\b(wedding|bridal|elopement|ceremony|reception|bouquet|flowers?|floral|arrangement|centerpiece|install(?:ation)?|subscription|concierge|photoshoot|styled shoot|brand activation)\b/i;
+const ROUTING_NOISE =
+  /\b(unsubscribe|newsletter|wholesale|partnership opportunity|password reset|verify your email|your receipt|order confirmation|tracking number|out of office|automatic reply|mailer-daemon)\b/i;
+
+function senderName(from: string | null | undefined) {
+  if (!from) return null;
+  const named = from.match(/^\s*"?([^"<]+?)"?\s*</);
+  const name = named?.[1]?.trim() ?? "";
+  if (name.length >= 2 && !name.includes("@")) return name.slice(0, 160);
+  return null;
+}
+
+function guessEventType(text: string): EventType | null {
+  if (/\b(subscription|concierge|weekly flowers|standing order)\b/i.test(text)) return "subscription";
+  if (/\b(wedding|bridal|elopement|ceremony|reception)\b/i.test(text)) return "wedding";
+  if (/\b(photoshoot|styled shoot|editorial)\b/i.test(text)) return "photoshoot";
+  if (/\bcorporate\b/i.test(text)) return "corporate";
+  if (/\bbrand activation\b/i.test(text)) return "brand_activation";
+  return null;
+}
+
+function routingNoise(email: string | null, text: string) {
+  if (email && /^(no-?reply|noreply|notifications?|mailer-daemon|bounce|newsletter)@/i.test(email)) return true;
+  if (email && email.endsWith("@saysukii.com")) return true;
+  return ROUTING_NOISE.test(text);
+}
+
+export function heuristicRoutingRaw(input: {
+  message: InboundMessageRow;
+  matches: InquiryMatch[];
+}): unknown {
+  const email = normalizeSenderEmail(input.message.from_addr);
+  const text = `${input.message.subject ?? ""}\n${input.message.body ?? ""}`;
+  const name = senderName(input.message.from_addr);
+  if (routingNoise(email, text)) {
+    return {
+      action: "ignored",
+      is_true_inquiry: false,
+      confidence: 0.9,
+      reason: email?.endsWith("@saysukii.com") ? "sent from the studio" : "not a booking conversation",
+      extraction: { email, name },
+    };
+  }
+
+  const thread = input.matches.find((row) => row.active && row.match_via.includes("thread"));
+  if (thread) {
+    return {
+      action: "attached",
+      matched_inquiry_id: thread.id,
+      is_true_inquiry: true,
+      confidence: 0.82,
+      reason: "same gmail thread as an open inquiry",
+      extraction: { email, name },
+    };
+  }
+
+  const reply = /^\s*re:/i.test(input.message.subject ?? "");
+  const sender = input.matches.find((row) => row.active && row.match_via.includes("sender"));
+  if (reply && sender) {
+    return {
+      action: "attached",
+      matched_inquiry_id: sender.id,
+      is_true_inquiry: true,
+      confidence: 0.66,
+      reason: "reply from someone already in the book",
+      extraction: { email, name },
+    };
+  }
+
+  if (INQUIRY_CUES.test(text)) {
+    const vision = (input.message.body ?? "").replace(/\s+/g, " ").trim();
+    return {
+      action: "candidate",
+      is_true_inquiry: true,
+      confidence: 0.6,
+      reason: "the note asks for flowers or a floral occasion",
+      extraction: {
+        email,
+        name,
+        event_type: guessEventType(text),
+        vision: vision ? vision.slice(0, 280) : null,
+      },
+    };
+  }
+
+  return {
+    action: "ignored",
+    is_true_inquiry: false,
+    confidence: 0.74,
+    reason: "no floral booking ask",
+    extraction: { email, name },
+  };
+}
+
 export async function runGmailInboundRouting(deps?: {
   store?: RoutingStore;
   classify?: ClassifyInbound;
   now?: () => Date;
   limit?: number;
 }): Promise<RoutingRunResult> {
-  if (!deps?.classify && !process.env["ANTHROPIC_API_KEY"]) {
-    return publicRoutingResult({
-      skipped: true,
-      reason: "anthropic_not_configured",
-      processed: 0,
-      attached: 0,
-      candidates: 0,
-      ignored: 0,
-      errors: 0,
-    });
-  }
-  const classify = deps?.classify ?? ((input) => classifyWithAnthropic(input));
+  const classify =
+    deps?.classify ??
+    (process.env["ANTHROPIC_API_KEY"]
+      ? (input: { message: InboundMessageRow; matches: InquiryMatch[] }) => classifyWithAnthropic(input)
+      : async (input: { message: InboundMessageRow; matches: InquiryMatch[] }) => heuristicRoutingRaw(input));
   const routed: {
     store: RoutingStore;
     classify: ClassifyInbound;

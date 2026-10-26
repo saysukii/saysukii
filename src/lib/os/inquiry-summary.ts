@@ -4,7 +4,7 @@ import type {
   MeetingMatchStatus,
   ProposalStatus,
 } from "@/integrations/supabase/types";
-import { STATUS_LABEL, nextMove } from "@/lib/os/inquiry-desk";
+import { STATUS_LABEL, nextMove, shareNote } from "@/lib/os/inquiry-desk";
 
 export const NEW_LEAD_SUMMARY = "New inquiry — hasn't been contacted yet.";
 
@@ -26,6 +26,8 @@ export type InquirySummaryFacts = {
   daysSinceLastClientMessage: number | null;
   lastInboundAt: string | null;
   lastInboundGist: string | null;
+  lastOutboundSubject: string | null;
+  lastOutboundGist: string | null;
   proposalStatus: string | null;
   meetings: Array<InquirySummaryMeeting & { when: "past" | "upcoming" }>;
   nextMoveTitle: string;
@@ -67,15 +69,18 @@ export function buildInquirySummaryFacts(input: {
     (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
   )[0];
   const inbound = lastClientMessage(input.messages);
+  const outbound = lastStudioLetter(input.messages);
   const inboundAt = inbound ? messageTime(inbound) : null;
-  const next = nextMove(input.status);
+  const next = nextStepFor(input.status, input.messages);
   return {
     status: input.status,
     stage: STATUS_LABEL[input.status],
-    contacted: Boolean(input.contacted_at) || input.messages.some((item) => item.direction === "outbound"),
+    contacted: Boolean(input.contacted_at) || Boolean(outbound),
     daysSinceLastClientMessage: inboundAt ? daysSince(inboundAt, now) : null,
     lastInboundAt: inboundAt,
-    lastInboundGist: inbound ? gist(inbound.body) : null,
+    lastInboundGist: inbound ? gist(inbound.channel === "form" ? shareNote(inbound.body) || inbound.body : inbound.body) : null,
+    lastOutboundSubject: outbound?.subject?.trim() || null,
+    lastOutboundGist: outbound ? gist(outbound.body) : null,
     proposalStatus: proposal?.status ?? null,
     meetings: (input.meetings ?? []).map((meeting) => ({
       ...meeting,
@@ -93,6 +98,8 @@ export function inquirySummaryFingerprint(facts: InquirySummaryFacts) {
     facts.daysSinceLastClientMessage ?? "",
     facts.lastInboundAt ?? "",
     facts.lastInboundGist ?? "",
+    facts.lastOutboundSubject ?? "",
+    facts.lastOutboundGist ?? "",
     facts.proposalStatus ?? "",
     facts.meetings.map((meeting) => `${meeting.occurred_at}:${meeting.title}:${meeting.match_status}`).join(","),
     facts.nextMoveTitle,
@@ -105,6 +112,8 @@ export function inquirySummarySystemPrompt() {
 Use ONLY the facts JSON. Ground the summary in known state. Never invent a stage, proposal status, meeting, or message. If a field is null or missing, omit it — do not guess.
 
 State where they are on the path to booked and the single next move from facts.nextMoveTitle.
+
+If contacted is true, or last_outbound_gist is present, they have already been written. Never say they have not been contacted, and never call it a new untouched inquiry. Read last_outbound_gist and last_outbound_subject: the next move has to follow from the letter that was actually sent.
 
 Voice: warm, specific, studio lowercase, no greeting, no markdown, no quotes around the answer.
 
@@ -154,6 +163,49 @@ export function fallbackInquirySummary(facts: InquirySummaryFacts) {
   return sanitizeInquirySummary(`${line1}\n${line2}`);
 }
 
+export function summaryTextIsStale(text: string | null | undefined, facts: InquirySummaryFacts) {
+  if (!text) return false;
+  const claimsUncontacted =
+    text === NEW_LEAD_SUMMARY || /hasn['’]t been contacted|has not been contacted|not been contacted yet/i.test(text);
+  return claimsUncontacted && (facts.contacted || facts.status !== "new");
+}
+
+export function nextStepFor(status: InquiryStatus, messages: InquiryMessageRow[]) {
+  const outbound = lastStudioLetter(messages);
+  const inbound = lastClientMessage(messages);
+  const repliedAfter =
+    Boolean(outbound && inbound) &&
+    Date.parse(messageTime(inbound!)) > Date.parse(messageTime(outbound!));
+  if (
+    repliedAfter &&
+    status !== "proposal_sent" &&
+    status !== "booked" &&
+    status !== "closed"
+  ) {
+    return {
+      title: "answer their reply",
+      note: "they wrote back after the last note.",
+    };
+  }
+  if (outbound) {
+    const text = `${outbound.subject ?? ""}\n${outbound.body ?? ""}`.toLowerCase();
+    if (/let's connect|lets connect|calendar link|schedule time|\/schedule\b/.test(text)) {
+      return {
+        title: "wait for them to book or reply",
+        note: "the let's connect note asked them to pick a time or send details.",
+      };
+    }
+    if (status === "proposal_sent" || /\bproposal\b/.test(text)) {
+      return nextMove("proposal_sent");
+    }
+    return {
+      title: "wait for their reply",
+      note: "the last note is already with them.",
+    };
+  }
+  return nextMove(status);
+}
+
 export function resolveInquirySummaryText(facts: InquirySummaryFacts) {
   if (isNewUncontactedLeadFromFacts(facts)) return NEW_LEAD_SUMMARY;
   return fallbackInquirySummary(facts);
@@ -169,7 +221,10 @@ function factsToPrompt(facts: InquirySummaryFacts) {
     status: facts.status,
     days_since_last_client_message: facts.daysSinceLastClientMessage,
     proposal_status: facts.proposalStatus,
+    contacted: facts.contacted,
     last_inbound_gist: facts.lastInboundGist,
+    last_outbound_subject: facts.lastOutboundSubject,
+    last_outbound_gist: facts.lastOutboundGist,
     meetings: facts.meetings.map((meeting) => ({
       title: meeting.title,
       occurred_at: meeting.occurred_at,
@@ -184,6 +239,13 @@ function factsToPrompt(facts: InquirySummaryFacts) {
 function proposalPhrase(status: string) {
   if (status === "proposal_sent" || status === "sent") return "sent";
   return status.replaceAll("_", " ");
+}
+
+function lastStudioLetter(messages: InquiryMessageRow[]) {
+  return [...messages]
+    .filter((item) => item.direction === "outbound" && item.channel !== "note")
+    .sort((left, right) => Date.parse(messageTime(left)) - Date.parse(messageTime(right)))
+    .at(-1) ?? null;
 }
 
 function gist(body: string | null | undefined) {

@@ -224,10 +224,5 @@ export function bookingWindow(startsAt: string, minutes: number) {
 }
 
 export function scheduleMeetingUrl() {
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return `${window.location.origin}/book`;
-  }
-  const configured = typeof process !== "undefined" ? process.env.PUBLIC_APP_URL : undefined;
-  if (configured) return `${configured.replace(/\/$/, "")}/book`;
-  return "https://www.saysukii.com/book";
+  return "https://inside.saysukii.com/schedule";
 }

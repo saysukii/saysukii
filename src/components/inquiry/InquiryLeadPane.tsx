@@ -11,7 +11,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } fr
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Wordmark } from "@/components/portal/bits";
 import { PersonName, isPersonType } from "@/components/studio/PersonName";
-import { isStudioOwner, noteAuthor, noteWriter, SIGNATURE_LINKS, signatureName, wroteNote } from "@/lib/os/mail-signature";
+import { isStudioOwner, noteAuthor, noteWriter, SIGNATURE_COPYRIGHT, SIGNATURE_LINKS, signatureName, wroteNote } from "@/lib/os/mail-signature";
 import { applyTemplate, loadTemplates, saveTemplates, type MailTemplate } from "@/lib/os/mail-templates";
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 import type { InquiryMessageRow, InquiryStatus } from "@/integrations/supabase/types";
@@ -32,9 +32,12 @@ import {
   PIPELINE_PATH,
   boardStageId,
   confidenceLabel,
+  formLine,
   initials,
+  inquiryAnswers,
   inquiryTime,
   recordSlug,
+  shareNote,
   sourceExcerpt,
 } from "@/lib/os/inquiry-desk";
 import { saveClient } from "@/lib/os/clients.functions";
@@ -46,6 +49,7 @@ import {
   getInquiryWorkspace,
   reviewDetectedInquiry,
   setInquiryStatus,
+  updateInquiryMoment,
   updateInquiryNote,
 } from "@/lib/os/inquiries.functions";
 import { importProposalPdf } from "@/lib/os/proposals.functions";
@@ -69,7 +73,7 @@ function mapsHref(place: string) {
     : `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
-function PlaceLink({ place }: { place: string }) {
+function PlaceLink({ place, children }: { place: string; children?: ReactNode }) {
   const google = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
   const [href, setHref] = useState(google);
   useEffect(() => {
@@ -77,21 +81,54 @@ function PlaceLink({ place }: { place: string }) {
   }, [place]);
   return (
     <a className="studio-place" href={href} target="_blank" rel="noreferrer">
-      {place}
+      {children ?? place}
     </a>
+  );
+}
+
+function MomentEdit({
+  label,
+  value,
+  placeholder,
+  onSave,
+  map = false,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onSave: (next: string) => void;
+  map?: boolean;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd className="studio-fact-edit">
+        <input
+          className="studio-fact-input"
+          value={draft}
+          placeholder={placeholder}
+          aria-label={label}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => {
+            if (draft.trim() !== value.trim()) onSave(draft.trim());
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+          }}
+        />
+        {map && value ? <PlaceLink place={value}>map</PlaceLink> : null}
+      </dd>
+    </div>
   );
 }
 
 const shimmer =
   "[--base-color:#ff4d94] [--base-gradient-color:#ff1493]";
-
-function answeredVision(message: string | null) {
-  return (message ?? "")
-    .split("\n")
-    .filter((line) => !/^(Size|Time|Recipient):/i.test(line.trim()))
-    .join("\n")
-    .trim();
-}
 
 function AnswerField({
   label,
@@ -245,8 +282,9 @@ function MailSignature({ name }: { name: string }) {
         <a href={SIGNATURE_LINKS.instagram}>instagram</a>
       </p>
       <p>
-        let's talk! <a href={scheduleMeetingUrl()}>schedule meeting here</a>
+        <a href={scheduleMeetingUrl()}>let's talk! schedule meeting here</a>
       </p>
+      <p className="studio-mail-sign-legal">{SIGNATURE_COPYRIGHT}</p>
     </footer>
   );
 }
@@ -274,7 +312,14 @@ function withoutSignoff(text: string) {
 }
 
 function threadBase(subject: string | null | undefined) {
-  return (subject || "").replace(/^(re:\s*)+/gi, "").trim() || "conversation";
+  const base = (subject || "").replace(/^(re:\s*)+/gi, "").trim();
+  if (!base || /^new inquiry$/i.test(base)) return "conversation";
+  return base;
+}
+
+function hiddenSubject(subject: string | null | undefined) {
+  const bare = (subject || "").replace(/^(re:\s*)+/gi, "").trim();
+  return !bare || /^new inquiry$/i.test(bare);
 }
 
 function firstName(name: string | null | undefined) {
@@ -1029,6 +1074,7 @@ function mailParty(message: InquiryMessageRow, clientName: string | null | undef
     outbound,
     mark: initials(name),
     subject: message.subject?.trim() || "",
+    formArrival: message.channel === "form" || (message.direction === "inbound" && /^new inquiry$/i.test(message.subject?.trim() ?? "")),
     ...splitMail(message.body),
     waiting: message.status === "queued",
   };
@@ -1207,6 +1253,8 @@ function MailFace({
     <section className="studio-mail-study">
       <div className="studio-mail-face">
         {rows.map((mail, index) => {
+          const text = mail.formArrival ? shareNote(mail.text) : mail.text;
+          if (mail.formArrival && !text) return null;
           const previous = rows[index - 1];
           const next = rows[index + 1];
           const studio = mail.outbound && !mail.note;
@@ -1237,9 +1285,9 @@ function MailFace({
                   <span className="studio-mail-avatar is-gap" aria-hidden="true" />
                 )}
                 <div className="studio-mail-bubble">
-                  {mail.subject ? <p className="studio-mail-subject">{mail.subject}</p> : null}
-                  {mail.text ? (
-                    <MailBody body={proposalCards(studio ? withoutSignoff(mail.text) : mail.text).text} />
+                  {!hiddenSubject(mail.subject) ? <p className="studio-mail-subject">{mail.subject}</p> : null}
+                  {text ? (
+                    <MailBody body={proposalCards(studio ? withoutSignoff(text) : text).text} />
                   ) : null}
                   {proposalCards(mail.text).cards.length ? (
                     <div className="studio-mail-files">
@@ -1521,6 +1569,7 @@ export function InquiryLeadPane({
   const importProposal = useServerFn(importProposalPdf);
   const saveFile = useServerFn(attachInquiryFile);
   const updateStatus = useServerFn(setInquiryStatus);
+  const saveMomentFields = useServerFn(updateInquiryMoment);
   const reviewCandidate = useServerFn(reviewDetectedInquiry);
   const submitClient = useServerFn(saveClient);
   const [clientFormOpen, setClientFormOpen] = useState(false);
@@ -1535,6 +1584,8 @@ export function InquiryLeadPane({
   const [noteBodies, setNoteBodies] = useState<Record<string, string>>({});
   const [removedNotes, setRemovedNotes] = useState<string[]>([]);
   const [threadKey, setThreadKey] = useState<string | null>(null);
+  const [placeDraft, setPlaceDraft] = useState<string | null>(null);
+  const [investmentDraft, setInvestmentDraft] = useState<string | null>(null);
   const [startingThread, setStartingThread] = useState(false);
   const [namingThread, setNamingThread] = useState(false);
   const [newSubject, setNewSubject] = useState("");
@@ -1570,6 +1621,11 @@ export function InquiryLeadPane({
     queryFn: () => (devPreview ? getDevPreviewInquiryWorkspace(id) : fetchWorkspace({ data: { id } })),
   });
   const inquiryId = data?.inquiry.id ?? id;
+
+  useEffect(() => {
+    setPlaceDraft(null);
+    setInvestmentDraft(null);
+  }, [data?.inquiry.id]);
 
   useEffect(() => {
     if (!data?.slug || data.slug === id) return;
@@ -1642,6 +1698,19 @@ export function InquiryLeadPane({
     }
     return views;
   }, [data]);
+
+  const saveMoment = useMutation({
+    mutationFn: async (patch: { venue_text?: string; budget_range?: string }) => {
+      const inquiryId = data?.inquiry.id;
+      if (!inquiryId) return;
+      if (devPreview) return;
+      await saveMomentFields({ data: { id: inquiryId, ...patch } });
+    },
+    onSuccess: () => {
+      if (!devPreview) void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const move = useMutation({
     mutationFn: (args: { status: InquiryStatus; closed_reason?: string }) => {
@@ -1744,7 +1813,13 @@ export function InquiryLeadPane({
           throw new Error("add a subject for the new conversation.");
         }
         const subject =
-          asChannel === "email" ? (thread.fresh ? thread.subject : thread.base ? `Re: ${thread.base}` : "from say sukii") : null;
+          asChannel === "email"
+            ? thread.fresh
+              ? thread.subject
+              : thread.base && thread.base !== "conversation"
+                ? `Re: ${thread.base}`
+                : "from say sukii"
+            : null;
         setLocalMessages((current) => [
           ...current,
           {
@@ -1875,11 +1950,14 @@ export function InquiryLeadPane({
     }
   }
   const pendingSubject = !namingThread && newSubject.trim() && !mailThreads.includes(newSubject.trim().toLowerCase()) ? newSubject.trim() : "";
+  const shownThreads = mailThreads.filter((key) => key !== "conversation");
   const activeThread =
     sendAs === "email" && !startingThread
       ? threadKey && mailThreads.includes(threadKey)
         ? threadKey
-        : (mailThreads.at(-1) ?? null)
+        : mailThreads.includes("conversation")
+          ? "conversation"
+          : (mailThreads.at(-1) ?? null)
       : null;
   const threadedMessages =
     sendAs === "note" || startingThread
@@ -1974,7 +2052,40 @@ export function InquiryLeadPane({
   const eventWhen = inquiry.event_date_tbd
     ? "tbd"
     : [formatDateNumeric(inquiry.event_date), time].filter(Boolean).join(" · ");
-  const place = inquiry.venue_text?.split(",")[0]?.trim() ?? "";
+  const formBlob = [
+    inquiry.message,
+    ...messages
+      .filter((item) => item.channel === "form" || /^new inquiry$/i.test(item.subject?.trim() ?? ""))
+      .map((item) => item.body),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const space = formLine(formBlob, "space");
+  const cadence = formLine(formBlob, "cadence");
+  const placeText = placeDraft ?? inquiry.venue_text ?? "";
+  const investmentText = investmentDraft ?? inquiry.budget_range ?? "";
+  const answers = inquiryAnswers({
+    event_type: inquiry.event_type,
+    message: formBlob,
+    venue_text: inquiry.venue_text,
+    budget_range: inquiry.budget_range,
+    guest_count: inquiry.guest_count,
+    source: inquiry.source,
+    eventWhen,
+  });
+  const place = placeText.split(",")[0]?.trim() ?? "";
+
+  function keepPlace(next: string) {
+    setPlaceDraft(next);
+    if (next === (inquiry.venue_text ?? "")) return;
+    saveMoment.mutate({ venue_text: next });
+  }
+
+  function keepInvestment(next: string) {
+    setInvestmentDraft(next);
+    if (next === (inquiry.budget_range ?? "")) return;
+    saveMoment.mutate({ budget_range: next });
+  }
 
   function chooseStatus(status: InquiryStatus) {
     if (status === "closed") {
@@ -2293,14 +2404,20 @@ export function InquiryLeadPane({
               <dt>date</dt>
               <dd>{eventWhen || "—"}</dd>
             </div>
-            <div>
-              <dt>place</dt>
-              <dd>{inquiry.venue_text ? <PlaceLink place={inquiry.venue_text} /> : "—"}</dd>
-            </div>
-            <div>
-              <dt>investment</dt>
-              <dd>{inquiry.budget_range || "—"}</dd>
-            </div>
+            {space ? (
+              <div>
+                <dt>space</dt>
+                <dd>{space}</dd>
+              </div>
+            ) : null}
+            {cadence ? (
+              <div>
+                <dt>cadence</dt>
+                <dd>{cadence}</dd>
+              </div>
+            ) : null}
+            <MomentEdit label="place" value={placeText} placeholder="add a place" onSave={keepPlace} map />
+            <MomentEdit label="investment" value={investmentText} placeholder="add an investment" onSave={keepInvestment} />
           </dl>
           {client ? (
             <div className="studio-row-action">
@@ -2372,15 +2489,15 @@ export function InquiryLeadPane({
                       />
                     </label>
                     <span className="studio-ask-label studio-ask-span">they answered</span>
-                    <AnswerField label="interest" value={EVENT_LABEL[inquiry.event_type]} />
-                    <AnswerField label="date" value={eventWhen || "tbd"} />
-                    {inquiry.venue_text ? <AnswerField label="venue" value={inquiry.venue_text} wide /> : null}
-                    {inquiry.budget_range ? <AnswerField label="budget" value={inquiry.budget_range} /> : null}
-                    {inquiry.guest_count ? <AnswerField label="guests" value={String(inquiry.guest_count)} /> : null}
-                    {inquiry.source ? <AnswerField label="source" value={inquiry.source} /> : null}
-                    {answeredVision(inquiry.message) ? (
-                      <AnswerField label="vision" value={answeredVision(inquiry.message)} wide lines />
-                    ) : null}
+                    {answers.map((field) => (
+                      <AnswerField
+                        key={field.label}
+                        label={field.label}
+                        value={field.value}
+                        wide={field.wide}
+                        lines={field.lines}
+                      />
+                    ))}
                   </div>
                   <div className="studio-ask-foot">
                     <button
@@ -2468,7 +2585,7 @@ export function InquiryLeadPane({
           ) : null}
           {sendAs === "email" ? (
             <div className="studio-threads" role="tablist" aria-label="conversations">
-              {mailThreads.map((key) => (
+              {shownThreads.map((key) => (
                 <button
                   key={key}
                   type="button"
@@ -2588,24 +2705,22 @@ export function InquiryLeadPane({
           <dl className="studio-facts">
             <div>
               <dt>date</dt>
-              <dd>
-                {inquiry.event_date_tbd ? "tbd" : [formatDateNumeric(inquiry.event_date), time].filter(Boolean).join(" · ")}
-              </dd>
+              <dd>{eventWhen || "—"}</dd>
             </div>
-            {inquiry.venue_text ? (
+            {space ? (
               <div>
-                <dt>place</dt>
-                <dd>
-                  <PlaceLink place={inquiry.venue_text} />
-                </dd>
+                <dt>space</dt>
+                <dd>{space}</dd>
               </div>
             ) : null}
-            {inquiry.budget_range ? (
+            {cadence ? (
               <div>
-                <dt>investment</dt>
-                <dd>{inquiry.budget_range}</dd>
+                <dt>cadence</dt>
+                <dd>{cadence}</dd>
               </div>
             ) : null}
+            <MomentEdit label="place" value={placeText} placeholder="add a place" onSave={keepPlace} map />
+            <MomentEdit label="investment" value={investmentText} placeholder="add an investment" onSave={keepInvestment} />
           </dl>
         </section>
       ) : null}

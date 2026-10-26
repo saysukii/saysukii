@@ -8523,6 +8523,34 @@ button.studio-metric:hover {
   line-height: 1.5;
 }
 
+.studio-fact-edit {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.studio-fact-input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+}
+
+.studio-fact-input:focus {
+  outline: none;
+  border-bottom-color: currentColor;
+}
+
+.studio-fact-input::placeholder {
+  color: var(--auth-muted);
+}
+
 .studio-place {
   color: inherit;
   text-decoration: none;
@@ -9028,6 +9056,14 @@ button.studio-metric:hover {
 .studio-mail-sign a {
   color: #fff;
   text-decoration: underline;
+}
+
+.studio-mail-sign-legal {
+  margin-top: 10px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  opacity: 0.72;
 }
 
 .studio-lead-thread .studio-mail-wait {
@@ -13336,6 +13372,23 @@ a.studio-kicker:hover {
 .studio-listen .studio-meet {
   gap: 6px;
   padding: 12px 14px;
+}
+
+.studio-listen-who {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--auth-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+
+.studio-listen-who:hover {
+  color: #ff4d94;
 }
 
 .studio-meet-live {

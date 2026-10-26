@@ -31,6 +31,12 @@ describe("Gmail outbound composer", () => {
     assert.match(rfc, /Subject: Re: wedding flowers at PAMM/);
     assert.match(rfc, /In-Reply-To: <mid-original@mail.gmail.com>/);
     assert.match(rfc, /References: <mid-original@mail.gmail.com>/);
+    assert.match(rfc, /multipart\/alternative/);
+    const html = Buffer.from(
+      rfc.split("Content-Type: text/html; charset=UTF-8")[1]?.split("--saysukii-letter--")[0]?.replace(/Content-Transfer-Encoding: base64/g, "").replace(/\s+/g, "") ?? "",
+      "base64",
+    ).toString("utf8");
+    assert.match(html, /Elena — I have the date/);
     assert.equal(rfc.includes(TOKEN), false);
     assert.equal(encodeGmailRaw(rfc).includes("+"), false);
 
@@ -62,6 +68,21 @@ describe("Gmail outbound composer", () => {
     assert.equal(sent.gmail_message_id, "msg-out-1");
     assert.equal(sent.gmail_thread_id, "thread-pamm");
     assert.equal(sendResultContainsSecrets(sent, TOKEN), false);
+  });
+
+  it("turns a calendar link into a real link in the html part", () => {
+    const rfc = buildRfc822({
+      from: "info@saysukii.com",
+      to: "camila@example.com",
+      subject: "Let's Connect!",
+      body: "using my [calendar link](https://inside.saysukii.com/schedule)",
+    });
+    const html = Buffer.from(
+      rfc.split("Content-Type: text/html; charset=UTF-8")[1]?.split("--saysukii-letter--")[0]?.replace(/Content-Transfer-Encoding: base64/g, "").replace(/\s+/g, "") ?? "",
+      "base64",
+    ).toString("utf8");
+    assert.match(html, /<a href="https:\/\/inside\.saysukii\.com\/schedule"/);
+    assert.match(html, />calendar link</);
   });
 
   it("starts a new Gmail thread when the inquiry has no gmail_thread_id", async () => {

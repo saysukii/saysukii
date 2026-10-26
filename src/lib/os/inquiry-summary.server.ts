@@ -10,6 +10,7 @@ import {
   inquirySummarySystemPrompt,
   isNewUncontactedLead,
   sanitizeInquirySummary,
+  summaryTextIsStale,
   type InquirySummaryFacts,
   type InquirySummaryMeeting,
   type InquirySummaryProposal,
@@ -82,7 +83,7 @@ export async function summarizeInquiryRecord(
   const cached = memory.get(state.inquiryId);
   if (!deps?.force) {
     if (cached?.fingerprint === fingerprint) return cached.text;
-    if (!cached && state.summary_text) {
+    if (!cached && state.summary_text && !summaryTextIsStale(state.summary_text, facts)) {
       memory.set(state.inquiryId, { fingerprint, text: state.summary_text });
       return state.summary_text;
     }

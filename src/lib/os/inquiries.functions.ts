@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, EventType, InquiryStatus } from "@/integrations/supabase/types";
-import { inquirySlugs, isRecordUuid } from "@/lib/os/inquiry-desk";
+import { inquirySlugs, isRecordUuid, shareNote } from "@/lib/os/inquiry-desk";
 import { assembleStudioToday } from "@/lib/os/studio-today";
 import {
   BOOK_DETECTION_STATUSES,
@@ -16,8 +16,7 @@ import {
 import { listStudioTasks, syncInquiryAutoTaskFor, syncInquiryAutoTasks } from "@/lib/os/tasks.functions";
 import { refreshInquirySummarySafe, summarizeInquiryRecord } from "@/lib/os/inquiry-summary.server";
 import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
-import { CONNECT_SUBJECT, connectLetterBody, connectLetterPlain } from "@/lib/os/connect-letter";
-import { noteWriter, signatureName, signatureText, STUDIO_OWNER, wroteNote } from "@/lib/os/mail-signature";
+import { noteWriter, signatureName, signatureText, wroteNote } from "@/lib/os/mail-signature";
 import { letterWithProposalUrl, proposalCards } from "@/lib/proposal-link";
 
 const eventType = z.enum([
@@ -127,35 +126,6 @@ async function findOrCreateClient(client: StudioClient, input: InquiryDetails) {
   return racedClient.id;
 }
 
-function formThreadBody(input: {
-  message?: string | null;
-  venue_text?: string | null;
-  event_date?: string | null;
-  event_date_tbd?: boolean;
-  budget_range?: string | null;
-}) {
-  const time = input.message?.match(/^Time:\s*(.+)$/m)?.[1]?.trim();
-  const space = input.message?.match(/^Space:\s*(.+)$/m)?.[1]?.trim();
-  const cadence = input.message?.match(/^Cadence:\s*(.+)$/m)?.[1]?.trim();
-  const vision = (input.message ?? "")
-    .split("\n")
-    .filter((line) => !/^(Size|Time|Recipient|Space|Cadence):/i.test(line.trim()))
-    .join("\n")
-    .trim();
-
-  return [
-    vision || "a new inquiry arrived through the form.",
-    input.venue_text ? `place: ${input.venue_text}` : "",
-    input.event_date_tbd ? "date: tbd" : input.event_date ? `date: ${input.event_date}` : "",
-    time ? `time: ${time}` : "",
-    space ? `space: ${space}` : "",
-    cadence ? `cadence: ${cadence}` : "",
-    input.budget_range ? `figure: ${input.budget_range}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
 async function createInquiryWithClient(
   client: StudioClient,
   input: InquiryDetails,
@@ -182,152 +152,26 @@ async function createInquiryWithClient(
     .single();
   if (error) throw new Error(error.message);
 
-  const { error: threadError } = await client.from("inquiry_messages").insert({
-    inquiry_id: inquiry.id,
-    direction: "inbound",
-    channel: "form",
-    subject: "new inquiry",
-    body: formThreadBody(inquiry),
-    from_address: input.email.trim().toLowerCase(),
-    to_address: process.env["GMAIL_INBOX"] ?? "info@saysukii.com",
-    author: input.name.trim(),
-    sent_at: inquiry.received_at,
-    status: "received",
-  });
-  if (threadError) throw new Error(threadError.message);
-
-    await syncInquiryAutoTaskFor(client, inquiry.id);
-    await refreshInquirySummarySafe(client, inquiry.id);
-    return inquiry;
-}
-
-async function sendConnectLetterThroughGmail(input: {
-  fromAddress: string;
-  to: string;
-  toName: string;
-  plain: string;
-}) {
-  const { getGmailPublicStatus, validGmailAccessToken } = await import("@/lib/os/gmail.server");
-  const gmail = await getGmailPublicStatus();
-  if (gmail.status !== "connected") return null;
-  const { sendInquiryEmail } = await import("@/lib/os/gmail-outbound.server");
-  const accessToken = await validGmailAccessToken();
-  const from = gmail.account_email || input.fromAddress;
-  const sent = await sendInquiryEmail({
-    from,
-    fromName: "Say Sukii",
-    to: input.to,
-    toName: input.toName,
-    subject: CONNECT_SUBJECT,
-    body: input.plain,
-    threadId: null,
-    accessToken,
-  });
-  return { from, gmailMessageId: sent.gmail_message_id, gmailThreadId: sent.gmail_thread_id };
-}
-
-async function sendConnectLetterThroughResend(input: { fromAddress: string; to: string; plain: string }) {
-  const apiKey = process.env["RESEND_API_KEY"];
-  if (!apiKey) return null;
-  const { Resend } = await import("resend");
-  const from = process.env["RESEND_FROM_EMAIL"] ?? `Say Sukii <${input.fromAddress}>`;
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
-    from,
-    to: input.to,
-    replyTo: input.fromAddress,
-    subject: CONNECT_SUBJECT,
-    text: input.plain,
-  });
-  if (error) throw new Error(error.message);
-  return { from: input.fromAddress };
-}
-
-async function sendConnectLetter(
-  client: StudioClient,
-  input: { inquiryId: string; name: string; email: string },
-) {
-  const body = connectLetterBody(input.name);
-  const plain = `${connectLetterPlain(input.name)}\n\n${signatureText(STUDIO_OWNER)}`;
-  const sentAt = new Date().toISOString();
-  const fromAddress = process.env["GMAIL_INBOX"] ?? "info@saysukii.com";
-
-  let from = fromAddress;
-  let gmailMessageId: string | null = null;
-  let gmailThreadId: string | null = null;
-  let delivered = false;
-
-  try {
-    const gmailSent = await sendConnectLetterThroughGmail({
-      fromAddress,
-      to: input.email,
-      toName: input.name,
-      plain,
+  const note = shareNote(input.message);
+  if (note) {
+    const { error: threadError } = await client.from("inquiry_messages").insert({
+      inquiry_id: inquiry.id,
+      direction: "inbound",
+      channel: "form",
+      subject: null,
+      body: note,
+      from_address: input.email.trim().toLowerCase(),
+      to_address: process.env["GMAIL_INBOX"] ?? "info@saysukii.com",
+      author: input.name.trim(),
+      sent_at: inquiry.received_at,
+      status: "received",
     });
-    if (gmailSent) {
-      from = gmailSent.from;
-      gmailMessageId = gmailSent.gmailMessageId;
-      gmailThreadId = gmailSent.gmailThreadId;
-      delivered = true;
-    }
-  } catch (error) {
-    console.error("[inquiry] connect letter gmail send failed:", error);
+    if (threadError) throw new Error(threadError.message);
   }
 
-  if (!delivered) {
-    try {
-      const resendSent = await sendConnectLetterThroughResend({
-        fromAddress,
-        to: input.email,
-        plain,
-      });
-      if (resendSent) {
-        from = resendSent.from;
-        delivered = true;
-      }
-    } catch (error) {
-      console.error("[inquiry] connect letter resend send failed:", error);
-    }
-  }
-
-  if (!delivered) {
-    console.error("[inquiry] connect letter was not sent. Connect Gmail, or set RESEND_API_KEY.");
-    return;
-  }
-
-  const { error } = await client.from("inquiry_messages").insert({
-    inquiry_id: input.inquiryId,
-    direction: "outbound",
-    channel: "email",
-    subject: CONNECT_SUBJECT,
-    body,
-    from_address: from,
-    to_address: input.email,
-    gmail_message_id: gmailMessageId,
-    gmail_thread_id: gmailThreadId,
-    author: "say sukii",
-    sent_at: sentAt,
-    status: "sent",
-  });
-  if (error) {
-    console.error("[inquiry] connect letter was sent but not saved:", error.message);
-    return;
-  }
-
-  const { error: statusError } = await client
-    .from("inquiries")
-    .update({ status: "contacted", contacted_at: sentAt })
-    .eq("id", input.inquiryId)
-    .eq("status", "new");
-  if (statusError) {
-    console.error("[inquiry] connect letter did not move the lead:", statusError.message);
-    return;
-  }
-  try {
-    await syncInquiryAutoTaskFor(client, input.inquiryId);
-  } catch (error) {
-    console.error("[inquiry] connect letter task was not updated:", error);
-  }
+  await syncInquiryAutoTaskFor(client, inquiry.id);
+  await refreshInquirySummarySafe(client, inquiry.id);
+  return inquiry;
 }
 
 export type InquirySourcePeek = {
@@ -418,12 +262,6 @@ export const submitPublicInquiry = createServerFn({ method: "POST" })
       eventDate: inquiry.event_date,
       eventType: inquiry.event_type,
       venue: inquiry.venue_text,
-    });
-    // Form arrivals only. Manual entries and detected mail do not send this letter.
-    await sendConnectLetter(supabaseAdmin, {
-      inquiryId: inquiry.id,
-      name: data.name,
-      email: data.email.toLowerCase(),
     });
     return { ok: true as const, preview: false as const };
   });
@@ -616,6 +454,61 @@ export const setInquiryStatus = createServerFn({ method: "POST" })
     await syncInquiryAutoTaskFor(context.supabase, data.id);
     await refreshInquirySummarySafe(context.supabase, data.id);
     return { ok: true as const };
+  });
+
+export const updateInquiryMoment = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        venue_text: z.string().trim().max(300).optional(),
+        budget_range: z.string().trim().max(120).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const patch: { venue_text?: string | null; budget_range?: string | null } = {};
+    if (data.venue_text !== undefined) patch.venue_text = data.venue_text || null;
+    if (data.budget_range !== undefined) patch.budget_range = data.budget_range || null;
+    if (!Object.keys(patch).length) return { ok: true as const };
+    const { error } = await context.supabase
+      .from("inquiries")
+      .update(patch)
+      .eq("id", data.id)
+      .eq("archived", false);
+    if (error) throw new Error(error.message);
+    await refreshInquirySummarySafe(context.supabase, data.id);
+    return { ok: true as const };
+  });
+
+export const syncStudioInbox = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    try {
+      const { runGmailInboundSync } = await import("@/lib/os/gmail-inbound.server");
+      const { runGmailInboundRouting } = await import("@/lib/os/inquiry-routing.server");
+      const captured = await runGmailInboundSync();
+      const routed = await runGmailInboundRouting();
+      return {
+        scanned: captured.scanned,
+        inserted: captured.inserted,
+        candidates: routed.candidates,
+        attached: routed.attached,
+        skipped: Boolean(captured.skipped && routed.skipped),
+        reason: routed.skipped ? routed.reason : captured.reason,
+      };
+    } catch (error) {
+      console.error("[inbox] sync failed:", error instanceof Error ? error.message : error);
+      return {
+        scanned: 0,
+        inserted: 0,
+        candidates: 0,
+        attached: 0,
+        skipped: true,
+        reason: "sync_failed",
+      };
+    }
   });
 
 export type InquiryPipelineItem = Awaited<ReturnType<typeof listInquiriesWithClients>>[number];

@@ -62,23 +62,65 @@ export function bracketMessageId(value: string) {
   return trimmed.startsWith("<") ? trimmed : `<${trimmed}>`;
 }
 
+export function markdownToPlain(value: string) {
+  return value.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1 ($2)");
+}
+
+export function markdownToHtml(value: string) {
+  const escaped = value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+  return escaped
+    .replace(
+      /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+      '<a href="$2" style="color:#24221F;text-decoration:underline;">$1</a>',
+    )
+    .replaceAll("\n", "<br>");
+}
+
+function base64Body(value: string) {
+  return Buffer.from(value.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n"), "utf8")
+    .toString("base64")
+    .match(/.{1,76}/g)
+    ?.join("\r\n") ?? "";
+}
+
 export function buildRfc822(input: Rfc822Input) {
   const date = (input.date ?? new Date()).toUTCString().replace(/UTC$/i, "GMT");
+  const boundary = "saysukii-letter";
   const headers = [
     `From: ${formatMailbox(input.fromName, input.from)}`,
     `To: ${formatMailbox(input.toName, input.to)}`,
     `Subject: ${encodeHeader(input.subject)}`,
     `Date: ${date}`,
     "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=UTF-8",
-    "Content-Transfer-Encoding: base64",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ];
   if (input.inReplyTo) headers.push(`In-Reply-To: ${bracketMessageId(input.inReplyTo)}`);
   const references = input.references || input.inReplyTo;
   if (references) headers.push(`References: ${bracketMessageId(references)}`);
-  const bytes = Buffer.from(input.body.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n"), "utf8");
-  const payload = bytes.toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
-  return `${headers.join("\r\n")}\r\n\r\n${payload}`;
+  const plain = base64Body(markdownToPlain(input.body));
+  const html = base64Body(
+    `<!DOCTYPE html><html><body style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#24221F;">${markdownToHtml(input.body)}</body></html>`,
+  );
+  return [
+    headers.join("\r\n"),
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    plain,
+    `--${boundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    html,
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
 }
 
 export function encodeGmailRaw(rfc822: string) {

@@ -12,6 +12,7 @@ import {
   classifyWithAnthropic,
   createMemoryRoutingStore,
   isBookDetectionStatus,
+  heuristicRoutingRaw,
   normalizeRoutingDecision,
   parseModelJson,
   publicRoutingResult,
@@ -525,18 +526,76 @@ describe("classify + route engine", () => {
     else delete process.env["ANTHROPIC_API_KEY"];
   });
 
-  it("skips live routing when Anthropic is not configured", async () => {
+  it("reads gmail with a heuristic when Anthropic is not configured", async () => {
     const previous = process.env["ANTHROPIC_API_KEY"];
     delete process.env["ANTHROPIC_API_KEY"];
-    const result = await runGmailInboundRouting({
-      store: createMemoryRoutingStore({ inbound: [inbound("fresh")] }).store,
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("fresh"),
+        inbound("noise", {
+          from_addr: "news@shop.example",
+          subject: "this week's newsletter",
+          body: "unsubscribe from wholesale flowers",
+        }),
+        inbound("studio", {
+          from_addr: "info@saysukii.com",
+          subject: "Let's Connect!",
+          body: "Feel free to schedule time on the calendar link.",
+        }),
+      ],
     });
-    assert.equal(result.skipped, true);
-    assert.equal(result.reason, "anthropic_not_configured");
+    const result = await runGmailInboundRouting({ store, now: () => NOW });
+    assert.equal(result.skipped, false);
+    assert.equal(result.candidates, 1);
+    assert.equal(result.ignored, 2);
+    assert.equal(state.inquiries[0]?.origin, "detected");
+    assert.equal(state.inquiries[0]?.detection_status, "candidate");
+    assert.equal(state.inquiries[0]?.event_type, "wedding");
     const encoded = JSON.stringify(result);
     assert.equal(encoded.includes("sk-"), false);
-    assert.equal(publicRoutingResult(result).reason, "anthropic_not_configured");
     if (previous) process.env["ANTHROPIC_API_KEY"] = previous;
+    else delete process.env["ANTHROPIC_API_KEY"];
+  });
+
+  it("attaches a reply on an open thread and leaves a new floral ask for review", () => {
+    const openMatch: InquiryMatch = {
+      id: "inq-open",
+      client_id: "client-1",
+      client_name: "Ada",
+      client_email: "ada@example.com",
+      event_type: "wedding",
+      event_date: "2026-12-12",
+      event_date_tbd: false,
+      venue_text: "Vizcaya",
+      status: "in_conversation",
+      archived: false,
+      origin: "form",
+      detection_status: "na",
+      active: true,
+      match_via: ["thread"],
+      latest_message_excerpt: null,
+      received_at: "2026-08-01T00:00:00.000Z",
+    };
+    const attached = normalizeRoutingDecision(
+      heuristicRoutingRaw({
+        message: inbound("reply", { gmail_thread_id: "thread-open", subject: "re: flowers", body: "Tuesday works." }),
+        matches: [openMatch],
+      }),
+      [openMatch],
+      inbound("reply"),
+    );
+    assert.equal(attached.action, "attached");
+    assert.equal(attached.matched_inquiry_id, "inq-open");
+
+    const fresh = inbound("sub", {
+      from_addr: "Tai <tai@example.com>",
+      subject: "weekly flowers",
+      body: "I would love a concierge subscription for my home.",
+    });
+    const candidate = normalizeRoutingDecision(heuristicRoutingRaw({ message: fresh, matches: [] }), [], fresh);
+    assert.equal(candidate.action, "candidate");
+    assert.equal(candidate.extraction.event_type, "subscription");
+    assert.equal(candidate.extraction.name, "Tai");
   });
 
   it("calls Anthropic server-side with the prompt and never returns the key", async () => {

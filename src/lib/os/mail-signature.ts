@@ -1,6 +1,7 @@
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 
 export const STUDIO_OWNER = "Sukii Qi";
+export const SIGNATURE_COPYRIGHT = "COPYRIGHT © 2026 SAY SUKII, LLC. ALL RIGHTS RESERVED.";
 
 export const SIGNATURE_LINKS = {
   site: "https://www.saysukii.com",
@@ -43,7 +44,9 @@ export function signatureText(name: string) {
   lines.push(
     SIGNATURE_LINKS.site,
     SIGNATURE_LINKS.instagram,
-    `let's talk! schedule meeting here ${scheduleMeetingUrl()}`,
+    `[let's talk! schedule meeting here](${scheduleMeetingUrl()})`,
+    "",
+    SIGNATURE_COPYRIGHT,
   );
   return lines.join("\n");
 }

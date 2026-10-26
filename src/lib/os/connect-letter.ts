@@ -1,4 +1,4 @@
-import { emailOrigin } from "@/lib/os/email-layout";
+import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 
 export const CONNECT_SUBJECT = "Let's Connect!";
 
@@ -6,14 +6,12 @@ export function firstName(name: string) {
   return name.trim().split(/\s+/)[0] || name.trim();
 }
 
-export function scheduleUrl(origin?: string) {
-  const base =
-    origin ?? (typeof window !== "undefined" ? window.location.origin : emailOrigin());
-  return `${base.replace(/\/$/, "")}/book`;
+export function scheduleUrl() {
+  return scheduleMeetingUrl();
 }
 
-export function connectLetterBody(name: string, origin?: string) {
-  const link = scheduleUrl(origin);
+export function connectLetterBody(name: string, _origin?: string) {
+  const link = scheduleUrl();
   return [
     `Hi ${firstName(name)},`,
     "",

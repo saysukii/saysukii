@@ -13,7 +13,9 @@ import {
   isNewUncontactedLead,
   resolveInquirySummaryText,
   sanitizeInquirySummary,
+  summaryTextIsStale,
 } from "@/lib/os/inquiry-summary";
+import { connectLetterBody } from "@/lib/os/connect-letter";
 
 const NOW = new Date("2026-09-16T16:00:00.000Z");
 
@@ -80,6 +82,36 @@ describe("inquiry summary", () => {
       }),
       false,
     );
+  });
+
+  it("reads a let's connect letter and does not call them uncontacted", () => {
+    const facts = buildInquirySummaryFacts({
+      status: "contacted",
+      contacted_at: "2026-09-16T13:00:00.000Z",
+      messages: [
+        inbound({
+          channel: "form",
+          body: "Space: home\nCadence: weekly\nthank you for being amazing <3",
+        }),
+        inbound({
+          id: "msg-out",
+          direction: "outbound",
+          channel: "email",
+          subject: "Let's Connect!",
+          body: connectLetterBody("Tai"),
+          sent_at: "2026-09-16T13:00:00.000Z",
+        }),
+      ],
+      proposals: [],
+      now: NOW,
+    });
+    assert.equal(facts.contacted, true);
+    assert.equal(facts.lastInboundGist, "thank you for being amazing <3");
+    assert.equal(facts.nextMoveTitle, "wait for them to book or reply");
+    const text = resolveInquirySummaryText(facts);
+    assert.equal(/hasn't been contacted|has not been contacted/i.test(text), false);
+    assert.match(text, /wait for them to book or reply/i);
+    assert.equal(summaryTextIsStale(NEW_LEAD_SUMMARY, facts), true);
   });
 
   it("grounds fallback in record data and never invents a proposal or meeting", () => {

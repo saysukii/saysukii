@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { EVENT_LABEL, inquiryTime, initials, nextMove, recordSlug } from "@/lib/os/inquiry-desk";
+import { EVENT_LABEL, inquiryAnswers, inquiryTime, initials, nextMove, recordSlug } from "@/lib/os/inquiry-desk";
 import {
   BUDGET_RANGES,
   DIRECT_OUTREACH_SOURCE,
@@ -1676,14 +1676,6 @@ function ClientFile({ clientName }: { clientName?: string | null }) {
   );
 }
 
-function answeredVision(message: string | null) {
-  return (message ?? "")
-    .split("\n")
-    .filter((line) => !/^(Size|Time|Recipient):/i.test(line.trim()))
-    .join("\n")
-    .trim();
-}
-
 function ClientForm({ inquiry, eventWhen }: { inquiry: InquiryPipelineItem; eventWhen: string }) {
   const client = inquiry.client;
   const devPreview = useDevPreview();
@@ -1725,7 +1717,15 @@ function ClientForm({ inquiry, eventWhen }: { inquiry: InquiryPipelineItem; even
   });
 
   if (!client) return null;
-  const vision = answeredVision(inquiry.message);
+  const answers = inquiryAnswers({
+    event_type: inquiry.event_type,
+    message: inquiry.message,
+    venue_text: inquiry.venue_text,
+    budget_range: inquiry.budget_range,
+    guest_count: inquiry.guest_count,
+    source: inquiry.source,
+    eventWhen,
+  });
 
   return (
     <>
@@ -1792,13 +1792,15 @@ function ClientForm({ inquiry, eventWhen }: { inquiry: InquiryPipelineItem; even
                 />
               </label>
               <span className="studio-ask-label studio-ask-span">they answered</span>
-              <ReadAnswer label="interest" value={EVENT_LABEL[inquiry.event_type]} />
-              <ReadAnswer label="date" value={eventWhen || "tbd"} />
-              {inquiry.venue_text ? <ReadAnswer label="venue" value={inquiry.venue_text} wide /> : null}
-              {inquiry.budget_range ? <ReadAnswer label="budget" value={inquiry.budget_range} /> : null}
-              {inquiry.guest_count ? <ReadAnswer label="guests" value={String(inquiry.guest_count)} /> : null}
-              {inquiry.source ? <ReadAnswer label="source" value={inquiry.source} /> : null}
-              {vision ? <ReadAnswer label="vision" value={vision} wide lines /> : null}
+              {answers.map((field) => (
+                <ReadAnswer
+                  key={field.label}
+                  label={field.label}
+                  value={field.value}
+                  wide={field.wide}
+                  lines={field.lines}
+                />
+              ))}
             </div>
             <div className="studio-ask-foot">
               <button

@@ -25,6 +25,14 @@ const PREVIEW_SUMMARIES: Record<string, string> = {
     "camila is planning a wedding at the w hotel. she wants garden roses and a low ceremony piece, and asked for a palette before friday.",
 };
 
+function stoppedCapture(bookingId: string, capture?: MeetingCapture): MeetingCapture {
+  return {
+    recording: false,
+    done: true,
+    summary: capture?.summary || PREVIEW_SUMMARIES[bookingId] || "",
+  };
+}
+
 export function ScheduleDesk({
   bookings,
   briefs,
@@ -75,6 +83,13 @@ export function ScheduleDesk({
   }, [briefs]);
   const dayBookings = byDay.get(dayKey) ?? [];
   const dayLabel = labelDay(dayKey, todayKey);
+  const liveRecordings = bookings.filter((booking) => captures[booking.id]?.recording);
+
+  function stopRecording(booking: StudioBooking) {
+    const next = stoppedCapture(booking.id, captures[booking.id]);
+    setCaptures((current) => ({ ...current, [booking.id]: next }));
+    writeMeetingCapture(booking.id, next);
+  }
 
   function chooseDay(key: string) {
     setDayKey(key);
@@ -118,7 +133,31 @@ export function ScheduleDesk({
       </header>
 
       <div className="studio-book-body studio-schedule-scroll">
-        {import.meta.env.DEV ? <ListeningVariations /> : null}
+        {liveRecordings.length > 0 ? (
+          <section className="studio-listen" aria-label="recording">
+            <p className="studio-home-label">recording</p>
+            {liveRecordings.map((booking) => (
+              <article key={booking.id} className="studio-meet is-recording">
+                <div className="studio-meet-go">
+                  <button
+                    type="button"
+                    className="studio-today-go is-pearl is-recording"
+                    aria-pressed="true"
+                    aria-label={`stop recording ${booking.name}`}
+                    onClick={() => stopRecording(booking)}
+                  >
+                    <i className="studio-rec" aria-hidden="true" />
+                    live
+                  </button>
+                  <button type="button" className="studio-listen-who" onClick={() => openMeeting(booking)}>
+                    <PersonName name={booking.name} />
+                  </button>
+                  <ListeningLine />
+                </div>
+              </article>
+            ))}
+          </section>
+        ) : null}
         {pending ? <p className="studio-empty">gathering…</p> : null}
         <div className="studio-schedule">
           <section className="studio-agenda" aria-label="month">
@@ -253,23 +292,6 @@ function ListeningLine() {
   );
 }
 
-function ListeningVariations() {
-  return (
-    <section className="studio-listen" aria-label="recording">
-      <p className="studio-home-label">recording</p>
-      <article className="studio-meet is-recording">
-        <div className="studio-meet-go">
-          <span className="studio-today-go is-pearl is-recording">
-            <i className="studio-rec" aria-hidden="true" />
-            live
-          </span>
-          <ListeningLine />
-        </div>
-      </article>
-    </section>
-  );
-}
-
 function DayList({
   label,
   bookings,
@@ -352,11 +374,7 @@ function MeetingRecord({
           title="studio intelligence"
           onClick={() => {
             if (recording) {
-              onCapture({
-                recording: false,
-                done: true,
-                summary: capture?.summary || PREVIEW_SUMMARIES[booking.id] || "",
-              });
+              onCapture(stoppedCapture(booking.id, capture));
               return;
             }
             if (granolaConnected == null) return;
