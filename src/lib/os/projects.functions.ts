@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
+import { archiveTasksForClient } from "@/lib/os/tasks.functions";
 
 const projectStatus = z.enum(["pre_production", "production", "post_production", "archived"]);
 const orderStatus = z.enum(["draft", "ordered", "received"]);
@@ -301,6 +302,9 @@ export const updateProject = createServerFn({ method: "POST" })
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+    if (data.status === "archived") {
+      await archiveTasksForClient(context.supabase, row.client_id);
+    }
     return row;
   });
 

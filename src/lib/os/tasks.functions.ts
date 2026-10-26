@@ -61,6 +61,37 @@ async function retireAutoTasks(client: StudioClient, tasks: TaskRow[]) {
   if (error) throw new Error(error.message);
 }
 
+async function closeOpenTasks(client: StudioClient, linkedType: "inquiry" | "project", linkedIds: string[]) {
+  if (linkedIds.length === 0) return;
+  const { error } = await client
+    .from("tasks")
+    .update({ status: "done" })
+    .eq("linked_type", linkedType)
+    .in("linked_id", linkedIds)
+    .eq("status", "open");
+  if (error) throw new Error(error.message);
+}
+
+/** Open tasks for this client's inquiries and projects leave the desk. */
+export async function archiveTasksForClient(client: StudioClient, clientId: string) {
+  const [inquiries, projects] = await Promise.all([
+    client.from("inquiries").select("id").eq("client_id", clientId),
+    client.from("projects").select("id").eq("client_id", clientId),
+  ]);
+  if (inquiries.error) throw new Error(inquiries.error.message);
+  if (projects.error) throw new Error(projects.error.message);
+  await closeOpenTasks(
+    client,
+    "inquiry",
+    (inquiries.data ?? []).map((row) => row.id),
+  );
+  await closeOpenTasks(
+    client,
+    "project",
+    (projects.data ?? []).map((row) => row.id),
+  );
+}
+
 async function insertAutoTask(client: StudioClient, draft: InquiryAutoDraft) {
   const { error } = await client.from("tasks").insert({
     title: draft.title,
