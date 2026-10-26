@@ -13,26 +13,10 @@ function squareHost() {
     : "https://connect.squareupsandbox.com";
 }
 
-function isLiveStudio() {
-  const app = process.env["APP_URL"]?.trim();
-  if (!app) return true;
-  try {
-    const host = new URL(app).hostname;
-    return host !== "localhost" && host !== "127.0.0.1";
-  } catch {
-    return true;
-  }
-}
-
 export function squareAuthorizeUrl(state: string) {
   const appId = process.env["SQUARE_APPLICATION_ID"];
   const redirectUri = process.env["SQUARE_REDIRECT_URI"];
   if (!appId || !redirectUri) throw new Error("Square OAuth is not configured");
-  if (squareEnvironment() === "sandbox" && isLiveStudio()) {
-    throw new Error(
-      "Square is still the sandbox on this studio, so the permission page stays blank. Set SQUARE_ENVIRONMENT to production, use the production application id and secret, and set the redirect URL to https://inside.saysukii.com/api/integrations/square/callback.",
-    );
-  }
   const url = new URL("/oauth2/authorize", squareHost());
   url.searchParams.set("client_id", appId);
   url.searchParams.set(
@@ -45,7 +29,7 @@ export function squareAuthorizeUrl(state: string) {
       "MERCHANT_PROFILE_READ",
     ].join(" "),
   );
-  if (squareEnvironment() === "production") url.searchParams.set("session", "false");
+  url.searchParams.set("session", squareEnvironment() === "production" ? "false" : "true");
   url.searchParams.set("state", state);
   url.searchParams.set("redirect_uri", redirectUri);
   return url.toString();
