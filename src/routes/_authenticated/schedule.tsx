@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { ScheduleDesk } from "@/components/portal/ScheduleDesk";
 import { getDevPreviewAppointments, getDevPreviewPipeline } from "@/lib/dev-preview";
-import { listAppointments, listStudioCalendarEvents } from "@/lib/os/bookings.functions";
+import { listAppointments, listStudioCalendarEvents, getGranolaStatus, getGranolaStatusDev } from "@/lib/os/bookings.functions";
 import { EVENT_LABEL } from "@/lib/os/inquiry-desk";
 import { listInquiryPipeline } from "@/lib/os/inquiries.functions";
 import { readBookings, type MeetingBrief, type StudioBooking } from "@/lib/studio-bookings";
@@ -26,6 +26,8 @@ function SchedulePage() {
   const isAdmin = profile.role === "admin";
   const fetchAppointments = useServerFn(listAppointments);
   const fetchGoogleEvents = useServerFn(listStudioCalendarEvents);
+  const fetchGranola = useServerFn(getGranolaStatus);
+  const fetchGranolaDev = useServerFn(getGranolaStatusDev);
   const fetchInquiries = useServerFn(listInquiryPipeline);
 
   const { data: bookings = [], isPending } = useQuery({
@@ -54,6 +56,7 @@ function SchedulePage() {
             email: row.guest_email,
             note: row.note ?? "",
             allDay: row.all_day,
+            ...(row.join_url ? { joinUrl: row.join_url } : {}),
           })),
           ...extra,
         ].sort(byStart);
@@ -71,6 +74,16 @@ function SchedulePage() {
     queryFn: async () => meetingBriefs(devPreview ? getDevPreviewPipeline() : await fetchInquiries()),
   });
 
+  const granola = useQuery({
+    queryKey: ["os", "granola", devPreview],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const status = await (devPreview ? fetchGranolaDev() : fetchGranola());
+      return status.connected;
+    },
+  });
+  const granolaConnected = granola.isFetched ? (granola.data ?? false) : null;
+
   if (!isAdmin) {
     return (
       <div className="studio-home is-book">
@@ -79,7 +92,7 @@ function SchedulePage() {
     );
   }
 
-  return <ScheduleDesk bookings={bookings} briefs={briefs} pending={isPending} />;
+  return <ScheduleDesk bookings={bookings} briefs={briefs} pending={isPending} granolaConnected={granolaConnected} />;
 }
 
 function meetingBriefs(
@@ -142,7 +155,9 @@ function byStart(left: StudioBooking, right: StudioBooking) {
   return left.startsAt.localeCompare(right.startsAt);
 }
 
-async function googleBookings(fetchGoogleEvents: () => Promise<Array<{ id: string; startsAt: string; name: string; allDay: boolean }>>) {
+async function googleBookings(
+  fetchGoogleEvents: () => Promise<Array<{ id: string; startsAt: string; name: string; allDay: boolean; joinUrl: string | null }>>,
+) {
   return fetchGoogleEvents()
     .then((events) =>
       events.map((event) => ({
@@ -152,6 +167,7 @@ async function googleBookings(fetchGoogleEvents: () => Promise<Array<{ id: strin
         email: "",
         note: "google calendar",
         allDay: event.allDay,
+        ...(event.joinUrl ? { joinUrl: event.joinUrl } : {}),
       })),
     )
     .catch(() => []);

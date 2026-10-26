@@ -13233,6 +13233,7 @@ a.studio-kicker:hover {
 .studio-meet-go {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 6px;
 }
@@ -13287,8 +13288,113 @@ a.studio-kicker:hover {
   line-height: 1.5;
 }
 
-.studio-meet-go .studio-today-go.is-on {
-  box-shadow: inset 0 0 0 1px #ff4d94;
+.studio-meet-go .studio-today-go.is-on,
+.studio-meet-go .studio-today-go.is-recording {
+  box-shadow: inset 0 0 0 1px #e23b4a;
+}
+
+.studio-meet.is-recording {
+  box-shadow: inset 0 0 0 1px rgba(226, 59, 74, 0.45);
+}
+
+.studio-listen {
+  display: grid;
+  gap: 8px;
+}
+
+.studio-listen .studio-meet {
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.studio-meet-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0 auto;
+  color: #e23b4a;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.studio-rec {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #e23b4a;
+  box-shadow: 0 0 0 0 rgba(226, 59, 74, 0.55);
+  animation: studio-rec 1.6s ease-out infinite;
+}
+
+.studio-wave {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.studio-wave i {
+  display: block;
+  width: 2px;
+  height: 100%;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: studio-wave 0.9s ease-in-out infinite;
+}
+
+.studio-wave i:nth-child(1) {
+  animation-duration: 0.72s;
+}
+
+.studio-wave i:nth-child(2) {
+  animation-duration: 0.96s;
+  animation-delay: 0.12s;
+}
+
+.studio-wave i:nth-child(3) {
+  animation-duration: 0.8s;
+  animation-delay: 0.22s;
+}
+
+.studio-wave i:nth-child(4) {
+  animation-duration: 1.05s;
+  animation-delay: 0.08s;
+}
+
+@keyframes studio-rec {
+  0% {
+    box-shadow: 0 0 0 0 rgba(226, 59, 74, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(226, 59, 74, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(226, 59, 74, 0);
+  }
+}
+
+@keyframes studio-wave {
+  0%,
+  100% {
+    transform: scaleY(0.28);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-rec,
+  .studio-wave i {
+    animation: none;
+  }
+
+  .studio-wave i {
+    transform: scaleY(0.65);
+  }
 }
 
 @media (min-width: 980px) {

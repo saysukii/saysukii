@@ -20,7 +20,6 @@ import {
 } from "@/lib/studio-bookings";
 import { cn } from "@/lib/utils";
 
-const MEET_URL = "https://meet.google.com/new";
 const PREVIEW_SUMMARIES: Record<string, string> = {
   "preview-talk-camila":
     "camila is planning a wedding at the w hotel. she wants garden roses and a low ceremony piece, and asked for a palette before friday.",
@@ -30,10 +29,12 @@ export function ScheduleDesk({
   bookings,
   briefs,
   pending,
+  granolaConnected,
 }: {
   bookings: StudioBooking[];
   briefs: MeetingBrief[];
   pending: boolean;
+  granolaConnected: boolean | null;
 }) {
   const todayKey = studioDay(new Date().toISOString());
   const [cursor, setCursor] = useState(() => new Date());
@@ -63,7 +64,9 @@ export function ScheduleDesk({
   }, [bookings]);
 
   const cells = useMemo(() => monthCells(cursor), [cursor]);
-  const monthLabel = cursor.toLocaleString("en-US", { month: "long" }).toLowerCase();
+  const monthLabel = cursor
+    .toLocaleString("en-US", { month: "long", year: "numeric" })
+    .toLowerCase();
   const open = bookings.find((booking) => booking.id === openId) ?? null;
   const briefsByEmail = useMemo(() => {
     const map = new Map<string, MeetingBrief>();
@@ -115,6 +118,7 @@ export function ScheduleDesk({
       </header>
 
       <div className="studio-book-body studio-schedule-scroll">
+        {import.meta.env.DEV ? <ListeningVariations /> : null}
         {pending ? <p className="studio-empty">gathering…</p> : null}
         <div className="studio-schedule">
           <section className="studio-agenda" aria-label="month">
@@ -197,6 +201,7 @@ export function ScheduleDesk({
                 minutes={minutes}
                 brief={briefsByEmail.get(open.email.toLowerCase()) ?? null}
                 capture={captures[open.id]}
+                granolaConnected={granolaConnected}
                 onBack={() => setOpenId(null)}
                 onCapture={(capture) => {
                   setCaptures((current) => ({ ...current, [open.id]: capture }));
@@ -231,6 +236,37 @@ export function ScheduleDesk({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function ListeningLine() {
+  return (
+    <p className="studio-meet-live" role="status" aria-label="actively listening">
+      <span className="studio-wave" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+        <i />
+      </span>
+      actively listening
+    </p>
+  );
+}
+
+function ListeningVariations() {
+  return (
+    <section className="studio-listen" aria-label="recording">
+      <p className="studio-home-label">recording</p>
+      <article className="studio-meet is-recording">
+        <div className="studio-meet-go">
+          <span className="studio-today-go is-pearl is-recording">
+            <i className="studio-rec" aria-hidden="true" />
+            live
+          </span>
+          <ListeningLine />
+        </div>
+      </article>
+    </section>
   );
 }
 
@@ -269,6 +305,7 @@ function MeetingRecord({
   minutes,
   brief,
   capture,
+  granolaConnected,
   onBack,
   onCapture,
 }: {
@@ -276,14 +313,16 @@ function MeetingRecord({
   minutes: number;
   brief: MeetingBrief | null;
   capture?: MeetingCapture;
+  granolaConnected: boolean | null;
   onBack: () => void;
   onCapture: (capture: MeetingCapture) => void;
 }) {
   const recording = capture?.recording ?? false;
   const summary = capture?.done ? capture.summary : "";
+  const joinUrl = meetingJoinUrl(booking.joinUrl);
 
   return (
-    <section className="studio-meet">
+    <section className={cn("studio-meet", recording && "is-recording")}>
       <button type="button" className="studio-ghost" onClick={onBack}>
         back
       </button>
@@ -296,17 +335,20 @@ function MeetingRecord({
           <b>{brief.line}</b>
           {brief.words ? <span>{brief.words}</span> : null}
         </Link>
-      ) : (
+      ) : booking.email ? (
         <p className="studio-meet-meta">{booking.email}</p>
-      )}
+      ) : null}
       <div className="studio-meet-go">
-        <a className="studio-today-go" href={MEET_URL} target="_blank" rel="noreferrer">
-          join
-        </a>
+        {joinUrl ? (
+          <a className="studio-today-go" href={joinUrl} target="_blank" rel="noreferrer">
+            join
+          </a>
+        ) : null}
         <button
           type="button"
-          className={cn("studio-today-go is-pearl", recording && "is-on")}
+          className={cn("studio-today-go is-pearl", recording && "is-recording")}
           aria-pressed={recording}
+          aria-label={recording ? "stop recording" : "record"}
           title="studio intelligence"
           onClick={() => {
             if (recording) {
@@ -317,12 +359,18 @@ function MeetingRecord({
               });
               return;
             }
+            if (granolaConnected == null) return;
+            if (!granolaConnected) {
+              toast("granola isn't connected, so we cannot record. connect it to move forward.");
+              return;
+            }
             onCapture({ recording: true, done: false, summary: capture?.summary ?? "" });
           }}
         >
-          <span className="studio-summary-mark" aria-hidden="true" />
-          {recording ? "done" : "record"}
+          {recording ? <i className="studio-rec" aria-hidden="true" /> : <span className="studio-summary-mark" aria-hidden="true" />}
+          {recording ? "live" : "record"}
         </button>
+        {recording ? <ListeningLine /> : null}
       </div>
       {capture?.done ? (
         <div className="studio-meet-notes">
@@ -332,6 +380,17 @@ function MeetingRecord({
       ) : null}
     </section>
   );
+}
+
+function meetingJoinUrl(value: string | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function meetingWhen(booking: StudioBooking, minutes: number) {

@@ -89,6 +89,7 @@ export type StudioGoogleEvent = {
   startsAt: string;
   name: string;
   allDay: boolean;
+  joinUrl: string | null;
 };
 
 export async function listStudioGoogleEvents(options?: {
@@ -107,6 +108,7 @@ export async function listStudioGoogleEvents(options?: {
     if (!event.id || skipIds.has(event.id) || event.status === "cancelled") continue;
     if (event.eventType === "workingLocation") continue;
     const name = event.summary?.trim() || "busy";
+    const joinUrl = pickMeetingLink(event);
     if (event.start?.date && event.end?.date) {
       for (const day of eachStudioDate(event.start.date, event.end.date)) {
         events.push({
@@ -114,6 +116,7 @@ export async function listStudioGoogleEvents(options?: {
           startsAt: studioWallTime(day, 12).toISOString(),
           name,
           allDay: true,
+          joinUrl,
         });
       }
       continue;
@@ -121,7 +124,7 @@ export async function listStudioGoogleEvents(options?: {
     if (!event.start?.dateTime) continue;
     const startsAt = new Date(event.start.dateTime).toISOString();
     if (skipStarts.has(minuteKey(startsAt))) continue;
-    events.push({ id: event.id, startsAt, name, allDay: false });
+    events.push({ id: event.id, startsAt, name, allDay: false, joinUrl });
   }
   return events;
 }
@@ -318,9 +321,53 @@ type GoogleEvent = {
   status?: string;
   transparency?: string;
   eventType?: string;
+  hangoutLink?: string;
+  location?: string;
+  description?: string;
+  conferenceData?: {
+    entryPoints?: Array<{ entryPointType?: string; uri?: string }>;
+  };
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
 };
+
+const MEETING_HOST =
+  /(?:^|\.)(?:meet\.google\.com|zoom\.us|zoom\.com|zoomgov\.com|teams\.microsoft\.com|teams\.live\.com|webex\.com|whereby\.com|around\.co|meet\.jit\.si|gotomeeting\.com|goto\.com|bluejeans\.com)$/i;
+
+function pickMeetingLink(event: GoogleEvent) {
+  const video = event.conferenceData?.entryPoints?.find(
+    (point) => point.entryPointType === "video" && point.uri?.startsWith("https://"),
+  );
+  if (video?.uri) return cleanUrl(video.uri);
+  if (event.hangoutLink && isMeetingUrl(event.hangoutLink)) return cleanUrl(event.hangoutLink);
+  const attached = event.conferenceData?.entryPoints?.find(
+    (point) => point.uri?.startsWith("https://") && point.entryPointType !== "phone" && isMeetingUrl(point.uri),
+  );
+  if (attached?.uri) return cleanUrl(attached.uri);
+  return firstMeetingUrl(event.location) ?? firstMeetingUrl(event.description);
+}
+
+function firstMeetingUrl(value: string | undefined) {
+  if (!value) return null;
+  const matches = value.match(/https?:\/\/[^\s<>"']+/gi) ?? [];
+  for (const match of matches) {
+    const url = cleanUrl(match);
+    if (isMeetingUrl(url)) return url;
+  }
+  return null;
+}
+
+function isMeetingUrl(value: string) {
+  try {
+    return MEETING_HOST.test(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function cleanUrl(value: string) {
+  return value.replace(/[),.;]+$/g, "");
+}
 
 export async function pushProjectToGoogleCalendar(projectId: string) {
   const { data: project, error: projectError } = await supabaseAdmin

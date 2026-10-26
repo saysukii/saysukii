@@ -107,20 +107,56 @@ export const listAppointments = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     const rows = data ?? [];
     const google = await import("@/lib/os/google.server")
-      .then(({ listStudioGoogleEvents }) =>
-        listStudioGoogleEvents({ skipStarts: rows.map((row) => row.starts_at) }),
-      )
+      .then(({ listStudioGoogleEvents }) => listStudioGoogleEvents())
       .catch(() => []);
+    const linkByStart = new Map<string, string>();
+    for (const event of google) {
+      if (!event.allDay && event.joinUrl) linkByStart.set(startKey(event.startsAt), event.joinUrl);
+    }
+    const taken = new Set(rows.map((row) => startKey(row.starts_at)));
     return [
-      ...rows.map((row) => ({ ...row, all_day: false })),
-      ...google.map((event) => ({
-        id: event.id,
-        starts_at: event.startsAt,
-        guest_name: event.name,
-        guest_email: "",
-        note: "google calendar",
-        created_at: event.startsAt,
-        all_day: event.allDay,
+      ...rows.map((row) => ({
+        ...row,
+        all_day: false,
+        join_url: linkByStart.get(startKey(row.starts_at)) ?? null,
       })),
+      ...google
+        .filter((event) => event.allDay || !taken.has(startKey(event.startsAt)))
+        .map((event) => ({
+          id: event.id,
+          starts_at: event.startsAt,
+          guest_name: event.name,
+          guest_email: "",
+          note: "google calendar",
+          created_at: event.startsAt,
+          all_day: event.allDay,
+          join_url: event.joinUrl,
+        })),
     ].sort((left, right) => left.starts_at.localeCompare(right.starts_at));
   });
+
+function startKey(value: string) {
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return "";
+  return String(Math.round(time / 60_000));
+}
+
+async function readGranolaConnected() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("granola_integration")
+    .select("status, encrypted_api_key")
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return { connected: false as const };
+  return { connected: data.status === "connected" && Boolean(data.encrypted_api_key) };
+}
+
+export const getGranolaStatus = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => readGranolaConnected());
+
+export const getGranolaStatusDev = createServerFn({ method: "GET" }).handler(async () => {
+  if (!import.meta.env.DEV) throw new Error("Unauthorized");
+  return readGranolaConnected();
+});
