@@ -109,7 +109,9 @@ export function saveTemplates(templates: MailTemplate[]) {
 }
 
 export function templateFirstName(name: string | null | undefined) {
-  return name?.trim().split(/\s+/)[0] || "there";
+  const first = name?.trim().split(/\s+/)[0];
+  if (!first) return "there";
+  return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
 function jobPhrase(job: string | null | undefined) {

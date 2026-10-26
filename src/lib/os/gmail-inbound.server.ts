@@ -118,6 +118,8 @@ export function htmlToText(html: string) {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<(strong|b)>([\s\S]*?)<\/\1>/gi, "**$2**")
+    .replace(/<(em|i)>([\s\S]*?)<\/\1>/gi, "*$2*")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<[^>]+>/g, " ")

@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Wordmark } from "@/components/portal/bits";
 import { PersonName, isPersonType } from "@/components/studio/PersonName";
 import { isStudioOwner, noteAuthor, noteWriter, SIGNATURE_COPYRIGHT, SIGNATURE_LINKS, signatureName, wroteNote } from "@/lib/os/mail-signature";
-import { clientReplyText } from "@/lib/os/mail-reply";
+import { clientReplyText, mailPieces } from "@/lib/os/mail-reply";
 import { applyTemplate, BUILT_IN_TEMPLATES, loadTemplates, saveTemplates, type MailTemplate } from "@/lib/os/mail-templates";
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 import type { InquiryMessageRow, InquiryStatus } from "@/integrations/supabase/types";
@@ -335,21 +335,43 @@ function MailSignature({ name }: { name: string }) {
   );
 }
 
-function MailBody({ body }: { body: string }) {
+function personBits(text: string, personName?: string | null) {
+  const first = personName?.trim().split(/\s+/)[0];
+  if (!first) return text;
+  const escaped = first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const bits = text.split(new RegExp(`(\\b${escaped}\\b)`, "ig"));
+  if (bits.length === 1) return text;
+  return bits.map((bit, index) =>
+    bit.toLowerCase() === first.toLowerCase() ? <PersonName key={index} name={bit} /> : bit,
+  );
+}
+
+function MailBody({ body, personName }: { body: string; personName?: string | null }) {
   const parts: ReactNode[] = [];
   const pattern = new RegExp(MAIL_LINK.source, "g");
   let last = 0;
+  let key = 0;
+  const pushText = (text: string) => {
+    for (const piece of mailPieces(text)) {
+      const inner = personBits(piece.text, personName);
+      if (piece.kind === "strong") parts.push(<strong key={key}>{inner}</strong>);
+      else if (piece.kind === "em") parts.push(<em key={key}>{inner}</em>);
+      else parts.push(<span key={key}>{inner}</span>);
+      key += 1;
+    }
+  };
   for (const match of body.matchAll(pattern)) {
     const index = match.index ?? 0;
-    if (index > last) parts.push(body.slice(last, index));
+    if (index > last) pushText(body.slice(last, index));
     parts.push(
-      <a key={index} href={match[2]} target="_blank" rel="noreferrer">
+      <a key={key} href={match[2]} target="_blank" rel="noreferrer">
         {match[1]}
       </a>,
     );
+    key += 1;
     last = index + match[0].length;
   }
-  if (last < body.length) parts.push(body.slice(last));
+  if (last < body.length) pushText(body.slice(last));
   return <p className="studio-mail-body">{parts}</p>;
 }
 
@@ -384,15 +406,28 @@ function problemText(error: unknown, fallback: string) {
 function copyText(value: string) {
   const area = document.createElement("textarea");
   area.value = value;
-  area.setAttribute("readonly", "");
+  area.setAttribute("aria-hidden", "true");
   area.style.position = "fixed";
   area.style.top = "0";
   area.style.left = "0";
-  area.style.opacity = "0";
+  area.style.width = "2em";
+  area.style.height = "2em";
+  area.style.padding = "0";
+  area.style.border = "0";
+  area.style.outline = "none";
+  area.style.boxShadow = "none";
+  area.style.background = "transparent";
+  area.style.fontSize = "16px";
   document.body.appendChild(area);
   area.focus();
   area.select();
-  const copied = document.execCommand("copy");
+  area.setSelectionRange(0, area.value.length);
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch {
+    copied = false;
+  }
   area.remove();
   return copied;
 }
@@ -1362,7 +1397,10 @@ function MailFace({
                 <div className="studio-mail-bubble">
                   {!hiddenSubject(mail.subject) && !/^re:/i.test(mail.subject) ? <p className="studio-mail-subject">{mail.subject}</p> : null}
                   {text ? (
-                    <MailBody body={proposalCards(studio ? withoutSignoff(text) : text).text} />
+                    <MailBody
+                      body={proposalCards(studio ? withoutSignoff(text) : text).text}
+                      personName={studio ? (clientName ?? null) : null}
+                    />
                   ) : null}
                   {proposalCards(mail.text).cards.length ? (
                     <div className="studio-mail-files">
@@ -1606,6 +1644,7 @@ export function InquiryLeadPane({
   const [fileOver, setFileOver] = useState(false);
   const [proposalHref, setProposalHref] = useState<string | null>(null);
   const [proposalFile, setProposalFile] = useState<File | null>(null);
+  const importedFile = useRef<File | null>(null);
   const localProposalUrl = useMemo(() => (proposalFile ? URL.createObjectURL(proposalFile) : ""), [proposalFile]);
   useEffect(() => {
     if (!localProposalUrl) return;
@@ -2143,7 +2182,12 @@ export function InquiryLeadPane({
       setProposalHref(href);
       return href;
     }
-    const dataUrl = await readFileDataUrl(file);
+    const incoming = `${inquiryId}/${crypto.randomUUID()}.pdf`;
+    const upload = await supabase.storage.from("documents").upload(incoming, file, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (upload.error) throw new Error(upload.error.message);
     const result = await importProposal({
       data: {
         inquiry_id: inquiryId,
@@ -2152,11 +2196,12 @@ export function InquiryLeadPane({
         deposit_percent: depositPercent,
         statement,
         file_name: file.name,
-        pdf_base64: dataUrl.slice(dataUrl.indexOf(",") + 1),
+        pdf_path: incoming,
       },
     });
     const href = `${window.location.origin}/proposal/${result.token}`;
     setProposalHref(href);
+    importedFile.current = file;
     void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
     return href;
   }
@@ -2189,8 +2234,23 @@ export function InquiryLeadPane({
     const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
     const cents = Math.max(0, list - courtesy);
     const deposit = proposalPay === "full" ? 100 : 50;
-    const href = proposalFile ? await importCanva(proposalFile, cents, deposit, work, courtesy) : proposalHref;
+    const fileChanged = Boolean(proposalFile && proposalFile !== importedFile.current);
+    const href = fileChanged && proposalFile ? await importCanva(proposalFile, cents, deposit, work, courtesy) : proposalHref;
     if (!href) throw new Error("drop the proposal.");
+    const stored = data?.proposals.find((item) => "pdf_path" in item && typeof item.pdf_path === "string" && item.pdf_path);
+    if (!devPreview && !fileChanged && stored?.pdf_path && stored.status !== "accepted") {
+      await importProposal({
+        data: {
+          inquiry_id: inquiryId,
+          total_cents: cents,
+          courtesy_cents: courtesy,
+          deposit_percent: deposit,
+          statement: work,
+          file_name: proposalName || "proposal.pdf",
+          pdf_path: stored.pdf_path,
+        },
+      });
+    }
     if (!proposalFile && href.includes("/proposal/preview_")) {
       updatePreviewProposalTerms(href.split("/proposal/").pop() ?? "", cents, deposit, work, courtesy);
     }
@@ -2905,7 +2965,31 @@ export function InquiryLeadPane({
                   <button
                     type="button"
                     disabled={proposalBusy}
+                    onPointerDown={(event) => {
+                      if (proposalFile || !proposalHref) return;
+                      event.preventDefault();
+                      const href = proposalHref;
+                      const finish = (ok: boolean) => {
+                        if (!ok) {
+                          setProposalError("could not copy the link");
+                          return;
+                        }
+                        const token = href.split("/proposal/").pop() ?? "";
+                        if (token.startsWith("preview_")) markPreviewProposalSent(token);
+                        markCopied();
+                      };
+                      const pending = navigator.clipboard.writeText(href).then(
+                        () => true,
+                        () => false,
+                      );
+                      if (copyText(href)) {
+                        finish(true);
+                        return;
+                      }
+                      void pending.then(finish);
+                    }}
                     onClick={() => {
+                      if (!proposalFile && proposalHref) return;
                       void copyProposal();
                     }}
                   >

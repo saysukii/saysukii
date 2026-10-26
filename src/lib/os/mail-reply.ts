@@ -14,3 +14,22 @@ export function clientReplyText(body: string) {
     .replace(/\n--\s*$/, "")
     .trim();
 }
+
+export type MailPiece = { kind: "text" | "em" | "strong"; text: string };
+
+const EMPHASIS = /\*\*([^*\n]+)\*\*|\*([^*\n]+)\*/g;
+
+export function mailPieces(value: string): MailPiece[] {
+  const pieces: MailPiece[] = [];
+  const pattern = new RegExp(EMPHASIS.source, "g");
+  let last = 0;
+  for (const match of value.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    if (index > last) pieces.push({ kind: "text", text: value.slice(last, index) });
+    if (match[1]) pieces.push({ kind: "strong", text: match[1] });
+    else if (match[2]) pieces.push({ kind: "em", text: match[2] });
+    last = index + match[0].length;
+  }
+  if (last < value.length) pieces.push({ kind: "text", text: value.slice(last) });
+  return pieces.length ? pieces : [{ kind: "text", text: value }];
+}

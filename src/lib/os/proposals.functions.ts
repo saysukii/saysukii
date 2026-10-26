@@ -208,15 +208,18 @@ const statementInput = z.object({
   venue: z.string().max(500),
 });
 
-const importInput = z.object({
-  inquiry_id: z.string().uuid(),
-  total_cents: z.number().int().positive().max(100_000_000),
-  deposit_percent: z.number().min(1).max(100).default(50),
-  file_name: z.string().trim().min(1).max(200),
-  pdf_base64: z.string().min(20).max(12_000_000),
-  statement: statementInput.optional(),
-  courtesy_cents: z.number().int().min(0).max(100_000_000).default(0),
-});
+const importInput = z
+  .object({
+    inquiry_id: z.string().uuid(),
+    total_cents: z.number().int().positive().max(100_000_000),
+    deposit_percent: z.number().min(1).max(100).default(50),
+    file_name: z.string().trim().min(1).max(200),
+    pdf_base64: z.string().min(20).max(12_000_000).optional(),
+    pdf_path: z.string().trim().min(1).max(500).optional(),
+    statement: statementInput.optional(),
+    courtesy_cents: z.number().int().min(0).max(100_000_000).default(0),
+  })
+  .refine((value) => Boolean(value.pdf_base64 || value.pdf_path), { message: "Choose the proposal PDF." });
 
 export const importProposalPdf = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
@@ -231,20 +234,36 @@ export const importProposalPdf = createServerFn({ method: "POST" })
     if (inquiryResult.error) throw new Error(inquiryResult.error.message);
     const inquiry = inquiryResult.data;
 
-    const bytes = Buffer.from(data.pdf_base64, "base64");
-    if (bytes.length < 5 || bytes.subarray(0, 4).toString() !== "%PDF") {
-      throw new Error("Choose the proposal PDF.");
-    }
-    if (bytes.length > 8 * 1024 * 1024) throw new Error("That PDF is larger than 8MB.");
-
     const existing = await context.supabase
       .from("proposals")
-      .select("id, number, status, access_token")
+      .select("id, number, status, access_token, pdf_path")
       .eq("inquiry_id", inquiry.id)
       .eq("archived", false)
       .maybeSingle();
     if (existing.error) throw new Error(existing.error.message);
     if (existing.data?.status === "accepted") throw new Error("This proposal is already accepted.");
+
+    let pdfBytes: Buffer | null = null;
+    if (data.pdf_path) {
+      const incoming = data.pdf_path.startsWith(`${inquiry.id}/`) && !data.pdf_path.includes("..");
+      const current = Boolean(existing.data?.pdf_path) && data.pdf_path === existing.data?.pdf_path;
+      if (!incoming && !current) throw new Error("Choose the proposal PDF.");
+      if (!current) {
+        const downloaded = await supabaseAdmin.storage.from("documents").download(data.pdf_path);
+        if (downloaded.error || !downloaded.data) throw new Error(downloaded.error?.message || "could not read the proposal pdf.");
+        pdfBytes = Buffer.from(await downloaded.data.arrayBuffer());
+      }
+    } else if (data.pdf_base64) {
+      pdfBytes = Buffer.from(data.pdf_base64, "base64");
+    }
+    if (pdfBytes) {
+      if (pdfBytes.length < 5 || pdfBytes.subarray(0, 4).toString() !== "%PDF") {
+        throw new Error("Choose the proposal PDF.");
+      }
+      if (pdfBytes.length > 8 * 1024 * 1024) throw new Error("That PDF is larger than 8MB.");
+    } else if (!existing.data?.pdf_path) {
+      throw new Error("Choose the proposal PDF.");
+    }
 
     const deposit = Math.round(data.total_cents * (data.deposit_percent / 100));
     const courtesy = Math.min(data.courtesy_cents, data.total_cents);
@@ -299,8 +318,8 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
 
-    const pdfPath = `${proposalId}/proposal-${number}.pdf`;
-    await uploadDocument(pdfPath, bytes);
+    const pdfPath = pdfBytes ? `${proposalId}/proposal-${number}.pdf` : (existing.data?.pdf_path ?? "");
+    if (pdfBytes) await uploadDocument(pdfPath, pdfBytes);
     const patch: {
       event_date: string | null;
       venue_id: string | null;

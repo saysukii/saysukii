@@ -9024,7 +9024,21 @@ button.studio-metric:hover {
 .studio-mail-face-item.is-out .studio-mail-body,
 .studio-mail-face-item.is-out .studio-mail-body a {
   color: #fff;
-  text-transform: none;
+  text-transform: lowercase;
+}
+
+.studio-mail-face-item.is-out .studio-mail-body .is-person {
+  text-transform: capitalize;
+}
+
+.studio-mail-body em {
+  font-style: italic;
+  font-weight: inherit;
+}
+
+.studio-mail-body strong {
+  font-style: normal;
+  font-weight: 600;
 }
 
 .studio-mail-sign {
