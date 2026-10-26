@@ -267,14 +267,14 @@ function MailSignature({ name }: { name: string }) {
   const person = signatureName(name);
   return (
     <footer className="studio-mail-sign">
-      <p className="studio-mail-sign-close">With Gratitude,</p>
+      <p className="studio-mail-sign-close">with gratitude,</p>
       <Wordmark tone="white" className="studio-mail-sign-mark" />
       <p>
         <strong>
           <PersonName name={person} /> | Say Sukii
         </strong>
       </p>
-      {isStudioOwner(person) ? <p>Floral Artist, Founder & Creative Director</p> : null}
+      {isStudioOwner(person) ? <p>floral artist, founder & creative director</p> : null}
       <p>
         <a href={SIGNATURE_LINKS.site}>saysukii.com</a>
       </p>
@@ -336,7 +336,7 @@ function heldLine(facts: { eventDate?: string | null; dateTbd?: boolean | null; 
   const when = facts.dateTbd ? null : formatDateNumeric(facts.eventDate);
   const place = facts.place?.split(",")[0]?.trim();
   const held = [when, place].filter(Boolean).join(" at ");
-  return held ? `I'll hold ${held}` : "I'll hold the date";
+  return held ? `i'll hold ${held}` : "i'll hold the date";
 }
 
 function studioReply(
@@ -346,7 +346,7 @@ function studioReply(
 ) {
   const latest = messages.find((item) => item.direction === "inbound");
   const heard = latest?.body?.replace(/\s+/g, " ").trim();
-  const note = heard ? `I have your note — ${heard.length > 220 ? `${heard.slice(0, 217)}…` : heard}` : "Thank you for writing.";
+  const note = heard ? `i have your note — ${heard.length > 220 ? `${heard.slice(0, 217)}…` : heard}` : "thank you for writing.";
   return `${firstName(clientName)} —\n\n${note}\n\n${heldLine(facts)} and send a first look this week.`;
 }
 

@@ -302,13 +302,13 @@ function BookedNote({
 function MeetingCopy() {
   return (
     <div className="book-meet-copy">
-      <p>Thank you for making time. Looking forward to connecting with you soon! {"<3"}</p>
+      <p>thank you for making time. looking forward to connecting with you soon! {"<3"}</p>
       <p>
-        If this is an event or wedding -- in our initial consultation, we will discuss your overall vision and needs
+        if this is an event or wedding -- in our initial consultation, we will discuss your overall vision and needs
         to follow up with an accurate proposal quote.
       </p>
       <p>
-        Please have any inspiration images you have readily available for our meeting. You may also email them to{" "}
+        please have any inspiration images you have readily available for our meeting. you may also email them to{" "}
         <a href="mailto:info@saysukii.com">info@saysukii.com</a>.
       </p>
     </div>

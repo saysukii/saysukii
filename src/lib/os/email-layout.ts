@@ -56,7 +56,7 @@ function factsTable(facts: EmailFact[]) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${facts
     .map(
       (fact) => `<tr>
-        <td style="width:108px;padding:0 8px 10px 0;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(36,34,31,0.52);font-weight:700;vertical-align:baseline;">${escapeEmail(fact.label)}</td>
+        <td style="width:108px;padding:0 8px 10px 0;font-size:11px;letter-spacing:0.14em;color:rgba(36,34,31,0.52);font-weight:700;vertical-align:baseline;">${escapeEmail(fact.label)}</td>
         <td style="padding:0 0 10px;font-size:15px;line-height:1.5;color:#24221F;vertical-align:baseline;">${escapeEmail(fact.value)}</td>
       </tr>`,
     )

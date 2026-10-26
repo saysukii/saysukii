@@ -39,8 +39,8 @@ export function isStudioOwner(name: string) {
 }
 
 export function signatureText(name: string) {
-  const lines = ["With Gratitude,", "", `${name} | Say Sukii`];
-  if (isStudioOwner(name)) lines.push("Floral Artist, Founder & Creative Director");
+  const lines = ["with gratitude,", "", `${name} | Say Sukii`];
+  if (isStudioOwner(name)) lines.push("floral artist, founder & creative director");
   lines.push(
     SIGNATURE_LINKS.site,
     SIGNATURE_LINKS.instagram,

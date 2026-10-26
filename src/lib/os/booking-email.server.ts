@@ -56,9 +56,9 @@ function placeLabel(input: Pick<BookingMail, "meeting">) {
 
 function noteLines(input: Pick<BookingMail, "note" | "durationMinutes" | "meeting">) {
   return [
-    "Thank you for making time. Looking forward to connecting with you soon! <3",
-    "If this is an event or wedding -- in our initial consultation, we will discuss your overall vision and needs to follow up with an accurate proposal quote.",
-    "Please have any inspiration images you have readily available for our meeting. You may also email them to info@saysukii.com.",
+    "thank you for making time. looking forward to connecting with you soon! <3",
+    "if this is an event or wedding -- in our initial consultation, we will discuss your overall vision and needs to follow up with an accurate proposal quote.",
+    "please have any inspiration images you have readily available for our meeting. you may also email them to info@saysukii.com.",
     `${input.durationMinutes} minutes · ${placeLabel(input)}`,
     input.note.trim(),
   ].filter(Boolean);
@@ -136,7 +136,7 @@ export function bookingText(input: BookingMail) {
     "you’re booked",
     bookingWhen(input.startsAt),
     "",
-    ...noteLines(input).map((line) => line.toLowerCase()),
+    ...noteLines(input),
     "",
     "this note has the meeting attached, so you can keep it on your calendar.",
     calendarLink(input),

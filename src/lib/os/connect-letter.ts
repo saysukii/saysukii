@@ -1,6 +1,6 @@
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 
-export const CONNECT_SUBJECT = "Let's Connect!";
+export const CONNECT_SUBJECT = "let's connect!";
 
 export function firstName(name: string) {
   return name.trim().split(/\s+/)[0] || name.trim();
@@ -13,13 +13,13 @@ export function scheduleUrl() {
 export function connectLetterBody(name: string, _origin?: string) {
   const link = scheduleUrl();
   return [
-    `Hi ${firstName(name)},`,
+    `hi ${firstName(name)},`,
     "",
-    "Thanks again for reaching out! At this time we are available and would love to connect and learn more about your floral needs.",
+    "thanks again for reaching out! at this time we are available and would love to connect and learn more about your floral needs.",
     "",
-    `Feel free to schedule time for us to meet at your earliest convenience using my [calendar link](${link}) — or if you're ready to dive in here, please reply to this email with any project details and inspiration photos to get us started.`,
+    `feel free to schedule time for us to meet at your earliest convenience using my [calendar link](${link}) — or if you're ready to dive in here, please reply to this email with any project details and inspiration photos to get us started.`,
     "",
-    "Looking forward to it!",
+    "looking forward to it!",
     "",
     "<3",
   ].join("\n");
