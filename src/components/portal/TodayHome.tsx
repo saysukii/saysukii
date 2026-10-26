@@ -122,7 +122,7 @@ function MonthBoard({
     setView({ year: date.getFullYear(), month: date.getMonth() });
   }, [selected]);
   const first = new Date(view.year, view.month, 1);
-  const startPad = (first.getDay() + 6) % 7;
+  const startPad = first.getDay();
   const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
   const marked = new Set(marks);
   const monthLabel = first.toLocaleString("en-US", { month: "long" });
@@ -160,7 +160,7 @@ function MonthBoard({
         </button>
       </div>
       <div className="studio-cal-week" aria-hidden="true">
-        {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => (
+        {["sun", "mon", "tue", "wed", "thu", "fri", "sat"].map((day) => (
           <span key={day}>{day}</span>
         ))}
       </div>
@@ -359,7 +359,7 @@ export function TodayHome({
       .filter((talk) => studioDay(talk.startsAt) === today)
       .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
       .map((talk) => {
-        const clock = studioClock(talk.startsAt);
+        const clock = talk.allDay ? "all day" : studioClock(talk.startsAt);
         return {
           id: talk.id,
           bits: [
@@ -427,8 +427,9 @@ export function TodayHome({
   const dayMarks = useMemo(() => {
     const inquiries = data.waiting.filter((item) => item.event_date === day);
     const projects = data.upcoming.filter((item) => item.event_date === day);
-    return { inquiries, projects };
-  }, [data.upcoming, data.waiting, day]);
+    const talksOnDay = talks.filter((talk) => studioDay(talk.startsAt) === day);
+    return { inquiries, projects, talks: talksOnDay };
+  }, [data.upcoming, data.waiting, day, talks]);
   const floorRef = useRef<HTMLDivElement>(null);
   const floorPadRef = useRef<HTMLDivElement>(null);
   const parkedFloor = useRef<{ week: string; signature: string; top: number } | null>(null);
@@ -669,7 +670,7 @@ export function TodayHome({
         <aside className="studio-home-day">
           <p className="studio-home-label">{HOME_LABELS.calendar}</p>
           <MonthBoard marks={marks} selected={day} onSelect={chooseDay} />
-          {(dayMarks.inquiries.length > 0 || dayMarks.projects.length > 0) && (
+          {(dayMarks.inquiries.length > 0 || dayMarks.projects.length > 0 || dayMarks.talks.length > 0) && (
             <div className="studio-home-daymarks">
               {dayMarks.projects.map((project) => (
                 <p key={project.id}>
@@ -681,6 +682,12 @@ export function TodayHome({
                 <p key={inquiry.id}>
                   <b>{shownName(inquiry.client?.name ?? "", isPersonType(inquiry.client?.type))}</b>
                   <span>inquiry date</span>
+                </p>
+              ))}
+              {dayMarks.talks.map((talk) => (
+                <p key={talk.id}>
+                  <b>{talk.name}</b>
+                  <span>{talk.allDay ? "all day" : studioClock(talk.startsAt) || "meeting"}</span>
                 </p>
               ))}
             </div>

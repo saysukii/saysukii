@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { ScheduleDesk } from "@/components/portal/ScheduleDesk";
 import { getDevPreviewAppointments, getDevPreviewPipeline } from "@/lib/dev-preview";
-import { listAppointments } from "@/lib/os/bookings.functions";
+import { listAppointments, listStudioCalendarEvents } from "@/lib/os/bookings.functions";
 import { EVENT_LABEL } from "@/lib/os/inquiry-desk";
 import { listInquiryPipeline } from "@/lib/os/inquiries.functions";
 import { readBookings, type MeetingBrief, type StudioBooking } from "@/lib/studio-bookings";
@@ -25,6 +25,7 @@ function SchedulePage() {
   const devPreview = useDevPreview();
   const isAdmin = profile.role === "admin";
   const fetchAppointments = useServerFn(listAppointments);
+  const fetchGoogleEvents = useServerFn(listStudioCalendarEvents);
   const fetchInquiries = useServerFn(listInquiryPipeline);
 
   const { data: bookings = [], isPending } = useQuery({
@@ -33,9 +34,11 @@ function SchedulePage() {
     queryFn: async () => {
       const local = readBookings();
       if (devPreview) {
+        const google = await googleBookings(fetchGoogleEvents);
         const preview = getDevPreviewAppointments();
         const seen = new Set(preview.map((row) => `${row.startsAt}|${row.email.toLowerCase()}`));
-        return [...preview, ...local.filter((row) => !seen.has(`${row.startsAt}|${row.email.toLowerCase()}`))].sort(
+        const googleFresh = google.filter((row) => !seen.has(`${row.startsAt}|${row.email.toLowerCase()}`));
+        return [...preview, ...googleFresh, ...local.filter((row) => !seen.has(`${row.startsAt}|${row.email.toLowerCase()}`))].sort(
           byStart,
         );
       }
@@ -50,11 +53,14 @@ function SchedulePage() {
             name: row.guest_name,
             email: row.guest_email,
             note: row.note ?? "",
+            allDay: row.all_day,
           })),
           ...extra,
         ].sort(byStart);
       } catch {
-        return local.sort(byStart);
+        const google = await googleBookings(fetchGoogleEvents);
+        const seen = new Set(google.map((row) => row.startsAt));
+        return [...google, ...local.filter((row) => !seen.has(row.startsAt))].sort(byStart);
       }
     },
   });
@@ -134,4 +140,19 @@ function inquiryWords(value: string | null) {
 
 function byStart(left: StudioBooking, right: StudioBooking) {
   return left.startsAt.localeCompare(right.startsAt);
+}
+
+async function googleBookings(fetchGoogleEvents: () => Promise<Array<{ id: string; startsAt: string; name: string; allDay: boolean }>>) {
+  return fetchGoogleEvents()
+    .then((events) =>
+      events.map((event) => ({
+        id: event.id,
+        startsAt: event.startsAt,
+        name: event.name,
+        email: "",
+        note: "google calendar",
+        allDay: event.allDay,
+      })),
+    )
+    .catch(() => []);
 }

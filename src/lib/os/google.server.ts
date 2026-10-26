@@ -74,22 +74,72 @@ const STUDIO_ZONE = "America/New_York";
 export type CalendarWindow = { start: string; end: string };
 
 export async function googleBusyWindows(from: Date, to: Date): Promise<CalendarWindow[] | null> {
-  try {
-    googleCredentials();
-  } catch {
-    return null;
-  }
-  const { data: connection, error } = await supabaseAdmin
-    .from("integration_connections")
-    .select("id, encrypted_access_token, encrypted_refresh_token, expires_at, status")
-    .eq("provider", "google")
-    .eq("status", "connected")
-    .maybeSingle();
-  if (error || !connection?.encrypted_access_token) return null;
-
-  const accessToken = await validAccessToken(connection);
-  const calendarId = encodeURIComponent(process.env["GOOGLE_CALENDAR_ID"] ?? "primary");
+  const items = await fetchGoogleEvents(from, to);
+  if (!items) return null;
   const windows: CalendarWindow[] = [];
+  for (const event of items) {
+    const window = eventWindow(event);
+    if (window) windows.push(window);
+  }
+  return windows;
+}
+
+export type StudioGoogleEvent = {
+  id: string;
+  startsAt: string;
+  name: string;
+  allDay: boolean;
+};
+
+export async function listStudioGoogleEvents(options?: {
+  from?: Date;
+  to?: Date;
+  skipIds?: string[];
+  skipStarts?: string[];
+}): Promise<StudioGoogleEvent[]> {
+  const range = studioCalendarRange();
+  const items = await fetchGoogleEvents(options?.from ?? range.from, options?.to ?? range.to);
+  if (!items) return [];
+  const skipIds = new Set(options?.skipIds ?? []);
+  const skipStarts = new Set((options?.skipStarts ?? []).map(minuteKey).filter(Boolean));
+  const events: StudioGoogleEvent[] = [];
+  for (const event of items) {
+    if (!event.id || skipIds.has(event.id) || event.status === "cancelled") continue;
+    if (event.eventType === "workingLocation") continue;
+    const name = event.summary?.trim() || "busy";
+    if (event.start?.date && event.end?.date) {
+      for (const day of eachStudioDate(event.start.date, event.end.date)) {
+        events.push({
+          id: `${event.id}:${day}`,
+          startsAt: studioWallTime(day, 12).toISOString(),
+          name,
+          allDay: true,
+        });
+      }
+      continue;
+    }
+    if (!event.start?.dateTime) continue;
+    const startsAt = new Date(event.start.dateTime).toISOString();
+    if (skipStarts.has(minuteKey(startsAt))) continue;
+    events.push({ id: event.id, startsAt, name, allDay: false });
+  }
+  return events;
+}
+
+function studioCalendarRange(now = new Date()) {
+  const from = new Date(now);
+  from.setDate(from.getDate() - 60);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(now);
+  to.setDate(to.getDate() + 180);
+  return { from, to };
+}
+
+async function fetchGoogleEvents(from: Date, to: Date): Promise<GoogleEvent[] | null> {
+  const accessToken = await calendarAccessToken();
+  if (!accessToken) return null;
+  const calendarId = encodeURIComponent(process.env["GOOGLE_CALENDAR_ID"] ?? "primary");
+  const items: GoogleEvent[] = [];
   let pageToken = "";
   do {
     const params = new URLSearchParams({
@@ -114,23 +164,13 @@ export async function googleBusyWindows(from: Date, to: Date): Promise<CalendarW
       if (response.status === 401 || response.status === 403) return null;
       throw new Error(payload.error?.message || "Google Calendar request failed");
     }
-    for (const event of payload.items ?? []) {
-      const window = eventWindow(event);
-      if (window) windows.push(window);
-    }
+    items.push(...(payload.items ?? []));
     pageToken = payload.nextPageToken ?? "";
   } while (pageToken);
-  return windows;
+  return items;
 }
 
-export async function createConsultationEvent(input: {
-  startsAt: string;
-  name: string;
-  email: string;
-  note: string;
-  durationMinutes?: number;
-  meeting?: "meet" | "phone";
-}) {
+async function calendarAccessToken() {
   try {
     googleCredentials();
   } catch {
@@ -142,9 +182,53 @@ export async function createConsultationEvent(input: {
     .eq("provider", "google")
     .eq("status", "connected")
     .maybeSingle();
-  if (error || !connection?.encrypted_access_token) return null;
+  if (!error && connection?.encrypted_access_token) {
+    try {
+      return await validAccessToken(connection);
+    } catch {
+      // the gmail grant from the same Google connect can still read the calendar
+    }
+  }
+  try {
+    const { validGmailAccessToken } = await import("./gmail.server");
+    return await validGmailAccessToken();
+  } catch {
+    return null;
+  }
+}
 
-  const accessToken = await validAccessToken(connection);
+function minuteKey(value: string) {
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return "";
+  return String(Math.round(time / 60_000));
+}
+
+function eachStudioDate(start: string, endExclusive: string) {
+  const cursor = new Date(`${start}T12:00:00`);
+  const end = new Date(`${endExclusive}T12:00:00`);
+  if (Number.isNaN(cursor.getTime())) return [];
+  if (Number.isNaN(end.getTime()) || end <= cursor) return [start];
+  const days: string[] = [];
+  while (cursor < end && days.length < 21) {
+    const month = String(cursor.getMonth() + 1).padStart(2, "0");
+    const day = String(cursor.getDate()).padStart(2, "0");
+    days.push(`${cursor.getFullYear()}-${month}-${day}`);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
+}
+
+export async function createConsultationEvent(input: {
+  startsAt: string;
+  name: string;
+  email: string;
+  note: string;
+  durationMinutes?: number;
+  meeting?: "meet" | "phone";
+}) {
+  const accessToken = await calendarAccessToken();
+  if (!accessToken) return null;
+
   const start = new Date(input.startsAt);
   const minutes = input.durationMinutes ?? 30;
   const phone = input.meeting === "phone";
@@ -211,7 +295,7 @@ function eventWindow(event: GoogleEvent): CalendarWindow | null {
   return null;
 }
 
-function studioWallTime(date: string) {
+function studioWallTime(date: string, hour = 0) {
   const [year, month, day] = date.split("-").map(Number);
   const guess = Date.UTC(year, month - 1, day, 12);
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -225,12 +309,15 @@ function studioWallTime(date: string) {
   }).formatToParts(new Date(guess));
   const read = (type: string) => Number(parts.find((part) => part.type === type)?.value);
   const shown = Date.UTC(read("year"), read("month") - 1, read("day"), read("hour"), read("minute"));
-  return new Date(Date.UTC(year, month - 1, day, 0, 0) - (shown - guess));
+  return new Date(Date.UTC(year, month - 1, day, hour, 0) - (shown - guess));
 }
 
 type GoogleEvent = {
+  id?: string;
+  summary?: string;
   status?: string;
   transparency?: string;
+  eventType?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
 };
@@ -244,15 +331,9 @@ export async function pushProjectToGoogleCalendar(projectId: string) {
   if (projectError) throw new Error(projectError.message);
   if (project.google_event_id) return project.google_event_id;
 
-  const { data: connection, error: connectionError } = await supabaseAdmin
-    .from("integration_connections")
-    .select("*")
-    .eq("provider", "google")
-    .eq("status", "connected")
-    .maybeSingle();
-  if (connectionError || !connection?.encrypted_access_token) return null;
+  const accessToken = await calendarAccessToken();
+  if (!accessToken) return null;
 
-  const accessToken = await validAccessToken(connection);
   const clientName = (project.clients as { name?: string } | null)?.name ?? "Client";
   const venue = project.venues as { name?: string; address?: string } | null;
   const start = project.event_date;

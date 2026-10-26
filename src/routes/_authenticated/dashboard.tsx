@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { TodayHome, type DeskTaskDraft } from "@/components/portal/TodayHome";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 import { createAdminInquiry, getInquiryDashboard } from "@/lib/os/inquiries.functions";
+import { listStudioCalendarEvents } from "@/lib/os/bookings.functions";
 import { completeTask, createManualTask } from "@/lib/os/tasks.functions";
 import { getDevPreviewDashboard } from "@/lib/dev-preview";
 import { useDevPreview } from "@/lib/use-dev-preview";
@@ -30,12 +31,31 @@ function DashboardPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const fetchDashboard = useServerFn(getInquiryDashboard);
+  const fetchGoogleEvents = useServerFn(listStudioCalendarEvents);
   const saveInquiry = useServerFn(createAdminInquiry);
   const markTaskDone = useServerFn(completeTask);
   const saveTask = useServerFn(createManualTask);
   const { data, isPending, isError } = useQuery({
     queryKey: ["inquiry-dashboard", devPreview],
-    queryFn: () => (devPreview ? getDevPreviewDashboard() : fetchDashboard()),
+    queryFn: async () => {
+      if (!devPreview) return fetchDashboard();
+      const preview = getDevPreviewDashboard();
+      const events = await fetchGoogleEvents().catch(() => []);
+      const taken = new Set(
+        preview.appointments.map((talk) => String(Math.round(new Date(talk.startsAt).getTime() / 60_000))),
+      );
+      const google = events
+        .filter((event) => !taken.has(String(Math.round(new Date(event.startsAt).getTime() / 60_000))))
+        .map((event) => ({
+          id: event.id,
+          startsAt: event.startsAt,
+          name: event.name,
+          email: "",
+          note: "",
+          allDay: event.allDay,
+        }));
+      return { ...preview, appointments: [...preview.appointments, ...google] };
+    },
   });
 
   const completeDeskTask = useMutation({

@@ -173,7 +173,7 @@ export function ScheduleDesk({
                         className={cn("studio-agenda-mark", booking.id === openId && "is-on")}
                         onClick={() => openMeeting(booking)}
                       >
-                        <em>{studioClock(booking.startsAt)}</em>
+                        <em>{booking.allDay ? "all day" : studioClock(booking.startsAt)}</em>
                         <span>
                           <PersonName name={booking.name} />
                         </span>
@@ -256,7 +256,7 @@ function DayList({
               </b>
               <em>{booking.note || booking.email}</em>
             </span>
-            <small>{studioClock(booking.startsAt)}</small>
+            <small>{booking.allDay ? "all day" : studioClock(booking.startsAt)}</small>
           </button>
         ))}
       </div>
@@ -290,7 +290,7 @@ function MeetingRecord({
       <h2>
         <PersonName name={booking.name} />
       </h2>
-      <p className="studio-meet-when">{bookingWindow(booking.startsAt, minutes)}</p>
+      <p className="studio-meet-when">{meetingWhen(booking, minutes)}</p>
       {brief ? (
         <Link to="/pipeline/$id" params={{ id: brief.slug }} className="studio-meet-brief">
           <b>{brief.line}</b>
@@ -332,6 +332,19 @@ function MeetingRecord({
       ) : null}
     </section>
   );
+}
+
+function meetingWhen(booking: StudioBooking, minutes: number) {
+  if (!booking.allDay) return bookingWindow(booking.startsAt, minutes);
+  const day = new Date(booking.startsAt)
+    .toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      timeZone: "America/New_York",
+    })
+    .toLowerCase();
+  return `${day} · all day`;
 }
 
 function monthCells(anchor: Date) {

@@ -9,6 +9,7 @@ export type StudioBooking = {
   name: string;
   email: string;
   note: string;
+  allDay?: boolean;
 };
 
 export type MeetingBrief = {

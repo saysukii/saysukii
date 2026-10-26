@@ -15,6 +15,7 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  weekStartsOn = 0,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
@@ -23,6 +24,7 @@ function Calendar({
 
   return (
     <DayPicker
+      weekStartsOn={weekStartsOn}
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:2rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",

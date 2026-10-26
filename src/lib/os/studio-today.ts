@@ -45,6 +45,7 @@ export type TodayTalk = {
   name: string;
   email: string;
   note: string;
+  allDay?: boolean;
 };
 
 export type DeskGlance = {
@@ -133,7 +134,7 @@ export function deskKind(task: Pick<TaskRow, "linked_type">): DeskKind {
 
 export function weekBounds(day: string) {
   const date = new Date(`${day}T12:00:00`);
-  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  date.setDate(date.getDate() - date.getDay());
   const start = dateOnly(date);
   date.setDate(date.getDate() + 6);
   return { start, end: dateOnly(date) };
@@ -236,7 +237,7 @@ export function weekFloor(
       when: formatFloorWhen(date, today),
       title: talk.name,
       titlePerson: !organizationName(talk.name, data.waiting, data.projects),
-      detail: ["meeting", studioClock(talk.startsAt)].filter(Boolean).join(" · "),
+      detail: ["meeting", talk.allDay ? "all day" : studioClock(talk.startsAt)].filter(Boolean).join(" · "),
       kind: "talk",
       at: talk.startsAt,
     });

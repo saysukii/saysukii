@@ -90,6 +90,12 @@ export const bookAppointment = createServerFn({ method: "POST" })
     return { id: savedId ?? googleEventId, googleEventId };
   });
 
+export const listStudioCalendarEvents = createServerFn({ method: "GET" }).handler(async () => {
+  if (!import.meta.env.DEV) throw new Error("Unauthorized");
+  const { listStudioGoogleEvents } = await import("@/lib/os/google.server");
+  return listStudioGoogleEvents();
+});
+
 export const listAppointments = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async ({ context }) => {
@@ -99,5 +105,22 @@ export const listAppointments = createServerFn({ method: "GET" })
       .gte("starts_at", new Date().toISOString())
       .order("starts_at");
     if (error) throw new Error(error.message);
-    return data ?? [];
+    const rows = data ?? [];
+    const google = await import("@/lib/os/google.server")
+      .then(({ listStudioGoogleEvents }) =>
+        listStudioGoogleEvents({ skipStarts: rows.map((row) => row.starts_at) }),
+      )
+      .catch(() => []);
+    return [
+      ...rows.map((row) => ({ ...row, all_day: false })),
+      ...google.map((event) => ({
+        id: event.id,
+        starts_at: event.startsAt,
+        guest_name: event.name,
+        guest_email: "",
+        note: "google calendar",
+        created_at: event.startsAt,
+        all_day: event.allDay,
+      })),
+    ].sort((left, right) => left.starts_at.localeCompare(right.starts_at));
   });

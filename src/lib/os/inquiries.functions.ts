@@ -438,6 +438,35 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
     const latestTasks = await listStudioTasks(context.supabase);
 
     const projectClients = new Map((clientsResult.data ?? []).map((client) => [client.id, client]));
+    const storedTalks = appointmentsResult.error
+      ? []
+      : (appointmentsResult.data ?? []).map((row) => ({
+          id: row.id,
+          startsAt: row.starts_at,
+          name: row.guest_name,
+          email: row.guest_email,
+          note: row.note ?? "",
+        }));
+    const googleTalks = await import("@/lib/os/google.server")
+      .then(({ listStudioGoogleEvents }) =>
+        listStudioGoogleEvents({
+          skipIds: (projectsResult.data ?? [])
+            .map((project) => project.google_event_id)
+            .filter((id): id is string => Boolean(id)),
+          skipStarts: storedTalks.map((talk) => talk.startsAt),
+        }),
+      )
+      .then((events) =>
+        events.map((event) => ({
+          id: event.id,
+          startsAt: event.startsAt,
+          name: event.name,
+          email: "",
+          note: "",
+          allDay: event.allDay,
+        })),
+      )
+      .catch(() => []);
     return assembleStudioToday({
       inquiries: leads,
       projects: (projectsResult.data ?? []).map((project) => ({
@@ -445,15 +474,7 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
         client: projectClients.get(project.client_id) ?? null,
       })),
       tasks: latestTasks,
-      appointments: appointmentsResult.error
-        ? []
-        : (appointmentsResult.data ?? []).map((row) => ({
-            id: row.id,
-            startsAt: row.starts_at,
-            name: row.guest_name,
-            email: row.guest_email,
-            note: row.note ?? "",
-          })),
+      appointments: [...storedTalks, ...googleTalks],
     });
   });
 
