@@ -12,7 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Wordmark } from "@/components/portal/bits";
 import { PersonName, isPersonType } from "@/components/studio/PersonName";
 import { isStudioOwner, noteAuthor, noteWriter, SIGNATURE_COPYRIGHT, SIGNATURE_LINKS, signatureName, wroteNote } from "@/lib/os/mail-signature";
-import { applyTemplate, loadTemplates, saveTemplates, type MailTemplate } from "@/lib/os/mail-templates";
+import { clientReplyText } from "@/lib/os/mail-reply";
+import { applyTemplate, BUILT_IN_TEMPLATES, loadTemplates, saveTemplates, type MailTemplate } from "@/lib/os/mail-templates";
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 import type { InquiryMessageRow, InquiryStatus } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +26,7 @@ import {
   updatePreviewProposalTerms,
 } from "@/lib/preview-proposals";
 import { STATEMENT_FIELDS, INVOICE_THANKS, courtesyFromNotes, floralPackageName, invoiceBookingLine, invoiceDateLabel, invoiceSharedDate, statementFromNotes, statementOfWork, type StatementOfWork } from "@/lib/floral-agreement";
-import { dollarsToCents, ensureProposalLink, formatDollarInput, letterWithProposalUrl, proposalCards, readFileDataUrl } from "@/lib/proposal-link";
+import { dollarsToCents, ensureProposalLink, formatDollarInput, proposalCards, readFileDataUrl } from "@/lib/proposal-link";
 import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
 import {
   EVENT_LABEL,
@@ -263,6 +264,51 @@ function MailFile({ name, href }: { name: string; href?: string | null }) {
   );
 }
 
+function LetterPreview({
+  body,
+  href,
+  sender,
+}: {
+  body: string;
+  href: string | null;
+  sender: string;
+}) {
+  const person = signatureName(sender);
+  const text = proposalCards(body).text;
+  return (
+    <article className="studio-letter">
+      <p className="studio-letter-subject">your proposal</p>
+      {text ? <MailBody body={text} /> : null}
+      {href ? (
+        <a className="studio-letter-button" href={href} target="_blank" rel="noreferrer">
+          your proposal
+        </a>
+      ) : (
+        <span className="studio-letter-button">your proposal</span>
+      )}
+      <footer className="studio-letter-sign">
+        <p>with gratitude,</p>
+        <p>
+          <strong>
+            <PersonName name={person} /> | Say Sukii
+          </strong>
+        </p>
+        {isStudioOwner(person) ? <p>floral artist, founder & creative director</p> : null}
+        <p>
+          <a href={SIGNATURE_LINKS.site}>saysukii.com</a>
+        </p>
+        <p>
+          <a href={SIGNATURE_LINKS.instagram}>instagram</a>
+        </p>
+        <p>
+          <a href={scheduleMeetingUrl()}>let's talk! schedule meeting here</a>
+        </p>
+        <p>{SIGNATURE_COPYRIGHT}</p>
+      </footer>
+    </article>
+  );
+}
+
 function MailSignature({ name }: { name: string }) {
   const person = signatureName(name);
   return (
@@ -326,10 +372,38 @@ function firstName(name: string | null | undefined) {
   return name?.trim().split(/\s+/)[0] || "there";
 }
 
-function proposalLetter(template: MailTemplate, name: string | null | undefined, href: string | null, job?: string | null) {
-  const body = applyTemplate(template.body, name, job);
-  if (!href) return `${body}\n\nyour proposal`;
-  return letterWithProposalUrl(ensureProposalLink(body, href));
+function problemText(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function copyText(value: string) {
+  const area = document.createElement("textarea");
+  area.value = value;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.top = "0";
+  area.style.left = "0";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.focus();
+  area.select();
+  const copied = document.execCommand("copy");
+  area.remove();
+  return copied;
+}
+
+async function writeClipboard(value: string) {
+  const modern = navigator.clipboard.writeText(value).then(
+    () => true,
+    () => false,
+  );
+  if (copyText(value)) return true;
+  return modern;
 }
 
 function heldLine(facts: { eventDate?: string | null; dateTbd?: boolean | null; place?: string | null }) {
@@ -877,11 +951,8 @@ function ThreadComposer({
                 </DialogClose>
               </div>
               <DialogTitle className="sr-only">email templates</DialogTitle>
-              <DialogDescription className="sr-only">choose a letter, or add one of your own.</DialogDescription>
+              <DialogDescription className="sr-only">choose a letter.</DialogDescription>
               <div className="studio-task-form">
-                <button type="button" className="studio-template-add" onClick={() => beginTemplate()}>
-                  add template
-                </button>
                 <div className="studio-template-list">
                   {templates.map((item) => (
                     <div key={item.id} className="studio-template-row">
@@ -1075,7 +1146,11 @@ function mailParty(message: InquiryMessageRow, clientName: string | null | undef
     mark: initials(name),
     subject: message.subject?.trim() || "",
     formArrival: message.channel === "form" || (message.direction === "inbound" && /^new inquiry$/i.test(message.subject?.trim() ?? "")),
-    ...splitMail(message.body),
+    ...(() => {
+      const split = splitMail(message.body);
+      const inbound = message.direction === "inbound" && message.channel !== "form";
+      return { ...split, text: inbound ? clientReplyText(split.text) : split.text };
+    })(),
     waiting: message.status === "queued",
   };
 }
@@ -1285,7 +1360,7 @@ function MailFace({
                   <span className="studio-mail-avatar is-gap" aria-hidden="true" />
                 )}
                 <div className="studio-mail-bubble">
-                  {!hiddenSubject(mail.subject) ? <p className="studio-mail-subject">{mail.subject}</p> : null}
+                  {!hiddenSubject(mail.subject) && !/^re:/i.test(mail.subject) ? <p className="studio-mail-subject">{mail.subject}</p> : null}
                   {text ? (
                     <MailBody body={proposalCards(studio ? withoutSignoff(text) : text).text} />
                   ) : null}
@@ -1337,7 +1412,6 @@ function InvoicePreview({
   depositCents: number;
   issuedOn: string;
 }) {
-  const [layout, setLayout] = useState<"sheet" | "figure" | "columns">("sheet");
   const dueLabel = depositCents >= totalCents && totalCents > 0 ? "due in full" : "deposit due";
   const list = formatMoneyExact(listCents);
   const total = formatMoneyExact(totalCents);
@@ -1386,98 +1460,35 @@ function InvoicePreview({
   );
   return (
     <div className="studio-invoice-preview">
-      <div className="studio-pay" role="group" aria-label="invoice layouts">
-        {(["sheet", "figure", "columns"] as const).map((item) => (
-          <button key={item} type="button" className={layout === item ? "is-on" : undefined} aria-pressed={layout === item} onClick={() => setLayout(item)}>
-            {layout === item ? <i className="studio-pill-dot" aria-hidden="true" /> : null}
-            {item}
-          </button>
-        ))}
-      </div>
-      {layout === "sheet" ? (
-        <article className="studio-invoice is-sheet">
-          <div className="studio-invoice-top">
-            <header>
-              <div>
-                <p>invoice</p>
-                <span>{number}</span>
-                {shared ? <em>shared {shared}</em> : null}
-              </div>
-              <Wordmark tone="ink" className="client-packet-mark is-sheet" />
-            </header>
-            <div className="studio-invoice-who">
-              <div>
-                <p>from</p>
-                <b>Say Sukii</b>
-                <span>info@saysukii.com</span>
-              </div>
-              <div>
-                <p>bill to</p>
-                <b>{clientName}</b>
-              </div>
+      <article className="studio-invoice is-figure">
+        <div className="studio-invoice-top">
+          <header>
+            <div>
+              <p>{dueLabel}</p>
+              <strong>{due}</strong>
+              <em>
+                {number}
+                {shared ? ` · shared ${shared}` : ""}
+              </em>
+            </div>
+            <Wordmark tone="ink" className="client-packet-mark is-sheet" />
+          </header>
+          <div className="studio-invoice-who">
+            <div>
+              <p>bill to</p>
+              <b>{clientName}</b>
+            </div>
+            <div>
+              <p>from</p>
+              <b>Say Sukii</b>
+              <span>info@saysukii.com</span>
             </div>
           </div>
-          {lines}
-          {summary}
-          <p className="studio-invoice-note">{INVOICE_THANKS}</p>
-        </article>
-      ) : null}
-      {layout === "figure" ? (
-        <article className="studio-invoice is-figure">
-          <div className="studio-invoice-top">
-            <header>
-              <div>
-                <p>{dueLabel}</p>
-                <strong>{due}</strong>
-                {shared ? <em>shared {shared}</em> : null}
-              </div>
-              <Wordmark tone="ink" className="client-packet-mark is-sheet" />
-            </header>
-            <div className="studio-invoice-who">
-              <div>
-                <p>bill to</p>
-                <b>{clientName}</b>
-              </div>
-              <div>
-                <p>from</p>
-                <b>Say Sukii</b>
-                <span>info@saysukii.com</span>
-              </div>
-            </div>
-          </div>
-          {lines}
-          {summary}
-          <p className="studio-invoice-note">{INVOICE_THANKS}</p>
-        </article>
-      ) : null}
-      {layout === "columns" ? (
-        <article className="studio-invoice is-columns">
-          <div className="studio-invoice-top">
-            <div className="studio-invoice-brand">
-              <Wordmark tone="ink" className="client-packet-mark is-sheet" />
-            </div>
-            <header>
-              <div>
-                <p>invoice</p>
-                <b>{number}</b>
-                {shared ? <em>shared {shared}</em> : null}
-              </div>
-              <div>
-                <p>from</p>
-                <b>Say Sukii</b>
-                <span>info@saysukii.com</span>
-              </div>
-              <div>
-                <p>bill to</p>
-                <b>{clientName}</b>
-              </div>
-            </header>
-          </div>
-          {lines}
-          {summary}
-          <p className="studio-invoice-note">{INVOICE_THANKS}</p>
-        </article>
-      ) : null}
+        </div>
+        {lines}
+        {summary}
+        <p className="studio-invoice-note">{INVOICE_THANKS}</p>
+      </article>
     </div>
   );
 }
@@ -1612,7 +1623,8 @@ export function InquiryLeadPane({
   const [shareMenu, setShareMenu] = useState(false);
   const [packetOpen, setPacketOpen] = useState(false);
   const [packetKind, setPacketKind] = useState<"proposal" | "agreement" | "invoice">("proposal");
-  const [shareTemplateId, setShareTemplateId] = useState("proposal");
+  const [copiedLink, setCopiedLink] = useState(false);
+  const copiedTimer = useRef<number | null>(null);
   const proposalSeeded = useRef(false);
   const workSeeded = useRef(false);
 
@@ -2185,17 +2197,58 @@ export function InquiryLeadPane({
     return href;
   }
 
+  function markCopied() {
+    setCopiedLink(true);
+    toast.success("copied");
+    if (copiedTimer.current) window.clearTimeout(copiedTimer.current);
+    copiedTimer.current = window.setTimeout(() => {
+      setCopiedLink(false);
+      setShareMenu(false);
+      copiedTimer.current = null;
+    }, 2200);
+  }
+
   async function copyProposal() {
-    setProposalBusy(true);
     setProposalError("");
+    if (!proposalFile && proposalHref) {
+      const copied = await writeClipboard(proposalHref);
+      if (!copied) {
+        setProposalError("could not copy the link");
+        return;
+      }
+      const token = proposalHref.split("/proposal/").pop() ?? "";
+      if (token.startsWith("preview_")) markPreviewProposalSent(token);
+      markCopied();
+      return;
+    }
+    const pending = readyProposalHref();
+    setProposalBusy(true);
     try {
-      const href = await readyProposalHref();
+      let href = "";
+      let copied = false;
+      if ("ClipboardItem" in window) {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/plain": pending.then((value) => {
+                href = value;
+                return new Blob([value], { type: "text/plain" });
+              }),
+            }),
+          ]);
+          copied = true;
+        } catch {
+          copied = false;
+        }
+      }
+      if (!href) href = await pending;
+      if (!copied) copied = await writeClipboard(href);
+      if (!copied) throw new Error("could not copy the link");
       const token = href.split("/proposal/").pop() ?? "";
       if (token.startsWith("preview_")) markPreviewProposalSent(token);
-      await navigator.clipboard.writeText(href);
-      toast.success("copied");
+      markCopied();
     } catch (error) {
-      setProposalError(error instanceof Error ? error.message : "could not copy the link");
+      setProposalError(problemText(error, "could not copy the link"));
     } finally {
       setProposalBusy(false);
     }
@@ -2224,21 +2277,17 @@ export function InquiryLeadPane({
   }
 
   async function emailProposal() {
-    const template = loadTemplates().find((item) => item.id === shareTemplateId) ?? loadTemplates()[0];
+    const template = BUILT_IN_TEMPLATES.find((item) => item.id === "proposal");
     if (!template) return;
     setProposalBusy(true);
     setProposalError("");
     try {
       const href = await readyProposalHref();
       const body = ensureProposalLink(applyTemplate(template.body, client?.name, EVENT_LABEL[inquiry.event_type]), href);
+      await post.mutateAsync({ body, fresh: true, subject: template.subject || PROPOSAL_THREAD });
       setProposalShare(false);
-      queueLetter(
-        () => post.mutate({ body, fresh: true, subject: PROPOSAL_THREAD }),
-        () => undefined,
-        client?.name ?? null,
-      );
     } catch (error) {
-      setProposalError(error instanceof Error ? error.message : "could not send the proposal");
+      setProposalError(problemText(error, "could not send the proposal"));
     } finally {
       setProposalBusy(false);
     }
@@ -2248,10 +2297,12 @@ export function InquiryLeadPane({
   const courtesyCents = dollarsToCents(proposalCourtesy) ?? 0;
   const proposalCents = listCents == null ? null : Math.max(0, listCents - courtesyCents);
   const depositCents = proposalCents ? (proposalPay === "full" ? proposalCents : Math.round(proposalCents / 2)) : 0;
-  const shareTemplates = loadTemplates();
-  const shareTemplate = shareTemplates.find((item) => item.id === shareTemplateId) ?? shareTemplates[0];
-  const sharePreview = shareTemplate
-    ? proposalLetter(shareTemplate, client?.name, proposalHref, EVENT_LABEL[inquiry.event_type])
+  const proposalTemplate = BUILT_IN_TEMPLATES.find((item) => item.id === "proposal");
+  const proposalLetterBody = proposalTemplate
+    ? ensureProposalLink(
+        applyTemplate(proposalTemplate.body, client?.name, EVENT_LABEL[inquiry.event_type]),
+        proposalHref || "https://inside.saysukii.com/proposal/preview",
+      )
     : "";
 
   const composer = (
@@ -2823,6 +2874,7 @@ export function InquiryLeadPane({
                 </div>
               </div>
             </div>
+            {proposalError && !proposalShare ? <p className="studio-composer-note">{proposalError}</p> : null}
             <div className={cn("studio-ask-foot", profile.role === "admin" && "is-spread")}>
               {profile.role === "admin" ? (
                 <button type="button" className="studio-proposal-preview" onClick={() => setPacketOpen(true)}>
@@ -2837,7 +2889,7 @@ export function InquiryLeadPane({
                     aria-expanded={shareMenu}
                     disabled={proposalBusy || post.isPending}
                   >
-                    share
+                    {copiedLink ? "copied" : "share"}
                   </button>
                 </PopoverTrigger>
                 <PopoverContent
@@ -2848,16 +2900,16 @@ export function InquiryLeadPane({
                   className="studio-proposal-share w-44 border-0 shadow-none data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
                   onOpenAutoFocus={(event) => event.preventDefault()}
                   onCloseAutoFocus={(event) => event.preventDefault()}
+                  onFocusOutside={(event) => event.preventDefault()}
                 >
                   <button
                     type="button"
                     disabled={proposalBusy}
                     onClick={() => {
-                      setShareMenu(false);
                       void copyProposal();
                     }}
                   >
-                    copy link
+                    {copiedLink ? "copied" : "copy link"}
                   </button>
                   <button
                     type="button"
@@ -2948,26 +3000,9 @@ export function InquiryLeadPane({
                 </DialogClose>
               </div>
               <DialogTitle className="sr-only">email the proposal</DialogTitle>
-              <DialogDescription className="sr-only">preview the letter, then send it.</DialogDescription>
+              <DialogDescription className="sr-only">this is the letter they will receive.</DialogDescription>
               <div className="studio-task-form">
-                <div className="studio-ask-field">
-                  <span className="studio-ask-label">preview</span>
-                  <div className="studio-textarea studio-share-preview">{sharePreview}</div>
-                </div>
-                <div className="studio-template-list">
-                  {shareTemplates.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={cn("studio-template-item", item.id === shareTemplate?.id && "is-on")}
-                      aria-pressed={item.id === shareTemplate?.id}
-                      onClick={() => setShareTemplateId(item.id)}
-                    >
-                      <b>{item.name}</b>
-                      <em>{previewLine(applyTemplate(item.body, client?.name, EVENT_LABEL[inquiry.event_type]))}</em>
-                    </button>
-                  ))}
-                </div>
+                <LetterPreview body={proposalLetterBody} href={proposalHref} sender={signatureName(profile.full_name)} />
                 {proposalError ? <p className="studio-composer-note">{proposalError}</p> : null}
                 <div className="studio-ask-foot">
                   <button type="button" className="studio-today-go" disabled={proposalBusy || post.isPending} onClick={() => void emailProposal()}>

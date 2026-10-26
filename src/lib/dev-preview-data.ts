@@ -1032,6 +1032,36 @@ export function getDevPreviewInquiryWorkspace(id: string) {
       created_by: null,
       created_at: iso(-6),
     });
+    messages.push({
+      id: "msg-in-amelia-reply",
+      inquiry_id: inquiry.id,
+      direction: "inbound",
+      channel: "email",
+      subject: "Re: flowers for vizcaya museum & gardens",
+      body: [
+        "Thank you!",
+        "",
+        "Warmly,",
+        "",
+        "Amelia",
+        "",
+        "On Mon, Oct 26, 2026 at 4:09 PM Say Sukii <info@saysukii.com> wrote:",
+        "",
+        "amelia — the proposal is here whenever you want to sit with it.",
+        "",
+        "your proposal",
+        "https://saysukii.com/proposal/preview_amelia8f3c1a9b2d4e6f708192a3b4c5d6e7",
+      ].join("\n"),
+      from_address: client?.email ?? null,
+      to_address: "info@saysukii.com",
+      gmail_message_id: "gmail-in-amelia-reply",
+      gmail_thread_id: "thread-amelia-proposal",
+      author: client?.name ?? null,
+      sent_at: iso(-1),
+      status: "received",
+      created_by: null,
+      created_at: iso(-1),
+    });
   }
 
   const proposalRows = proposals

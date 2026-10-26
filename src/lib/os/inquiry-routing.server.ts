@@ -350,10 +350,13 @@ export function createMemoryRoutingStore(seed: Partial<MemoryRoutingState> = {})
 
   const store: RoutingStore = {
     async listUnprocessed(limit) {
-      return state.inbound
-        .filter((row) => !row.processed_at && !row.routing_result)
-        .sort((a, b) => a.received_at.localeCompare(b.received_at))
-        .slice(0, limit);
+      const threads = new Set(
+        state.messages.map((row) => row.gmail_thread_id).filter((id): id is string => Boolean(id)),
+      );
+      return orderUnprocessedInbound(
+        state.inbound.filter((row) => !row.processed_at && !row.routing_result),
+        threads,
+      ).slice(0, limit);
     },
     async findMatches(message) {
       return assembleMatches(message, state);
@@ -656,6 +659,40 @@ function tally(result: RoutingRunResult, action: InboundRoutingResult) {
   else result.ignored += 1;
 }
 
+export function orderUnprocessedInbound(
+  rows: InboundMessageRow[],
+  knownThreadIds: ReadonlySet<string>,
+) {
+  return [...rows].sort((left, right) => {
+    const leftHit = left.gmail_thread_id && knownThreadIds.has(left.gmail_thread_id) ? 0 : 1;
+    const rightHit = right.gmail_thread_id && knownThreadIds.has(right.gmail_thread_id) ? 0 : 1;
+    if (leftHit !== rightHit) return leftHit - rightHit;
+    return left.received_at.localeCompare(right.received_at);
+  });
+}
+
+export function activeThreadReply(
+  message: Pick<InboundMessageRow, "from_addr">,
+  matches: InquiryMatch[],
+): RoutingDecision | null {
+  const email = normalizeSenderEmail(message.from_addr);
+  if (!email || email.endsWith("@saysukii.com")) return null;
+  const thread = matches.find((row) => row.active && row.match_via.includes("thread"));
+  if (!thread) return null;
+  return {
+    action: "attached",
+    matched_inquiry_id: thread.id,
+    is_true_inquiry: true,
+    confidence: 1,
+    reason: "reply on the same gmail thread as an open inquiry",
+    extraction: {
+      ...EMPTY_EXTRACTION,
+      email,
+      name: senderName(message.from_addr),
+    },
+  };
+}
+
 export async function routeUnprocessedInbound(deps: {
   store: RoutingStore;
   classify: ClassifyInbound;
@@ -692,6 +729,12 @@ export async function routeUnprocessedInbound(deps: {
       }
 
       const matches = await deps.store.findMatches(message);
+      const threadReply = activeThreadReply(message, matches);
+      if (threadReply) {
+        const action = await applyDecision(message, threadReply, deps.store, now());
+        tally(result, action);
+        continue;
+      }
       const raw = await deps.classify({ message, matches });
       const decision = normalizeRoutingDecision(raw, matches, message);
       if (decision.action === "candidate" && !normalizeSenderEmail(decision.extraction.email ?? message.from_addr)) {
@@ -701,8 +744,9 @@ export async function routeUnprocessedInbound(deps: {
       }
       const action = await applyDecision(message, decision, deps.store, now());
       tally(result, action);
-    } catch {
+    } catch (error) {
       result.errors += 1;
+      console.error("[gmail-route] left a message unprocessed:", error instanceof Error ? error.message : error);
     }
   }
 
@@ -906,6 +950,7 @@ async function listUnprocessedFromSupabase(limit: number) {
   if (!supabaseConfigured()) return null;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const priority = await listThreadRepliesFromSupabase(limit);
     const { data, error } = await supabaseAdmin
       .from("inbound_messages")
       .select("*")
@@ -914,10 +959,44 @@ async function listUnprocessedFromSupabase(limit: number) {
       .order("received_at", { ascending: true })
       .limit(limit);
     if (error) return null;
-    return (data ?? []) as InboundMessageRow[];
+    const rest = (data ?? []) as InboundMessageRow[];
+    if (!priority.length) return rest;
+    const seen = new Set(priority.map((row) => row.id));
+    const merged = [...priority];
+    for (const row of rest) {
+      if (seen.has(row.id)) continue;
+      merged.push(row);
+      if (merged.length >= limit) break;
+    }
+    return merged.slice(0, limit);
   } catch {
     return null;
   }
+}
+
+async function listThreadRepliesFromSupabase(limit: number) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const threads = await supabaseAdmin.from("inquiry_messages").select("gmail_thread_id").not("gmail_thread_id", "is", null);
+  if (threads.error) return [];
+  const threadIds = [
+    ...new Set((threads.data ?? []).map((row) => row.gmail_thread_id).filter((id): id is string => Boolean(id))),
+  ];
+  if (!threadIds.length) return [];
+  const found: InboundMessageRow[] = [];
+  for (let i = 0; i < threadIds.length && found.length < limit; i += 100) {
+    const slice = threadIds.slice(i, i + 100);
+    const { data, error } = await supabaseAdmin
+      .from("inbound_messages")
+      .select("*")
+      .is("processed_at", null)
+      .is("routing_result", null)
+      .in("gmail_thread_id", slice)
+      .order("received_at", { ascending: true })
+      .limit(limit);
+    if (error || !data) continue;
+    found.push(...(data as InboundMessageRow[]));
+  }
+  return found.slice(0, limit);
 }
 
 async function findMatchesFromSupabase(message: InboundMessageRow) {

@@ -82,7 +82,24 @@ describe("Gmail outbound composer", () => {
       "base64",
     ).toString("utf8");
     assert.match(html, /<a href="https:\/\/inside\.saysukii\.com\/schedule"/);
+    assert.match(html, /color:#ff4d94/);
     assert.match(html, />calendar link</);
+  });
+
+  it("sends a proposal link as a pink button and other links as pink text", () => {
+    const rfc = buildRfc822({
+      from: "info@saysukii.com",
+      to: "camila@example.com",
+      subject: "your proposal",
+      body: "ready.\n\n[your proposal](https://inside.saysukii.com/proposal/abc)\n\n[saysukii.com](https://www.saysukii.com)",
+    });
+    const html = Buffer.from(
+      rfc.split("Content-Type: text/html; charset=UTF-8")[1]?.split("--saysukii-letter--")[0]?.replace(/Content-Transfer-Encoding: base64/g, "").replace(/\s+/g, "") ?? "",
+      "base64",
+    ).toString("utf8");
+    assert.match(html, /background:#ff4d94/);
+    assert.match(html, />your proposal</);
+    assert.match(html, /color:#ff4d94;text-decoration:underline/);
   });
 
   it("starts a new Gmail thread when the inquiry has no gmail_thread_id", async () => {

@@ -8924,6 +8924,10 @@ button.studio-metric:hover {
   white-space: pre-wrap;
 }
 
+.studio-mail-face-item:not(.is-out) .studio-mail-body {
+  text-transform: none;
+}
+
 .studio-proposal-files {
   display: grid;
   gap: 8px;
@@ -9631,6 +9635,67 @@ button.studio-metric:hover {
   overflow-wrap: anywhere;
   margin: 0;
   cursor: default;
+}
+
+.studio-letter {
+  display: grid;
+  gap: 14px;
+  padding: 4px 2px 0;
+  color: #24221f;
+  text-align: left;
+  text-transform: none;
+}
+
+.studio-letter-subject,
+.studio-letter .studio-mail-body,
+.studio-letter-sign,
+.studio-letter-sign p {
+  margin: 0;
+  text-transform: none;
+}
+
+.studio-letter-subject {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.studio-letter .studio-mail-body {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.studio-letter-button {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #ff4d94;
+  color: #fff8f9;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.studio-letter-sign {
+  display: grid;
+  gap: 2px;
+}
+
+.studio-letter-sign p {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.45;
+}
+
+.studio-letter-sign a,
+.studio-letter .studio-mail-body a {
+  color: #ff4d94;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .studio-pay button.is-on,

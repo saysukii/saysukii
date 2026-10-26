@@ -17,7 +17,7 @@ import { listStudioTasks, syncInquiryAutoTaskFor, syncInquiryAutoTasks } from "@
 import { refreshInquirySummarySafe, summarizeInquiryRecord } from "@/lib/os/inquiry-summary.server";
 import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
 import { noteWriter, signatureName, signatureText, wroteNote } from "@/lib/os/mail-signature";
-import { letterWithProposalUrl, proposalCards } from "@/lib/proposal-link";
+import { proposalCards } from "@/lib/proposal-link";
 
 const eventType = z.enum([
   "wedding",
@@ -914,7 +914,7 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
       to,
       toName: clientResult.data.name,
       subject,
-      body: `${letterWithProposalUrl(data.body.trim())}\n\n${signatureText(sender)}`,
+      body: `${data.body.trim()}\n\n${signatureText(sender)}`,
       threadId: fresh ? null : reply.threadId,
       inReplyTo,
       references,

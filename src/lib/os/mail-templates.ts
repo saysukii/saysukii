@@ -45,32 +45,8 @@ export const BUILT_IN_TEMPLATES: MailTemplate[] = [
   {
     id: "proposal",
     name: "your proposal",
+    subject: "your proposal",
     body: "{name} —\n\nyour proposal is ready. it holds the flowers, the scale, and the investment for the day.",
-  },
-  {
-    id: "thanks",
-    name: "thank them",
-    body: "{name} —\n\nthank you for writing. i'm with you on this, and i'll come back shortly with a clear next step.",
-  },
-  {
-    id: "hold",
-    name: "hold the date",
-    body: "{name} —\n\ni'll hold the date. a first look at scale and palette will follow this week.",
-  },
-  {
-    id: "look",
-    name: "first look",
-    body: "{name} —\n\na first look is ready whenever you are. it covers palette, scale, and how the flowers move through the day.",
-  },
-  {
-    id: "visit",
-    name: "after the visit",
-    body: "{name} —\n\nit was lovely to walk the place with you. i'll shape what we talked about into a proposal.",
-  },
-  {
-    id: "nudge",
-    name: "a gentle nudge",
-    body: "{name} —\n\njust a note in case the proposal is still open on your side. i'm here when you're ready.",
   },
 ];
 
@@ -98,11 +74,6 @@ const PREVIOUS_TEMPLATE_BODIES: Record<string, string> = {
     "<3",
   ].join("\n"),
   proposal: "{name} —\n\nYour proposal is ready. It holds the flowers, the scale, and the investment for the day.",
-  thanks: "{name} —\n\nThank you for writing. I'm with you on this, and I'll come back shortly with a clear next step.",
-  hold: "{name} —\n\nI'll hold the date. A first look at scale and palette will follow this week.",
-  look: "{name} —\n\nA first look is ready whenever you are. It covers palette, scale, and how the flowers move through the day.",
-  visit: "{name} —\n\nIt was lovely to walk the place with you. I'll shape what we talked about into a proposal.",
-  nudge: "{name} —\n\nJust a note in case the proposal is still open on your side. I'm here when you're ready.",
 };
 
 function readStored(): MailTemplate[] | null {
@@ -118,8 +89,9 @@ function readStored(): MailTemplate[] | null {
 }
 
 export function loadTemplates(): MailTemplate[] {
-  const saved = readStored();
-  if (!saved) return BUILT_IN_TEMPLATES.map((item) => ({ ...item }));
+  const kept = new Set(BUILT_IN_TEMPLATES.map((item) => item.id));
+  const saved = readStored()?.filter((item) => kept.has(item.id)) ?? null;
+  if (!saved?.length) return BUILT_IN_TEMPLATES.map((item) => ({ ...item }));
   const builtIn = new Map(BUILT_IN_TEMPLATES.map((item) => [item.id, item]));
   const known = new Set(saved.map((item) => item.id));
   const added = BUILT_IN_TEMPLATES.filter((item) => !known.has(item.id)).map((item) => ({ ...item }));

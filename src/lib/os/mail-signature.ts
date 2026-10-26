@@ -42,8 +42,8 @@ export function signatureText(name: string) {
   const lines = ["with gratitude,", "", `${name} | Say Sukii`];
   if (isStudioOwner(name)) lines.push("floral artist, founder & creative director");
   lines.push(
-    SIGNATURE_LINKS.site,
-    SIGNATURE_LINKS.instagram,
+    `[saysukii.com](${SIGNATURE_LINKS.site})`,
+    `[instagram](${SIGNATURE_LINKS.instagram})`,
     `[let's talk! schedule meeting here](${scheduleMeetingUrl()})`,
     "",
     SIGNATURE_COPYRIGHT,

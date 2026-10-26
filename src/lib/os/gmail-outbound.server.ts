@@ -66,6 +66,8 @@ export function markdownToPlain(value: string) {
   return value.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1 ($2)");
 }
 
+const LINK_PINK = "#ff4d94";
+
 export function markdownToHtml(value: string) {
   const escaped = value
     .replaceAll("&", "&amp;")
@@ -73,10 +75,12 @@ export function markdownToHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
   return escaped
-    .replace(
-      /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
-      '<a href="$2" style="color:#24221F;text-decoration:underline;">$1</a>',
-    )
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_match, label: string, href: string) => {
+      if (/\/proposal\//i.test(href)) {
+        return `<a href="${href}" style="display:inline-block;margin:8px 0;padding:12px 22px;background:${LINK_PINK};color:#fff8f9;text-decoration:none;border-radius:999px;font-weight:600;">${label}</a>`;
+      }
+      return `<a href="${href}" style="color:${LINK_PINK};text-decoration:underline;">${label}</a>`;
+    })
     .replaceAll("\n", "<br>");
 }
 

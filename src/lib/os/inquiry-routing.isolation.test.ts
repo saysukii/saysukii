@@ -310,6 +310,59 @@ describe("classify + route engine", () => {
     assert.equal(state.labels.length, 0);
   });
 
+  it("files a reply on the open thread ahead of older inbox noise, even if the model would ignore it", async () => {
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("noise", {
+          from_addr: "cash@square.com",
+          gmail_thread_id: "thread-receipt",
+          subject: "You spent $15",
+          body: "receipt",
+          received_at: "2026-09-01T00:00:00.000Z",
+        }),
+        inbound("reply", {
+          gmail_thread_id: "thread-wedding",
+          subject: "Re: Let's Connect!",
+          body: "thank you!",
+          received_at: "2026-09-14T19:00:00.000Z",
+        }),
+      ],
+      clients: [client("cli-ada")],
+      inquiries: [inquiry("inq-wedding", "cli-ada")],
+      messages: [threadMessage("inq-wedding", "thread-wedding")],
+    });
+
+    const first = await store.listUnprocessed(1);
+    assert.equal(first[0]?.gmail_message_id, "gmail-reply");
+
+    let classified = 0;
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      limit: 2,
+      classify: async () => {
+        classified += 1;
+        return {
+          action: "ignored",
+          matched_inquiry_id: null,
+          is_true_inquiry: false,
+          confidence: 0.99,
+          reason: "not a booking",
+          extraction: {},
+        };
+      },
+    });
+
+    assert.equal(classified, 1);
+    assert.equal(result.attached, 1);
+    assert.equal(result.ignored, 1);
+    const added = state.messages.find((row) => row.gmail_message_id === "gmail-reply");
+    assert.equal(added?.inquiry_id, "inq-wedding");
+    assert.equal(added?.direction, "inbound");
+    assert.match(added?.body ?? "", /thank you/);
+    assert.equal(state.inbound.find((row) => row.id === "inb-reply")?.routing_result, "attached");
+  });
+
   it("opens a new candidate when a past client writes about a different event", async () => {
     const { state, store } = createMemoryRoutingStore({
       inbound: [
