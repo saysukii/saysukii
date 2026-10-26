@@ -44,7 +44,7 @@ type NavItem = {
 const ADMIN_NAV: NavItem[] = [
   { to: "/dashboard", label: "today" },
   { to: "/pipeline", label: "inquiries" },
-  { to: "/schedule", label: "schedule" },
+  { to: "/calendar", label: "schedule" },
   { to: "/library", label: "library" },
 ];
 

@@ -16,9 +16,10 @@ import { Route as BookRouteImport } from './routes/book'
 import { Route as EmailPreviewRouteImport } from './routes/email-preview'
 import { Route as InquireRouteImport } from './routes/inquire'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
-import { Route as AuthenticatedScheduleRouteImport } from './routes/_authenticated/schedule'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedShelfRouteImport } from './routes/_authenticated/shelf'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -76,6 +77,16 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -84,11 +95,6 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedLibraryRoute = AuthenticatedLibraryRouteImport.update({
   id: '/library',
   path: '/library',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedScheduleRoute = AuthenticatedScheduleRouteImport.update({
-  id: '/schedule',
-  path: '/schedule',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
@@ -220,9 +226,10 @@ export interface FileRoutesByFullPath {
   '/email-preview': typeof EmailPreviewRoute
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/schedule': typeof ScheduleRoute
+  '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/library': typeof AuthenticatedLibraryRoute
-  '/schedule': typeof AuthenticatedScheduleRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -252,9 +259,10 @@ export interface FileRoutesByTo {
   '/book': typeof BookRoute
   '/email-preview': typeof EmailPreviewRoute
   '/onboarding': typeof OnboardingRoute
+  '/schedule': typeof ScheduleRoute
+  '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/library': typeof AuthenticatedLibraryRoute
-  '/schedule': typeof AuthenticatedScheduleRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -285,9 +293,10 @@ export interface FileRoutesById {
   '/email-preview': typeof EmailPreviewRoute
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/schedule': typeof ScheduleRoute
+  '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/library': typeof AuthenticatedLibraryRoute
-  '/_authenticated/schedule': typeof AuthenticatedScheduleRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -320,9 +329,10 @@ export interface FileRouteTypes {
     | '/email-preview'
     | '/inquire'
     | '/onboarding'
+    | '/schedule'
+    | '/calendar'
     | '/dashboard'
     | '/library'
-    | '/schedule'
     | '/settings'
     | '/shelf'
     | '/auth/callback'
@@ -352,9 +362,10 @@ export interface FileRouteTypes {
     | '/book'
     | '/email-preview'
     | '/onboarding'
+    | '/schedule'
+    | '/calendar'
     | '/dashboard'
     | '/library'
-    | '/schedule'
     | '/settings'
     | '/shelf'
     | '/auth/callback'
@@ -384,9 +395,10 @@ export interface FileRouteTypes {
     | '/email-preview'
     | '/inquire'
     | '/onboarding'
+    | '/schedule'
+    | '/_authenticated/calendar'
     | '/_authenticated/dashboard'
     | '/_authenticated/library'
-    | '/_authenticated/schedule'
     | '/_authenticated/settings'
     | '/_authenticated/shelf'
     | '/auth/callback'
@@ -419,6 +431,7 @@ export interface RootRouteChildren {
   EmailPreviewRoute: typeof EmailPreviewRoute
   InquireRoute: typeof InquireRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  ScheduleRoute: typeof ScheduleRoute
   ProposalTokenRoute: typeof ProposalTokenRoute
   ApiCronGmailInboundRoute: typeof ApiCronGmailInboundRoute
   ApiCronGmailRouteRoute: typeof ApiCronGmailRouteRoute
@@ -479,6 +492,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/calendar': {
+      id: '/_authenticated/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AuthenticatedCalendarRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -491,13 +518,6 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof AuthenticatedLibraryRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/schedule': {
-      id: '/_authenticated/schedule'
-      path: '/schedule'
-      fullPath: '/schedule'
-      preLoaderRoute: typeof AuthenticatedScheduleRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings': {
@@ -694,9 +714,9 @@ const AuthenticatedDirectoriesVenuesRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLibraryRoute: typeof AuthenticatedLibraryRoute
-  AuthenticatedScheduleRoute: typeof AuthenticatedScheduleRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShelfRoute: typeof AuthenticatedShelfRoute
   AuthenticatedClientsIdRoute: typeof AuthenticatedClientsIdRoute
@@ -708,9 +728,9 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLibraryRoute: AuthenticatedLibraryRoute,
-  AuthenticatedScheduleRoute: AuthenticatedScheduleRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShelfRoute: AuthenticatedShelfRoute,
   AuthenticatedClientsIdRoute: AuthenticatedClientsIdRoute,
@@ -757,6 +777,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmailPreviewRoute: EmailPreviewRoute,
   InquireRoute: InquireRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  ScheduleRoute: ScheduleRoute,
   ProposalTokenRoute: ProposalTokenRoute,
   ApiCronGmailInboundRoute: ApiCronGmailInboundRoute,
   ApiCronGmailRouteRoute: ApiCronGmailRouteRoute,

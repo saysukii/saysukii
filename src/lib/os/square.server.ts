@@ -1,23 +1,39 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { decryptSecret, encryptSecret } from "./crypto.server";
 
-function oauthBase() {
-  return process.env["SQUARE_ENVIRONMENT"] === "production"
+function squareEnvironment() {
+  return process.env["SQUARE_ENVIRONMENT"]?.trim().toLowerCase() === "production"
+    ? "production"
+    : "sandbox";
+}
+
+function squareHost() {
+  return squareEnvironment() === "production"
     ? "https://connect.squareup.com"
     : "https://connect.squareupsandbox.com";
 }
 
-function apiBase() {
-  return process.env["SQUARE_ENVIRONMENT"] === "production"
-    ? "https://connect.squareup.com"
-    : "https://connect.squareupsandbox.com";
+function isLiveStudio() {
+  const app = process.env["APP_URL"]?.trim();
+  if (!app) return true;
+  try {
+    const host = new URL(app).hostname;
+    return host !== "localhost" && host !== "127.0.0.1";
+  } catch {
+    return true;
+  }
 }
 
 export function squareAuthorizeUrl(state: string) {
   const appId = process.env["SQUARE_APPLICATION_ID"];
   const redirectUri = process.env["SQUARE_REDIRECT_URI"];
   if (!appId || !redirectUri) throw new Error("Square OAuth is not configured");
-  const url = new URL("/oauth2/authorize", oauthBase());
+  if (squareEnvironment() === "sandbox" && isLiveStudio()) {
+    throw new Error(
+      "Square is still the sandbox on this studio, so the permission page stays blank. Set SQUARE_ENVIRONMENT to production, use the production application id and secret, and set the redirect URL to https://inside.saysukii.com/api/integrations/square/callback.",
+    );
+  }
+  const url = new URL("/oauth2/authorize", squareHost());
   url.searchParams.set("client_id", appId);
   url.searchParams.set(
     "scope",
@@ -29,7 +45,7 @@ export function squareAuthorizeUrl(state: string) {
       "MERCHANT_PROFILE_READ",
     ].join(" "),
   );
-  url.searchParams.set("session", "false");
+  if (squareEnvironment() === "production") url.searchParams.set("session", "false");
   url.searchParams.set("state", state);
   url.searchParams.set("redirect_uri", redirectUri);
   return url.toString();
@@ -66,7 +82,7 @@ export async function exchangeSquareCode(code: string, connectedBy: string) {
       expires_at: response.expires_at ?? null,
       metadata: {
         merchant_id: response.merchant_id ?? null,
-        environment: process.env["SQUARE_ENVIRONMENT"] ?? "sandbox",
+        environment: squareEnvironment(),
       },
       connected_by: connectedBy,
     },
@@ -146,7 +162,7 @@ export async function verifySquareWebhook(body: string, signature: string) {
 }
 
 async function squareRequest<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBase()}${path}`, {
+  const response = await fetch(`${squareHost()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

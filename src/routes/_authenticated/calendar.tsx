@@ -10,7 +10,7 @@ import { listInquiryPipeline } from "@/lib/os/inquiries.functions";
 import { readBookings, type MeetingBrief, type StudioBooking } from "@/lib/studio-bookings";
 import { useDevPreview } from "@/lib/use-dev-preview";
 
-export const Route = createFileRoute("/_authenticated/schedule")({
+export const Route = createFileRoute("/_authenticated/calendar")({
   head: () => ({
     meta: [
       { title: "Schedule — Say Sukii OS" },
