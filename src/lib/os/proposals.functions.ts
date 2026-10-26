@@ -12,6 +12,8 @@ import type {
   VenueRow,
 } from "@/integrations/supabase/types";
 import { buildAgreementContent } from "@/lib/agreement-templates";
+import { invoiceTitle } from "@/lib/invoice-title";
+import { proposalLink } from "@/lib/proposal-link";
 import {
   courtesyFromNotes,
   floralPackageName,
@@ -211,7 +213,7 @@ const statementInput = z.object({
 const importInput = z
   .object({
     inquiry_id: z.string().uuid(),
-    total_cents: z.number().int().positive().max(100_000_000),
+    total_cents: z.number().int().min(0).max(100_000_000),
     deposit_percent: z.number().min(1).max(100).default(50),
     file_name: z.string().trim().min(1).max(200),
     pdf_base64: z.string().min(20).max(12_000_000).optional(),
@@ -265,7 +267,7 @@ export const importProposalPdf = createServerFn({ method: "POST" })
     const deposit = Math.round(data.total_cents * (data.deposit_percent / 100));
     const courtesy = Math.min(data.courtesy_cents, data.total_cents);
     const listCents = data.total_cents + courtesy;
-    const notes = data.statement ? statementNotes(statementOfWork(data.statement), courtesy) : null;
+    const notes = statementNotes(statementOfWork(data.statement), courtesy, data.file_name);
     const venueText = data.statement?.venue.trim() || inquiry.venue_text;
     let proposalId = existing.data?.id ?? "";
     let number = existing.data?.number ?? "";
@@ -359,6 +361,7 @@ export const importProposalPdf = createServerFn({ method: "POST" })
     }
     const { error: updateError } = await context.supabase.from("proposals").update(patch).eq("id", proposalId);
     if (updateError) throw new Error(updateError.message);
+    const invoiceNumber = data.total_cents > 0 ? await ensureInvoiceNumber(proposalId, deposit) : null;
     await refreshInquirySummarySafe(context.supabase, inquiry.id);
     return {
       id: proposalId,
@@ -366,6 +369,8 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       token: tokenValue,
       total_cents: data.total_cents,
       deposit_amount_cents: deposit,
+      invoice_number: invoiceNumber,
+      pdf_path: pdfPath,
     };
   });
 
@@ -409,7 +414,7 @@ export const sendProposal = createServerFn({ method: "POST" })
       await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
     }
 
-    return { url: `${appUrl()}/proposal/${tokenValue}` };
+    return { url: proposalLink(appUrl(), tokenValue, bundle.client.name) };
   });
 
 export const getPublicProposal = createServerFn({ method: "GET" })
@@ -435,6 +440,21 @@ export const getPublicProposal = createServerFn({ method: "GET" })
             .createSignedUrl(bundle.proposal.pdf_path, 60 * 15)
         ).data?.signedUrl
       : null;
+    if (bundle.proposal.total_cents > 0) {
+      const existingInvoice = await supabaseAdmin
+        .from("invoices")
+        .select("id")
+        .eq("proposal_id", bundle.proposal.id)
+        .maybeSingle();
+      if (existingInvoice.error) throw new Error(existingInvoice.error.message);
+      if (!existingInvoice.data) {
+        try {
+          await ensureInvoiceNumber(bundle.proposal.id, bundle.proposal.deposit_amount_cents);
+        } catch {
+          // Another open can claim this proposal's invoice number first.
+        }
+      }
+    }
     const [{ data: agreement }, { data: invoice }] = await Promise.all([
       supabaseAdmin
         .from("agreements")
@@ -443,7 +463,7 @@ export const getPublicProposal = createServerFn({ method: "GET" })
         .maybeSingle(),
       supabaseAdmin
         .from("invoices")
-        .select("amount_cents, status, square_payment_link")
+        .select("number, amount_cents, status, square_payment_link")
         .eq("proposal_id", bundle.proposal.id)
         .maybeSingle(),
     ]);
@@ -466,6 +486,7 @@ export const getPublicProposal = createServerFn({ method: "GET" })
         : null,
       invoice: invoice
         ? {
+            number: invoiceTitle(invoice.number),
             amountCents: invoice.amount_cents,
             status: invoice.status,
             paymentLink: invoice.square_payment_link,
@@ -746,31 +767,21 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
   if (existingError) throw new Error(existingError.message);
   if (existing?.square_payment_link) return existing.square_payment_link;
 
-  let invoiceId = existing?.id ?? "";
-  let invoiceNumber = existing?.number ?? "";
-  if (!invoiceId) {
-    const { data: nextNumber, error: numberError } = await supabaseAdmin.rpc("next_invoice_number");
-    if (numberError) throw new Error(numberError.message);
-    invoiceNumber = nextNumber;
-    const { data: invoice, error } = await supabaseAdmin
-      .from("invoices")
-      .insert({
-        proposal_id: bundle.proposal.id,
-        number: invoiceNumber,
-        amount_cents: bundle.proposal.deposit_amount_cents,
-        status: "unpaid",
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(error.message);
-    invoiceId = invoice.id;
-  }
+  const invoiceNumber = await ensureInvoiceNumber(bundle.proposal.id, bundle.proposal.deposit_amount_cents);
+  const { data: invoiceRow, error: invoiceRowError } = await supabaseAdmin
+    .from("invoices")
+    .select("id")
+    .eq("proposal_id", bundle.proposal.id)
+    .maybeSingle();
+  if (invoiceRowError) throw new Error(invoiceRowError.message);
+  const invoiceId = invoiceRow?.id ?? "";
+  if (!invoiceId) throw new Error("The invoice could not be opened.");
 
   let paymentLink: string | null = null;
   try {
     const square = await createSquarePaymentLink({
       idempotencyKey: `proposal-${bundle.proposal.id}`,
-      label: `${bundle.proposal.deposit_amount_cents >= bundle.proposal.total_cents ? "Say Sukii" : "Say Sukii deposit"} · ${bundle.proposal.number}`,
+      label: invoiceNumber,
       amountCents: bundle.proposal.deposit_amount_cents,
     });
     paymentLink = square.url;
@@ -830,6 +841,30 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
   await uploadDocument(invoicePath, invoicePdf);
   await supabaseAdmin.from("invoices").update({ pdf_path: invoicePath }).eq("id", invoiceId);
   return paymentLink;
+}
+
+async function ensureInvoiceNumber(proposalId: string, amountCents: number) {
+  const existing = await supabaseAdmin.from("invoices").select("id, number").eq("proposal_id", proposalId).maybeSingle();
+  if (existing.error) throw new Error(existing.error.message);
+  if (existing.data) {
+    const number = invoiceTitle(existing.data.number);
+    const patch: { amount_cents: number; number?: string } = { amount_cents: amountCents };
+    if (number !== existing.data.number) patch.number = number;
+    const { error } = await supabaseAdmin.from("invoices").update(patch).eq("id", existing.data.id);
+    if (error) throw new Error(error.message);
+    return number;
+  }
+  const { data: nextNumber, error: numberError } = await supabaseAdmin.rpc("next_invoice_number");
+  if (numberError || typeof nextNumber !== "string" || !nextNumber) throw new Error(numberError?.message ?? "The invoice number could not be opened.");
+  const number = invoiceTitle(nextNumber);
+  const { error } = await supabaseAdmin.from("invoices").insert({
+    proposal_id: proposalId,
+    number,
+    amount_cents: amountCents,
+    status: "unpaid",
+  });
+  if (error) throw new Error(error.message);
+  return number;
 }
 
 async function uploadDocument(path: string, bytes: Uint8Array) {

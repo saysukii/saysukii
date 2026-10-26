@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useRouteContext } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Calendar, CalendarClock, FileArchive, FileText, Folder, Image, Link2, MessageCircle, NotebookPen, Paperclip, Sparkles, SquarePen, Upload, User, X } from "lucide-react";
+import { ArrowLeft, Calendar, CalendarClock, ChevronLeft, ChevronRight, FileArchive, FileText, Folder, Image, Link2, MessageCircle, NotebookPen, Paperclip, Sparkles, SquarePen, Upload, User, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -26,8 +26,9 @@ import {
   savePreviewProposal,
   updatePreviewProposalTerms,
 } from "@/lib/preview-proposals";
-import { STATEMENT_FIELDS, INVOICE_THANKS, courtesyFromNotes, floralPackageName, invoiceBookingLine, invoiceDateLabel, invoiceSharedDate, statementFromNotes, statementOfWork, type StatementOfWork } from "@/lib/floral-agreement";
-import { dollarsToCents, ensureProposalLink, formatDollarInput, proposalCards, readFileDataUrl } from "@/lib/proposal-link";
+import { STATEMENT_FIELDS, INVOICE_THANKS, courtesyFromNotes, fileNameFromNotes, floralPackageName, invoiceBookingLine, invoiceDateLabel, invoiceSharedDate, statementFromNotes, statementOfWork, type StatementOfWork } from "@/lib/floral-agreement";
+import { invoiceTitle } from "@/lib/invoice-title";
+import { dollarsToCents, ensureProposalLink, formatDollarInput, proposalCards, proposalLink, proposalToken, readFileDataUrl } from "@/lib/proposal-link";
 import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
 import {
   EVENT_LABEL,
@@ -378,6 +379,19 @@ function MailBody({ body, personName }: { body: string; personName?: string | nu
 
 function withoutSignoff(text: string) {
   return text.replace(/\n*say sukii\s*$/i, "").trimEnd();
+}
+
+function latestMailThread(messages: Array<{ subject: string | null; sent_at: string | null; created_at: string | null }>) {
+  let key = "";
+  let at = "";
+  for (const item of messages) {
+    const stamp = item.sent_at || item.created_at || "";
+    if (stamp >= at) {
+      at = stamp;
+      key = threadBase(item.subject).toLowerCase();
+    }
+  }
+  return key || null;
 }
 
 function threadBase(subject: string | null | undefined) {
@@ -1341,9 +1355,9 @@ function ViewedReceipt({
   return <p className="studio-mail-viewed">last viewed {mailStamp(viewed)}</p>;
 }
 
-function proposalOpenHref(token: string, href: string) {
+function proposalOpenHref(token: string, href: string, clientName?: string | null) {
   if (typeof window === "undefined") return href;
-  return `${window.location.origin}/proposal/${token}`;
+  return proposalLink(window.location.origin, token, clientName);
 }
 
 function MailFace({
@@ -1406,7 +1420,7 @@ function MailFace({
                   {proposalCards(mail.text).cards.length ? (
                     <div className="studio-mail-files">
                       {proposalCards(mail.text).cards.map((card) => (
-                        <MailFile key={card.href} name="proposal.pdf" href={proposalOpenHref(card.token, card.href)} />
+                        <MailFile key={card.href} name="proposal.pdf" href={proposalOpenHref(card.token, card.href, clientName)} />
                       ))}
                     </div>
                   ) : null}
@@ -1540,6 +1554,7 @@ function PacketPreview({
   courtesyCents,
   depositCents,
   fileUrl,
+  invoiceNumber,
   stored,
 }: {
   kind: "proposal" | "agreement" | "invoice";
@@ -1549,23 +1564,53 @@ function PacketPreview({
   courtesyCents: number;
   depositCents: number;
   fileUrl: string;
+  invoiceNumber: string;
   stored: ReturnType<typeof readPreviewProposal>;
 }) {
   const pages = stored?.pageUrls ?? [];
   const frame = fileUrl || stored?.pdfDataUrl || "";
+  const [page, setPage] = useState(0);
+  const [pdfCount, setPdfCount] = useState(0);
+  const count = pages.length || pdfCount || (frame ? 1 : 0);
+  const safePage = Math.min(page, Math.max(count - 1, 0));
   return (
     <div className="client-packet is-preview">
       {kind === "proposal" ? (
-        fileUrl ? (
-          <ProposalPages src={fileUrl} />
-        ) : pages.length ? (
-          <div className="client-packet-pages">
-            {pages.map((src) => (
-              <img key={src} src={src} alt="" />
-            ))}
-          </div>
-        ) : frame ? (
-          <ProposalPages src={frame} />
+        count ? (
+          <>
+            <div className="client-packet-nav">
+              <button type="button" className="client-packet-arrow" aria-label="Previous page" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>
+                <ChevronLeft size={18} strokeWidth={1.4} />
+              </button>
+              <div className="client-packet-count">
+                proposal
+                <span> · {safePage + 1} / {count}</span>
+              </div>
+              <button type="button" className="client-packet-arrow" aria-label="Next page" disabled={safePage >= count - 1} onClick={() => setPage(safePage + 1)}>
+                <ChevronRight size={18} strokeWidth={1.4} />
+              </button>
+            </div>
+            {pages.length ? (
+              <div className="client-packet-pages">
+                <img src={pages[safePage]} alt={`Proposal page ${safePage + 1}`} draggable={false} />
+              </div>
+            ) : (
+              <ProposalPages src={frame} page={safePage} onPages={setPdfCount} />
+            )}
+            {count > 1 ? (
+            <div className="client-packet-dots">
+              {Array.from({ length: count }, (_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  className={index === safePage ? "client-packet-dot is-on" : "client-packet-dot"}
+                  aria-label={`Go to proposal ${index + 1}`}
+                  onClick={() => setPage(index)}
+                />
+              ))}
+            </div>
+            ) : null}
+          </>
         ) : (
           <div className="client-packet-sheet">
             <h2>Proposal</h2>
@@ -1589,7 +1634,7 @@ function PacketPreview({
       {kind === "invoice" ? (
         <InvoicePreview
           clientName={clientName || "Client"}
-          number={stored?.number || "preview"}
+          number={invoiceNumber || stored?.number || "preview"}
           service={floralPackageName(work.occasion || work.flowers)}
           bookingLine={invoiceBookingLine(work.occasion || work.flowers, invoiceDateLabel(work.eventWhen))}
           listCents={totalCents + courtesyCents}
@@ -1653,6 +1698,7 @@ export function InquiryLeadPane({
     if (!localProposalUrl) return;
     return () => URL.revokeObjectURL(localProposalUrl);
   }, [localProposalUrl]);
+  const [keptPdfUrl, setKeptPdfUrl] = useState("");
   const [proposalName, setProposalName] = useState("");
   const [proposalOver, setProposalOver] = useState(false);
   const [proposalAmount, setProposalAmount] = useState("");
@@ -1669,6 +1715,10 @@ export function InquiryLeadPane({
   const copiedTimer = useRef<number | null>(null);
   const proposalSeeded = useRef(false);
   const workSeeded = useRef(false);
+  const proposalDirty = useRef(false);
+  const savingProposal = useRef(false);
+  const keptPdfPath = useRef("");
+  const keepProposal = useRef<() => void>(() => {});
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["os", "inquiry-workspace", id, devPreview],
@@ -1677,9 +1727,37 @@ export function InquiryLeadPane({
   const inquiryId = data?.inquiry.id ?? id;
 
   useEffect(() => {
-    setPlaceDraft(null);
-    setInvestmentDraft(null);
+    setThreadKey(null);
+    setStartingThread(false);
+    proposalSeeded.current = false;
+    workSeeded.current = false;
+    proposalDirty.current = false;
+    importedFile.current = null;
+    keptPdfPath.current = "";
+    setKeptPdfUrl("");
+    setProposalFile(null);
+    setProposalName("");
+    setProposalHref(null);
+    setProposalAmount("");
+    setProposalCourtesy("");
+    setProposalPay("deposit");
+    setProposalError("");
   }, [data?.inquiry.id]);
+
+  useEffect(() => {
+    if (!proposalDirty.current) return;
+    const freshFile = Boolean(proposalFile && proposalFile !== importedFile.current);
+    const timer = window.setTimeout(() => keepProposal.current(), freshFile ? 0 : 400);
+    return () => window.clearTimeout(timer);
+  }, [proposalAmount, proposalCourtesy, proposalPay, work, proposalFile]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (proposalDirty.current) keepProposal.current();
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, []);
 
   useEffect(() => {
     if (!data?.slug || data.slug === id) return;
@@ -1688,22 +1766,29 @@ export function InquiryLeadPane({
 
   useEffect(() => {
     if (!data || typeof window === "undefined") return;
-    const stored = data.proposals.find((item) => "access_token" in item && typeof item.access_token === "string" && item.access_token);
+    const stored = data.proposals.find((item) => ("pdf_path" in item && item.pdf_path) || item.total_cents) ?? data.proposals[0];
     const preview = previewProposalForInquiry(data.inquiry.id);
-    const token = (stored && "access_token" in stored ? stored.access_token : null) ?? preview?.token ?? null;
-    if (token) setProposalHref(`${window.location.origin}/proposal/${token}`);
+    const token = (stored && "access_token" in stored && typeof stored.access_token === "string" ? stored.access_token : null) ?? preview?.token ?? null;
+    if (token) setProposalHref(proposalLink(window.location.origin, token, data.client?.name));
+    const pdfUrl = stored && "pdf_url" in stored && typeof stored.pdf_url === "string" ? stored.pdf_url : "";
+    const pdfPath = stored && "pdf_path" in stored && typeof stored.pdf_path === "string" ? stored.pdf_path : "";
+    if (pdfUrl) setKeptPdfUrl((current) => current || pdfUrl);
+    if (pdfPath) keptPdfPath.current = pdfPath;
     if (proposalSeeded.current) return;
-    const total = preview?.totalCents ?? stored?.total_cents;
-    const depositCents = preview?.depositCents ?? stored?.deposit_amount_cents;
-    if (!total) return;
     const notes = stored && "notes" in stored && typeof stored.notes === "string" ? stored.notes : null;
+    const savedWork = preview?.work ?? statementFromNotes(notes);
+    const total = preview?.totalCents ?? stored?.total_cents ?? 0;
+    const fileName = fileNameFromNotes(notes) || preview?.fileName || (preview?.pdfDataUrl || stored?.pdf_path ? "proposal.pdf" : "");
+    if (!fileName && !total && !savedWork) return;
     const courtesy = preview?.courtesyCents ?? courtesyFromNotes(notes);
-    const list = total + courtesy;
+    const depositCents = preview?.depositCents ?? stored?.deposit_amount_cents;
     proposalSeeded.current = true;
-    setProposalAmount(formatDollarInput(String(list / 100)));
-    setProposalCourtesy(courtesy > 0 ? formatDollarInput(String(courtesy / 100)) : "");
-    setProposalPay(depositCents != null && depositCents >= total ? "full" : "deposit");
-    setProposalName(preview ? "proposal.pdf" : stored?.number ?? "");
+    if (fileName) setProposalName(fileName);
+    if (total > 0) {
+      setProposalAmount(formatDollarInput(String((total + courtesy) / 100)));
+      setProposalCourtesy(courtesy > 0 ? formatDollarInput(String(courtesy / 100)) : "");
+      setProposalPay(depositCents != null && depositCents >= total ? "full" : "deposit");
+    }
   }, [data]);
 
   useEffect(() => {
@@ -1730,7 +1815,7 @@ export function InquiryLeadPane({
 
   useEffect(() => {
     if (!workSeeded.current) return;
-    const token = proposalHref?.split("/proposal/").pop() ?? "";
+    const token = proposalToken(proposalHref ?? "");
     if (!token.startsWith("preview_")) return;
     const cents = dollarsToCents(proposalAmount);
     const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
@@ -2005,12 +2090,13 @@ export function InquiryLeadPane({
   }
   const pendingSubject = !namingThread && newSubject.trim() && !mailThreads.includes(newSubject.trim().toLowerCase()) ? newSubject.trim() : "";
   const shownThreads = mailThreads.filter((key) => key !== "conversation");
+  const newestThread = latestMailThread(visibleMessages);
   const activeThread =
     sendAs === "email" && !startingThread
       ? threadKey && mailThreads.includes(threadKey)
         ? threadKey
-        : mailThreads.includes("conversation")
-          ? "conversation"
+        : newestThread && mailThreads.includes(newestThread)
+          ? newestThread
           : (mailThreads.at(-1) ?? null)
       : null;
   const threadedMessages =
@@ -2180,10 +2266,12 @@ export function InquiryLeadPane({
         courtesyCents,
         depositPercent,
         pdfDataUrl,
+        fileName: file.name,
         work: statement,
       });
-      const href = `${window.location.origin}/proposal/${saved.token}`;
+      const href = proposalLink(window.location.origin, saved.token, client?.name);
       setProposalHref(href);
+      importedFile.current = file;
       return href;
     }
     const incoming = `${inquiryId}/${crypto.randomUUID()}.pdf`;
@@ -2203,12 +2291,61 @@ export function InquiryLeadPane({
         pdf_path: incoming,
       },
     });
-    const href = `${window.location.origin}/proposal/${result.token}`;
+    const href = proposalLink(window.location.origin, result.token, client?.name);
     setProposalHref(href);
     importedFile.current = file;
+    if (result.pdf_path) keptPdfPath.current = result.pdf_path;
     void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
     return href;
   }
+
+  keepProposal.current = () => {
+    if (savingProposal.current) return;
+    const stored = data?.proposals.find((item) => "pdf_path" in item && typeof item.pdf_path === "string" && item.pdf_path);
+    const pdfPath = (stored && typeof stored.pdf_path === "string" ? stored.pdf_path : "") || keptPdfPath.current;
+    if (!proposalFile && !pdfPath) return;
+    if (stored?.status === "accepted") return;
+    const typed = dollarsToCents(proposalAmount);
+    const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
+    const net = typed == null ? (stored?.total_cents ?? 0) : Math.max(0, typed - courtesy);
+    if (typed != null && courtesy >= typed) return;
+    const deposit = proposalPay === "full" ? 100 : 50;
+    savingProposal.current = true;
+    proposalDirty.current = false;
+    void (async () => {
+      try {
+        if (proposalFile && proposalFile !== importedFile.current) {
+          await importCanva(proposalFile, net, deposit, work, courtesy);
+          return;
+        }
+        if (devPreview) {
+          const token = proposalToken(proposalHref ?? "");
+          if (token.startsWith("preview_")) updatePreviewProposalTerms(token, net, deposit, work, courtesy);
+          return;
+        }
+        if (!pdfPath) return;
+        const saved = await importProposal({
+          data: {
+            inquiry_id: inquiryId,
+            total_cents: net,
+            courtesy_cents: courtesy,
+            deposit_percent: deposit,
+            statement: work,
+            file_name: proposalName || "proposal.pdf",
+            pdf_path: pdfPath,
+          },
+        });
+        if (saved.pdf_path) keptPdfPath.current = saved.pdf_path;
+        void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
+      } catch (error) {
+        proposalDirty.current = true;
+        setProposalError(problemText(error, "could not keep the proposal"));
+      } finally {
+        savingProposal.current = false;
+        if (proposalDirty.current) keepProposal.current();
+      }
+    })();
+  };
 
   function takeProposal(file: File | undefined) {
     if (!file) return;
@@ -2218,6 +2355,7 @@ export function InquiryLeadPane({
       return;
     }
     setProposalError("");
+    proposalDirty.current = true;
     setProposalFile(file);
     setProposalName(file.name);
   }
@@ -2260,7 +2398,7 @@ export function InquiryLeadPane({
       });
     }
     if (!proposalFile && href.includes("/proposal/preview_")) {
-      updatePreviewProposalTerms(href.split("/proposal/").pop() ?? "", cents, deposit, work, courtesy);
+      updatePreviewProposalTerms(proposalToken(href), cents, deposit, work, courtesy);
     }
     return href;
   }
@@ -2278,41 +2416,27 @@ export function InquiryLeadPane({
 
   async function copyProposal() {
     setProposalError("");
-    if (!proposalFile && proposalHref) {
+    const fileChanged = Boolean(proposalFile && proposalFile !== importedFile.current);
+    if (proposalHref && !fileChanged) {
       const copied = await writeClipboard(proposalHref);
       if (!copied) {
         setProposalError("could not copy the link");
         return;
       }
-      const token = proposalHref.split("/proposal/").pop() ?? "";
+      const token = proposalToken(proposalHref);
       if (token.startsWith("preview_")) markPreviewProposalSent(token);
       markCopied();
+      proposalDirty.current = true;
+      keepProposal.current();
       return;
     }
     const pending = readyProposalHref();
     setProposalBusy(true);
     try {
-      let href = "";
-      let copied = false;
-      if ("ClipboardItem" in window) {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({
-              "text/plain": pending.then((value) => {
-                href = value;
-                return new Blob([value], { type: "text/plain" });
-              }),
-            }),
-          ]);
-          copied = true;
-        } catch {
-          copied = false;
-        }
-      }
-      if (!href) href = await pending;
-      if (!copied) copied = await writeClipboard(href);
+      const href = await pending;
+      const copied = await writeClipboard(href);
       if (!copied) throw new Error("could not copy the link");
-      const token = href.split("/proposal/").pop() ?? "";
+      const token = proposalToken(href);
       if (token.startsWith("preview_")) markPreviewProposalSent(token);
       markCopied();
     } catch (error) {
@@ -2332,7 +2456,7 @@ export function InquiryLeadPane({
       URL.revokeObjectURL(url);
       return;
     }
-    const token = proposalHref?.split("/proposal/").pop() ?? "";
+    const token = proposalToken(proposalHref ?? "");
     const stored = token ? readPreviewProposal(token) : null;
     if (stored?.pdfDataUrl) {
       const anchor = document.createElement("a");
@@ -2365,6 +2489,8 @@ export function InquiryLeadPane({
   const courtesyCents = dollarsToCents(proposalCourtesy) ?? 0;
   const proposalCents = listCents == null ? null : Math.max(0, listCents - courtesyCents);
   const depositCents = proposalCents ? (proposalPay === "full" ? proposalCents : Math.round(proposalCents / 2)) : 0;
+  const savedInvoice = data.proposals.find((item) => "invoice_number" in item && typeof item.invoice_number === "string" && item.invoice_number);
+  const savedInvoiceTitle = savedInvoice && typeof savedInvoice.invoice_number === "string" ? invoiceTitle(savedInvoice.invoice_number) : "";
   const proposalTemplate = BUILT_IN_TEMPLATES.find((item) => item.id === "proposal");
   const proposalLetterBody = proposalTemplate
     ? ensureProposalLink(
@@ -2890,7 +3016,10 @@ export function InquiryLeadPane({
                   <input
                   className="studio-textarea"
                   value={proposalAmount}
-                  onChange={(event) => setProposalAmount(formatDollarInput(event.target.value))}
+                  onChange={(event) => {
+                    proposalDirty.current = true;
+                    setProposalAmount(formatDollarInput(event.target.value));
+                  }}
                   placeholder="12,000"
                   inputMode="decimal"
                 />
@@ -2903,7 +3032,10 @@ export function InquiryLeadPane({
                   <input
                     className="studio-textarea"
                     value={proposalCourtesy}
-                    onChange={(event) => setProposalCourtesy(formatDollarInput(event.target.value))}
+                    onChange={(event) => {
+                      proposalDirty.current = true;
+                      setProposalCourtesy(formatDollarInput(event.target.value));
+                    }}
                     placeholder="0"
                     inputMode="decimal"
                   />
@@ -2911,15 +3043,15 @@ export function InquiryLeadPane({
               </label>
               </div>
               <div className="studio-proposal-cards" role="group" aria-label="payment method">
-                <div className={cn("studio-proposal-card", proposalPay === "deposit" && "is-on")} onClick={() => setProposalPay("deposit")}>
-                  <button type="button" aria-pressed={proposalPay === "deposit"} onClick={() => setProposalPay("deposit")}>
+                <div className={cn("studio-proposal-card", proposalPay === "deposit" && "is-on")} onClick={() => { proposalDirty.current = true; setProposalPay("deposit"); }}>
+                  <button type="button" aria-pressed={proposalPay === "deposit"} onClick={() => { proposalDirty.current = true; setProposalPay("deposit"); }}>
                     {proposalPay === "deposit" ? <i className="studio-pill-dot" aria-hidden="true" /> : null}
                     deposit
                   </button>
                   <small>{proposalCents ? formatMoneyExact(Math.round(proposalCents / 2)) : "half the amount"}</small>
                 </div>
-                <div className={cn("studio-proposal-card", proposalPay === "full" && "is-on")} onClick={() => setProposalPay("full")}>
-                  <button type="button" aria-pressed={proposalPay === "full"} onClick={() => setProposalPay("full")}>
+                <div className={cn("studio-proposal-card", proposalPay === "full" && "is-on")} onClick={() => { proposalDirty.current = true; setProposalPay("full"); }}>
+                  <button type="button" aria-pressed={proposalPay === "full"} onClick={() => { proposalDirty.current = true; setProposalPay("full"); }}>
                     {proposalPay === "full" ? <i className="studio-pill-dot" aria-hidden="true" /> : null}
                     pay in full
                   </button>
@@ -2935,7 +3067,10 @@ export function InquiryLeadPane({
                       <input
                         className="studio-textarea"
                         value={work[field.key]}
-                        onChange={(event) => setWork((current) => ({ ...current, [field.key]: event.target.value }))}
+                        onChange={(event) => {
+                          proposalDirty.current = true;
+                          setWork((current) => ({ ...current, [field.key]: event.target.value }));
+                        }}
                       />
                     </label>
                   ))}
@@ -2980,7 +3115,7 @@ export function InquiryLeadPane({
                       }
                       const href = proposalHref;
                       const write = navigator.clipboard?.writeText?.(href);
-                      const token = href.split("/proposal/").pop() ?? "";
+                      const token = proposalToken(href);
                       if (token.startsWith("preview_")) markPreviewProposalSent(token);
                       setProposalError("");
                       if (!write) {
@@ -3070,8 +3205,9 @@ export function InquiryLeadPane({
                 totalCents={proposalCents ?? 0}
                 courtesyCents={courtesyCents}
                 depositCents={depositCents}
-                fileUrl={localProposalUrl}
-                stored={proposalHref?.includes("/proposal/preview_") ? readPreviewProposal(proposalHref.split("/proposal/").pop() ?? "") : null}
+                fileUrl={localProposalUrl || keptPdfUrl}
+                invoiceNumber={savedInvoiceTitle}
+                stored={proposalHref?.includes("/proposal/preview_") ? readPreviewProposal(proposalToken(proposalHref)) : null}
               />
             </DialogContent>
           </Dialog>

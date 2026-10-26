@@ -17,6 +17,8 @@ import { listStudioTasks, syncInquiryAutoTaskFor, syncInquiryAutoTasks } from "@
 import { refreshInquirySummarySafe, summarizeInquiryRecord } from "@/lib/os/inquiry-summary.server";
 import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
 import { noteWriter, signatureName, signatureText, wroteNote } from "@/lib/os/mail-signature";
+import { fileNameFromNotes } from "@/lib/floral-agreement";
+import { invoiceTitle } from "@/lib/invoice-title";
 import { proposalCards } from "@/lib/proposal-link";
 
 const eventType = z.enum([
@@ -697,7 +699,27 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
     }
 
     const messages = messagesResult.data ?? [];
-    const proposals = proposalsResult.data ?? [];
+    const proposalRows = proposalsResult.data ?? [];
+    const proposalIds = proposalRows.map((proposal) => proposal.id);
+    const invoiceResult = proposalIds.length
+      ? await context.supabase.from("invoices").select("proposal_id, number").in("proposal_id", proposalIds)
+      : { data: [], error: null };
+    if (invoiceResult.error) throw new Error(invoiceResult.error.message);
+    const invoiceNumbers = new Map((invoiceResult.data ?? []).map((invoice) => [invoice.proposal_id, invoice.number]));
+    const proposals = await Promise.all(
+      proposalRows.map(async (proposal) => {
+        const signed = proposal.pdf_path
+          ? await context.supabase.storage.from("documents").createSignedUrl(proposal.pdf_path, 60 * 30)
+          : null;
+        const invoiceNumber = invoiceNumbers.get(proposal.id);
+        return {
+          ...proposal,
+          pdf_url: signed?.data?.signedUrl ?? null,
+          file_name: fileNameFromNotes(proposal.notes),
+          invoice_number: invoiceNumber ? invoiceTitle(invoiceNumber) : null,
+        };
+      }),
+    );
     const meetings = meetingsResult.error ? [] : (meetingsResult.data ?? []);
     let summary = inquiryResult.data.summary_text ?? null;
     try {

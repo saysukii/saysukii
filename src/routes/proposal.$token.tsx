@@ -10,7 +10,9 @@ import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { isSignatureDataUrl, SignaturePad } from "@/components/proposal/SignaturePad";
 import { Wordmark } from "@/components/portal/bits";
 import { statementFromNotes, courtesyFromNotes, floralPackageName, invoiceBookingLine, invoiceDateLabel, invoiceSharedDate, statementOfWork, INVOICE_THANKS } from "@/lib/floral-agreement";
+import { invoiceTitle } from "@/lib/invoice-title";
 import { formatMoneyExact } from "@/lib/money";
+import { clientHash } from "@/lib/proposal-link";
 import {
   acceptPreviewProposal,
   openPreviewProposal,
@@ -89,6 +91,7 @@ function PublicProposalPage() {
   const [signature, setSignature] = useState<string | null>(null);
   const [keptSignature, setKeptSignature] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  const [pdfCount, setPdfCount] = useState(0);
   const [view, setView] = useState<"proposal" | "agreement" | "invoice">("proposal");
   const opened = useRef(false);
 
@@ -102,6 +105,8 @@ function PublicProposalPage() {
     const openedProposal = openPreviewProposal(token);
     setPreview(openedProposal);
     setChecked(true);
+    setPage(0);
+    setPdfCount(0);
     if (opened.current) return;
     if (!openedProposal) return;
     opened.current = true;
@@ -131,6 +136,14 @@ function PublicProposalPage() {
       if (url.startsWith("blob:")) URL.revokeObjectURL(url);
     };
   }, [pdfSource]);
+
+  useEffect(() => {
+    const name = preview?.clientName ?? data?.client.name ?? "";
+    if (!name) return;
+    const hash = clientHash(name);
+    if (window.location.hash === `#${hash}`) return;
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${hash}`);
+  }, [preview?.clientName, data?.client.name]);
 
   const accept = useMutation({
     mutationFn: async () => {
@@ -278,9 +291,12 @@ function PublicProposalPage() {
   const packageName = floralPackageName(work.occasion || occasion);
   const bookingLine = invoiceBookingLine(work.occasion || occasion, invoiceDateLabel(preview?.eventDate ?? data?.proposal.event_date ?? work.eventWhen));
   const sharedOn = invoiceSharedDate(preview?.sentAt ?? data?.proposal.sent_at);
+  const imageCount = preview?.pageUrls?.length ?? 0;
+  const proposalCount = imageCount > 0 ? imageCount : Math.max(pdfCount, frameUrl ? 1 : 1);
+  const safePage = Math.min(page, Math.max(proposalCount - 1, 0));
   const slides = proposalSlides(preview?.pageUrls, frameUrl);
-  const safePage = Math.min(page, Math.max(slides.length - 1, 0));
-  const current = slides[safePage] ?? slides[0];
+  const current = imageCount > 0 ? (slides[safePage] ?? slides[0]) : null;
+  const invoiceNumber = data?.invoice?.number ? invoiceTitle(data.invoice.number) : number;
   const step = view;
 
   function openInvoice() {
@@ -297,7 +313,7 @@ function PublicProposalPage() {
       );
     }
     if (slide.kind === "proposal" && slide.frame) {
-      return <ProposalPages src={slide.frame} />;
+      return <ProposalPages src={slide.frame} page={index} />;
     }
     if (slide.kind === "proposal") {
       return (
@@ -344,7 +360,7 @@ function PublicProposalPage() {
             <br />
             saysukii.com
           </p>
-          <p className="client-packet-kicker is-number">{number}</p>
+          <p className="client-packet-kicker is-number">{invoiceNumber}</p>
           <p>
             Bill to: {clientName}
             {paid ? (
@@ -429,25 +445,27 @@ function PublicProposalPage() {
             </button>
             <div className="client-packet-count">
               proposal
-              <span> · {safePage + 1} / {slides.length}</span>
+              <span> · {safePage + 1} / {proposalCount}</span>
             </div>
-            <button type="button" className="client-packet-arrow" aria-label="Next page" disabled={safePage >= slides.length - 1} onClick={() => setPage(safePage + 1)}>
+            <button type="button" className="client-packet-arrow" aria-label="Next page" disabled={safePage >= proposalCount - 1} onClick={() => setPage(safePage + 1)}>
               <ChevronRight size={18} strokeWidth={1.4} />
             </button>
           </div>
         ) : null}
 
         <div className="client-packet-card">
-          {step === "proposal" && current ? renderSlide(current, safePage) : null}
+          {step === "proposal" && imageCount > 0 && current ? renderSlide(current, safePage) : null}
+          {step === "proposal" && imageCount === 0 && frameUrl ? <ProposalPages src={frameUrl} page={safePage} onPages={setPdfCount} /> : null}
+          {step === "proposal" && imageCount === 0 && !frameUrl ? renderSlide({ kind: "proposal" }, 0) : null}
           {step === "agreement" ? renderSlide({ kind: "agreement" }, 0) : null}
           {step === "invoice" ? renderSlide({ kind: "invoice" }, 0) : null}
         </div>
 
-        {step === "proposal" ? (
+        {step === "proposal" && proposalCount > 1 ? (
           <div className="client-packet-dots">
-            {slides.map((slide, index) => (
+            {Array.from({ length: proposalCount }, (_, index) => (
               <button
-                key={`${slide.kind}-${slide.src ?? index}`}
+                key={index}
                 type="button"
                 className={index === safePage ? "client-packet-dot is-on" : "client-packet-dot"}
                 aria-label={`Go to proposal ${index + 1}`}

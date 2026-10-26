@@ -15,6 +15,7 @@ export type PreviewProposal = {
   depositCents: number;
   work?: StatementOfWork;
   pdfDataUrl: string;
+  fileName?: string;
   pageUrls?: string[];
   status: "draft" | "sent" | "viewed" | "accepted";
   agreement: string | null;
@@ -83,6 +84,7 @@ export function savePreviewProposal(input: {
   depositPercent: number;
   courtesyCents?: number;
   pdfDataUrl: string;
+  fileName?: string;
   work?: StatementOfWork;
 }) {
   const map = readMap();
@@ -90,6 +92,8 @@ export function savePreviewProposal(input: {
   if (existing?.status === "accepted") throw new Error("This proposal is already accepted.");
   const token = existing?.token ?? `preview_${crypto.randomUUID().replace(/-/g, "")}`;
   const depositCents = Math.round(input.totalCents * (input.depositPercent / 100));
+  const fileName = input.fileName || existing?.fileName;
+  const work = input.work ?? existing?.work;
   const next: PreviewProposal = {
     token,
     inquiryId: input.inquiryId,
@@ -103,8 +107,9 @@ export function savePreviewProposal(input: {
     courtesyCents: input.courtesyCents ?? existing?.courtesyCents ?? 0,
     depositPercent: input.depositPercent,
     depositCents,
-    work: input.work ?? existing?.work,
     pdfDataUrl: input.pdfDataUrl,
+    ...(fileName ? { fileName } : {}),
+    ...(work ? { work } : {}),
     status: existing && existing.status !== "draft" ? existing.status : "draft",
     agreement: null,
     signedName: null,

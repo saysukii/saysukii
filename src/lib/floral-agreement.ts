@@ -86,8 +86,18 @@ export function statementOfWork(partial?: Partial<StatementOfWork> | null): Stat
   };
 }
 
-export function statementNotes(work: StatementOfWork, courtesyCents = 0) {
-  return JSON.stringify({ statement: work, courtesyCents });
+export function statementNotes(work: StatementOfWork, courtesyCents = 0, fileName = "") {
+  return JSON.stringify({ statement: work, courtesyCents, fileName: fileName || undefined });
+}
+
+export function fileNameFromNotes(notes: string | null | undefined) {
+  if (!notes) return "";
+  try {
+    const parsed = JSON.parse(notes) as { fileName?: unknown };
+    return typeof parsed.fileName === "string" ? parsed.fileName.trim() : "";
+  } catch {
+    return "";
+  }
 }
 
 export function courtesyFromNotes(notes: string | null | undefined) {

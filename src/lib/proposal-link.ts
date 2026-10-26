@@ -1,4 +1,24 @@
-const PROPOSAL_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]*\/proposal\/([A-Za-z0-9_-]+))\)/g;
+const PROPOSAL_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]*\/proposal\/([A-Za-z0-9_-]+)(?:#[^)\s]*)?)\)/g;
+
+export function clientHash(name: string) {
+  const slug = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+  return slug || "client";
+}
+
+export function proposalLink(origin: string, token: string, clientName?: string | null) {
+  const base = `${origin.replace(/\/$/, "")}/proposal/${token}`;
+  const hash = clientName?.trim() ? clientHash(clientName) : "";
+  return hash ? `${base}#${hash}` : base;
+}
+
+export function proposalToken(value: string) {
+  const raw = value.split("/proposal/").pop() ?? value;
+  return raw.split(/[?#]/)[0] ?? "";
+}
 
 export function proposalCards(body: string) {
   const cards: { label: string; href: string; token: string }[] = [];

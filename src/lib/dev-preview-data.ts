@@ -1078,6 +1078,9 @@ export function getDevPreviewInquiryWorkspace(id: string) {
       deposit_amount_cents: item.deposit_amount_cents,
       pdf_path: item.pdf_path,
       notes: item.notes,
+      pdf_url: null,
+      file_name: "",
+      invoice_number: null,
     }));
   const summary = resolveInquirySummaryText(
     buildInquirySummaryFacts({

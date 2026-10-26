@@ -6770,6 +6770,11 @@ button.studio-metric:hover {
   text-transform: none;
 }
 
+.client-packet.is-preview .client-packet-nav {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
 .client-packet.is-preview .client-packet-frame {
   height: min(62vh, 36rem);
 }
