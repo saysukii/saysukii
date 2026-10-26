@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { TextShimmer } from "@/components/core/text-shimmer";
 import { FloralAgreement } from "@/components/proposal/FloralAgreement";
+import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Wordmark } from "@/components/portal/bits";
@@ -1555,14 +1556,16 @@ function PacketPreview({
   return (
     <div className="client-packet is-preview">
       {kind === "proposal" ? (
-        pages.length ? (
+        fileUrl ? (
+          <ProposalPages src={fileUrl} />
+        ) : pages.length ? (
           <div className="client-packet-pages">
             {pages.map((src) => (
               <img key={src} src={src} alt="" />
             ))}
           </div>
         ) : frame ? (
-          <iframe title="Proposal" src={`${frame}#toolbar=0&navpanes=0`} className="client-packet-frame" />
+          <ProposalPages src={frame} />
         ) : (
           <div className="client-packet-sheet">
             <h2>Proposal</h2>
@@ -2163,6 +2166,7 @@ export function InquiryLeadPane({
   async function importCanva(file: File, totalCents: number, depositPercent: number, statement: StatementOfWork, courtesyCents = 0) {
     const pdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
     if (!pdf) throw new Error("drop the proposal pdf.");
+    if (file.size > 50 * 1024 * 1024) throw new Error("that pdf is larger than 50mb.");
     if (devPreview) {
       const pdfDataUrl = await readFileDataUrl(file);
       if (pdfDataUrl.length > 4_500_000) throw new Error("this preview keeps the pdf under about 3mb.");
@@ -2235,10 +2239,14 @@ export function InquiryLeadPane({
     const cents = Math.max(0, list - courtesy);
     const deposit = proposalPay === "full" ? 100 : 50;
     const fileChanged = Boolean(proposalFile && proposalFile !== importedFile.current);
-    const href = fileChanged && proposalFile ? await importCanva(proposalFile, cents, deposit, work, courtesy) : proposalHref;
-    if (!href) throw new Error("drop the proposal.");
     const stored = data?.proposals.find((item) => "pdf_path" in item && typeof item.pdf_path === "string" && item.pdf_path);
-    if (!devPreview && !fileChanged && stored?.pdf_path && stored.status !== "accepted") {
+    const accepted = stored?.status === "accepted";
+    const href =
+      fileChanged && proposalFile && !accepted
+        ? await importCanva(proposalFile, cents, deposit, work, courtesy)
+        : proposalHref;
+    if (!href) throw new Error("drop the proposal.");
+    if (!devPreview && !fileChanged && stored?.pdf_path && !accepted) {
       await importProposal({
         data: {
           inquiry_id: inquiryId,
@@ -2965,32 +2973,28 @@ export function InquiryLeadPane({
                   <button
                     type="button"
                     disabled={proposalBusy}
-                    onPointerDown={(event) => {
-                      if (proposalFile || !proposalHref) return;
-                      event.preventDefault();
-                      const href = proposalHref;
-                      const finish = (ok: boolean) => {
-                        if (!ok) {
-                          setProposalError("could not copy the link");
-                          return;
-                        }
-                        const token = href.split("/proposal/").pop() ?? "";
-                        if (token.startsWith("preview_")) markPreviewProposalSent(token);
-                        markCopied();
-                      };
-                      const pending = navigator.clipboard.writeText(href).then(
-                        () => true,
-                        () => false,
-                      );
-                      if (copyText(href)) {
-                        finish(true);
+                    onClick={() => {
+                      if (!proposalHref) {
+                        void copyProposal();
                         return;
                       }
-                      void pending.then(finish);
-                    }}
-                    onClick={() => {
-                      if (!proposalFile && proposalHref) return;
-                      void copyProposal();
+                      const href = proposalHref;
+                      const write = navigator.clipboard?.writeText?.(href);
+                      const token = href.split("/proposal/").pop() ?? "";
+                      if (token.startsWith("preview_")) markPreviewProposalSent(token);
+                      setProposalError("");
+                      if (!write) {
+                        if (copyText(href)) markCopied();
+                        else setProposalError("could not copy the link");
+                        return;
+                      }
+                      void write.then(
+                        () => markCopied(),
+                        () => {
+                          setProposalError("could not copy the link");
+                          toast.error("could not copy the link");
+                        },
+                      );
                     }}
                   >
                     {copiedLink ? "copied" : "copy link"}

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { FloralAgreement } from "@/components/proposal/FloralAgreement";
+import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { isSignatureDataUrl, SignaturePad } from "@/components/proposal/SignaturePad";
 import { Wordmark } from "@/components/portal/bits";
 import { statementFromNotes, courtesyFromNotes, floralPackageName, invoiceBookingLine, invoiceDateLabel, invoiceSharedDate, statementOfWork, INVOICE_THANKS } from "@/lib/floral-agreement";
@@ -89,7 +90,6 @@ function PublicProposalPage() {
   const [keptSignature, setKeptSignature] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [view, setView] = useState<"proposal" | "agreement" | "invoice">("proposal");
-  const [reachedInvoice, setReachedInvoice] = useState(false);
   const opened = useRef(false);
 
   useEffect(() => {
@@ -107,7 +107,6 @@ function PublicProposalPage() {
     opened.current = true;
     if (openedProposal?.signedName) {
       setView("invoice");
-      setReachedInvoice(true);
     } else if (openedProposal?.status === "accepted") {
       setView("agreement");
     }
@@ -213,7 +212,6 @@ function PublicProposalPage() {
     const alreadySigned = Boolean(data.agreement?.signedName);
     if (alreadySigned) {
       setView("invoice");
-      setReachedInvoice(true);
     } else if (data.proposal.status === "accepted") {
       setView("agreement");
     }
@@ -286,7 +284,6 @@ function PublicProposalPage() {
   const step = view;
 
   function openInvoice() {
-    setReachedInvoice(true);
     setView("invoice");
     window.scrollTo(0, 0);
   }
@@ -300,7 +297,7 @@ function PublicProposalPage() {
       );
     }
     if (slide.kind === "proposal" && slide.frame) {
-      return <iframe title="Your proposal" src={`${slide.frame}#toolbar=0&navpanes=0`} className="client-packet-frame" />;
+      return <ProposalPages src={slide.frame} />;
     }
     if (slide.kind === "proposal") {
       return (
@@ -313,49 +310,32 @@ function PublicProposalPage() {
     if (slide.kind === "agreement") {
       return (
         <div className="client-packet-sheet">
-          {!accepted ? (
-            <div className="client-packet-lock">
-              <strong>Agreement locked</strong>
-              <span>Accept the proposal to open the agreement.</span>
-            </div>
-          ) : null}
-          {accepted ? (
-            <FloralAgreement
-              fields={{
-                ...work,
-                clientName,
-                total: formatMoneyExact(totalCents),
-                deposit: formatMoneyExact(depositCents),
-                balance: formatMoneyExact(Math.max(0, totalCents - depositCents)),
-              }}
-              signature={
-                drawn ? (
-                  <img src={signedName ?? ""} alt="Signature" className="client-packet-ink" />
-                ) : (
-                  <>
-                    <SignaturePad value={signature} onChange={setSignature} disabled={sign.isPending || drawn} />
-                    {sign.isError ? <p role="alert" className="client-packet-stamp">{sign.error.message}</p> : null}
-                  </>
-                )
-              }
-            />
-          ) : (
-            <>
-              <h2>Agreement</h2>
-              <p>The service agreement opens once the proposal is accepted.</p>
-            </>
-          )}
+          <FloralAgreement
+            fields={{
+              ...work,
+              clientName,
+              total: formatMoneyExact(totalCents),
+              deposit: formatMoneyExact(depositCents),
+              balance: formatMoneyExact(Math.max(0, totalCents - depositCents)),
+            }}
+            signature={
+              drawn ? (
+                <img src={signedName ?? ""} alt="Signature" className="client-packet-ink" />
+              ) : accepted ? (
+                <>
+                  <SignaturePad value={signature} onChange={setSignature} disabled={sign.isPending} />
+                  {sign.isError ? <p role="alert" className="client-packet-stamp">{sign.error.message}</p> : null}
+                </>
+              ) : (
+                <p className="client-packet-stamp">Accept the proposal to sign.</p>
+              )
+            }
+          />
         </div>
       );
     }
     return (
       <div className="client-packet-sheet">
-        {!signed ? (
-          <div className="client-packet-lock">
-            <strong>Invoice locked</strong>
-            <span>Sign the agreement to open the invoice.</span>
-          </div>
-        ) : null}
         <div className="client-packet-invoice-top">
           <h2>Invoice</h2>
           <Wordmark tone="ink" className="client-packet-mark is-sheet" />
@@ -364,7 +344,7 @@ function PublicProposalPage() {
             <br />
             saysukii.com
           </p>
-          <p className="client-packet-kicker is-number">{signed ? number : "···"}</p>
+          <p className="client-packet-kicker is-number">{number}</p>
           <p>
             Bill to: {clientName}
             {paid ? (
@@ -430,19 +410,17 @@ function PublicProposalPage() {
           </p>
         </header>
 
-        {accepted || signed ? (
-          <div className="client-packet-steps" aria-label="packet">
-            <button type="button" className={step === "proposal" ? "is-on" : undefined} onClick={() => setView("proposal")}>
-              proposal
-            </button>
-            <button type="button" className={step === "agreement" ? "is-on" : undefined} disabled={!accepted} onClick={() => setView("agreement")}>
-              agreement
-            </button>
-            <button type="button" className={step === "invoice" ? "is-on" : undefined} disabled={!reachedInvoice} onClick={() => setView("invoice")}>
-              invoice
-            </button>
-          </div>
-        ) : null}
+        <div className="client-packet-steps" aria-label="packet">
+          <button type="button" className={step === "proposal" ? "is-on" : undefined} onClick={() => setView("proposal")}>
+            proposal
+          </button>
+          <button type="button" className={step === "agreement" ? "is-on" : undefined} onClick={() => setView("agreement")}>
+            agreement
+          </button>
+          <button type="button" className={step === "invoice" ? "is-on" : undefined} onClick={() => setView("invoice")}>
+            invoice
+          </button>
+        </div>
 
         {step === "proposal" ? (
           <div className="client-packet-nav">
@@ -516,7 +494,9 @@ function PublicProposalPage() {
 
         {step === "invoice" ? (
           <div className="client-packet-buttons">
-            {paid ? (
+            {!signed ? (
+              <p className="client-packet-stamp" style={{ marginTop: 0 }}>Sign the agreement to pay.</p>
+            ) : paid ? (
               <p className="client-packet-stamp" style={{ marginTop: 0 }}>{depositCents >= totalCents ? "Paid in full." : "Deposit received."}</p>
             ) : link ? (
               <a href={link} target="_blank" rel="noreferrer" className="client-packet-accept">

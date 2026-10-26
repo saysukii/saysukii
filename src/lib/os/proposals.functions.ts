@@ -244,15 +244,12 @@ export const importProposalPdf = createServerFn({ method: "POST" })
     if (existing.data?.status === "accepted") throw new Error("This proposal is already accepted.");
 
     let pdfBytes: Buffer | null = null;
+    let copyFrom: string | null = null;
     if (data.pdf_path) {
       const incoming = data.pdf_path.startsWith(`${inquiry.id}/`) && !data.pdf_path.includes("..");
       const current = Boolean(existing.data?.pdf_path) && data.pdf_path === existing.data?.pdf_path;
       if (!incoming && !current) throw new Error("Choose the proposal PDF.");
-      if (!current) {
-        const downloaded = await supabaseAdmin.storage.from("documents").download(data.pdf_path);
-        if (downloaded.error || !downloaded.data) throw new Error(downloaded.error?.message || "could not read the proposal pdf.");
-        pdfBytes = Buffer.from(await downloaded.data.arrayBuffer());
-      }
+      if (!current) copyFrom = data.pdf_path;
     } else if (data.pdf_base64) {
       pdfBytes = Buffer.from(data.pdf_base64, "base64");
     }
@@ -260,8 +257,8 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       if (pdfBytes.length < 5 || pdfBytes.subarray(0, 4).toString() !== "%PDF") {
         throw new Error("Choose the proposal PDF.");
       }
-      if (pdfBytes.length > 8 * 1024 * 1024) throw new Error("That PDF is larger than 8MB.");
-    } else if (!existing.data?.pdf_path) {
+      if (pdfBytes.length > 50 * 1024 * 1024) throw new Error("That PDF is larger than 50MB.");
+    } else if (!copyFrom && !existing.data?.pdf_path) {
       throw new Error("Choose the proposal PDF.");
     }
 
@@ -318,8 +315,17 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
 
-    const pdfPath = pdfBytes ? `${proposalId}/proposal-${number}.pdf` : (existing.data?.pdf_path ?? "");
+    const pdfPath = pdfBytes || copyFrom ? `${proposalId}/proposal-${number}.pdf` : (existing.data?.pdf_path ?? "");
     if (pdfBytes) await uploadDocument(pdfPath, pdfBytes);
+    if (copyFrom && copyFrom !== pdfPath) {
+      let copied = await supabaseAdmin.storage.from("documents").copy(copyFrom, pdfPath);
+      if (copied.error && /exist|duplicate|already/i.test(copied.error.message)) {
+        await supabaseAdmin.storage.from("documents").remove([pdfPath]);
+        copied = await supabaseAdmin.storage.from("documents").copy(copyFrom, pdfPath);
+      }
+      if (copied.error) throw new Error(copied.error.message);
+      await supabaseAdmin.storage.from("documents").remove([copyFrom]);
+    }
     const patch: {
       event_date: string | null;
       venue_id: string | null;
