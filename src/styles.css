@@ -5598,6 +5598,7 @@ button.studio-metric:hover {
 
 .studio-home-feed {
   display: grid;
+  align-content: start;
   gap: 4px;
   flex: 1;
   min-height: 0;
@@ -10588,14 +10589,44 @@ button.studio-metric:hover {
   }
 
   .studio-home.is-book:not(.is-record) {
+    display: flex;
+    flex-direction: column;
     flex: 1;
     min-height: 0;
     height: 100%;
-    grid-template-rows: auto minmax(0, 1fr);
+    max-height: 100%;
+    overflow: hidden;
   }
 
   .studio-home.is-book:not(.is-record) .studio-book-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .studio-home.is-book:not(.is-record) .studio-kanban {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  .studio-home.is-book:not(.is-record) .studio-kanban-lanes {
+    flex: 1;
+    height: 0;
+    min-height: 100%;
+    max-height: 100%;
+  }
+
+  .studio-home.is-book:not(.is-record) .studio-kanban-lane {
+    height: 0;
+    min-height: 100%;
+    max-height: 100%;
+    overflow: hidden;
   }
 
   .studio-home.is-book.is-record .studio-facts {

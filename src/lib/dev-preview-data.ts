@@ -645,6 +645,11 @@ function previewAutoTaskId(inquiryId: string, kind: string) {
 }
 
 const reviewDecisions = new Map<string, { detection_status: InquiryRow["detection_status"]; status: InquiryStatus }>();
+const archivedInquiryIds = new Set<string>();
+
+export function previewArchiveInquiry(id: string) {
+  archivedInquiryIds.add(id);
+}
 
 export function previewReviewDecision(id: string, decision: "approve" | "dismiss") {
   if (decision === "approve") {
@@ -668,6 +673,7 @@ const CANDIDATE_SOURCE = {
 function autoInquiryTasks(): TaskRow[] {
   return inquiries
     .map(withReview)
+    .filter((inquiry) => !archivedInquiryIds.has(inquiry.id))
     .filter(isBookInquiry)
     .flatMap((inquiry) => {
     const draft = desiredInquiryAutoTask({
@@ -752,6 +758,7 @@ export function getDevPreviewPipeline() {
   hydratePreviewArrivals();
   const rows = inquiries
     .map(withReview)
+    .filter((inquiry) => !archivedInquiryIds.has(inquiry.id))
     .filter((inquiry) => inquiry.detection_status !== "dismissed")
     .map((inquiry) => withClient(inquiry));
   const slugs = inquirySlugs(rows);

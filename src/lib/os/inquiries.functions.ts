@@ -563,15 +563,6 @@ export const setInquiryStatus = createServerFn({ method: "POST" })
         status: inquiryStatus,
         closed_reason: z.string().trim().max(1000).optional().default(""),
       })
-      .superRefine((value, context) => {
-        if (value.status === "closed" && !value.closed_reason) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["closed_reason"],
-            message: "Add a reason before closing this inquiry",
-          });
-        }
-      })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -605,16 +596,20 @@ export const setInquiryStatus = createServerFn({ method: "POST" })
     }
     if (data.status === "closed") {
       timestamps.closed_at = now;
-      timestamps.closed_reason = data.closed_reason;
+      timestamps.closed_reason = data.closed_reason || null;
     } else {
       timestamps.closed_at = null;
       timestamps.closed_reason = null;
     }
 
-    // received_at is deliberately absent: intake time is immutable through this API.
+    // Closing is the archive. The flag takes it off the book; status retires its task.
     const { error } = await context.supabase
       .from("inquiries")
-      .update({ status: data.status, ...timestamps })
+      .update({
+        status: data.status,
+        archived: data.status === "closed",
+        ...timestamps,
+      })
       .eq("id", data.id)
       .eq("archived", false);
     if (error) throw new Error(error.message);

@@ -20,6 +20,7 @@ export {
   getDevPreviewShoppingList,
   getDevPreviewTasks,
   PREVIEW_IDS,
+  previewArchiveInquiry,
   previewReviewDecision,
 } from "@/lib/dev-preview-data";
 

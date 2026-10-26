@@ -16,7 +16,7 @@ import { applyTemplate, loadTemplates, saveTemplates, type MailTemplate } from "
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 import type { InquiryMessageRow, InquiryStatus } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import { getDevPreviewInquiryWorkspace, previewReviewDecision } from "@/lib/dev-preview";
+import { getDevPreviewInquiryWorkspace, previewArchiveInquiry, previewReviewDecision } from "@/lib/dev-preview";
 import {
   markPreviewProposalSent,
   previewProposalForInquiry,
@@ -1530,8 +1530,7 @@ export function InquiryLeadPane({
   const channel: "email" | "note" = surface === "notes" || surface === "rail" ? "note" : "email";
   const [activityTab, setActivityTab] = useState<"messages" | "notes">("messages");
   const [draft, setDraft] = useState("");
-  const [closing, setClosing] = useState(false);
-  const [closeReason, setCloseReason] = useState("");
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const [localMessages, setLocalMessages] = useState<InquiryMessageRow[]>([]);
   const [noteBodies, setNoteBodies] = useState<Record<string, string>>({});
   const [removedNotes, setRemovedNotes] = useState<string[]>([]);
@@ -1647,6 +1646,10 @@ export function InquiryLeadPane({
   const move = useMutation({
     mutationFn: (args: { status: InquiryStatus; closed_reason?: string }) => {
       if (devPreview) {
+        if (args.status === "closed") {
+          previewArchiveInquiry(inquiryId);
+          return Promise.resolve({ ok: true as const });
+        }
         toast.message("preview mode — status not saved");
         return Promise.resolve({ ok: true as const });
       }
@@ -1654,13 +1657,17 @@ export function InquiryLeadPane({
         data: { id: inquiryId, status: args.status, closed_reason: args.closed_reason ?? "" },
       });
     },
-    onSuccess: () => {
-      toast.success("lead updated");
-      setClosing(false);
-      setCloseReason("");
+    onSuccess: async (_result, args) => {
+      setConfirmArchive(false);
       void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
       void queryClient.invalidateQueries({ queryKey: ["inquiry-pipeline"] });
       void queryClient.invalidateQueries({ queryKey: ["inquiry-dashboard"] });
+      if (args.status === "closed") {
+        toast.success("inquiry archived");
+        await navigate({ to: "/pipeline" });
+        return;
+      }
+      toast.success("lead updated");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -1971,10 +1978,10 @@ export function InquiryLeadPane({
 
   function chooseStatus(status: InquiryStatus) {
     if (status === "closed") {
-      setClosing(true);
+      setConfirmArchive(true);
       return;
     }
-    setClosing(false);
+    setConfirmArchive(false);
     move.mutate({ status });
   }
 
@@ -2206,35 +2213,33 @@ export function InquiryLeadPane({
         <p className="studio-muted">{inquiry.closed_reason || "this inquiry is archived."}</p>
       ) : null}
 
-      {closing ? (
-        <div className="studio-module studio-lead-close">
-          <p className="studio-home-label">archive</p>
-          <h3>why this one is ending</h3>
-          <label className="studio-field">
-            <span>reason</span>
-            <textarea
-              className="studio-textarea"
-              value={closeReason}
-              onChange={(event) => setCloseReason(event.target.value)}
-              maxLength={1000}
-              placeholder="declined, went quiet, timing, budget…"
-            />
-          </label>
-          <div className="studio-views">
-            <button
-              type="button"
-              className="studio-today-go"
-              disabled={move.isPending || !closeReason.trim()}
-              onClick={() => move.mutate({ status: "closed", closed_reason: closeReason.trim() })}
-            >
-              archive
-            </button>
-            <button type="button" className="studio-ghost" onClick={() => setClosing(false)}>
-              keep in motion
-            </button>
+      <Dialog open={confirmArchive} onOpenChange={setConfirmArchive}>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask is-confirm is-soft" hideClose>
+          <div className="studio-task-head">
+            <DialogClose className="studio-task-close" aria-label="Close">
+              <X aria-hidden="true" />
+            </DialogClose>
           </div>
-        </div>
-      ) : null}
+          <DialogTitle className="sr-only">archive this inquiry</DialogTitle>
+          <DialogDescription className="sr-only">confirm before this inquiry leaves the book.</DialogDescription>
+          <div className="studio-task-form">
+            <p className="studio-review-confirm">archive this inquiry? it leaves the book.</p>
+            <div className="studio-ask-foot is-pair is-spread">
+              <button type="button" className="studio-ghost" disabled={move.isPending} onClick={() => setConfirmArchive(false)}>
+                keep it
+              </button>
+              <button
+                type="button"
+                className="studio-today-go"
+                disabled={move.isPending}
+                onClick={() => move.mutate({ status: "closed" })}
+              >
+                archive
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {!candidate && inquiry.summary_text ? (
         <section className="studio-module is-summary">
@@ -2911,7 +2916,7 @@ export function InquiryLeadPane({
       ) : null}
 
       {showJob && !candidate && inquiry.status !== "closed" ? (
-        <button type="button" className="studio-ghost studio-lead-archive" onClick={() => setClosing(true)}>
+        <button type="button" className="studio-ghost studio-lead-archive" onClick={() => setConfirmArchive(true)}>
           archive this inquiry
         </button>
       ) : null}
