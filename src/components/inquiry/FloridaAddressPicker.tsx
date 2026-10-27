@@ -8,13 +8,19 @@ import { cn } from "@/lib/utils";
 export function FloridaAddressPicker({
   value,
   onChange,
+  onCommit,
   disabled = false,
   placeholder = "",
+  line = false,
+  label = "Event address",
 }: {
   value: string;
   onChange: (value: string) => void;
+  onCommit?: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  line?: boolean;
+  label?: string;
 }) {
   const listId = useId();
   const searchAddresses = useServerFn(searchFloridaAddresses);
@@ -24,6 +30,7 @@ export function FloridaAddressPicker({
   const [results, setResults] = useState<Array<{ id: string; label: string; value: string; provider?: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     setQuery(value);
@@ -31,7 +38,7 @@ export function FloridaAddressPicker({
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length < 2) {
+    if (!focused || trimmed.length < 2) {
       setResults([]);
       setLoading(false);
       setOpen(false);
@@ -58,20 +65,21 @@ export function FloridaAddressPicker({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [focused, query]);
 
   function selectSuggestion(next: string) {
     setQuery(next);
     onChange(next);
+    onCommit?.(next);
     setOpen(false);
   }
 
   const fromGoogle = results.some((result) => result.provider === "google");
 
   return (
-    <div className="inquire-address">
+    <div className={cn("inquire-address", line && "is-line")}>
       <label className="auth-field inquire-address-field">
-        <span className="sr-only">Event address</span>
+        <span className="sr-only">{label}</span>
         <div className={cn("auth-input inquire-address-input", open && "inquire-address-input--open")}>
           <MapPin className="size-4 shrink-0 opacity-55" aria-hidden="true" />
           <input
@@ -85,10 +93,15 @@ export function FloridaAddressPicker({
             aria-controls={listId}
             aria-autocomplete="list"
             onFocus={() => {
+              setFocused(true);
               if (query.trim().length >= 2) setOpen(true);
             }}
             onBlur={() => {
-              window.setTimeout(() => setOpen(false), 120);
+              window.setTimeout(() => {
+                setFocused(false);
+                setOpen(false);
+              }, 120);
+              onCommit?.(query.trim());
             }}
             onChange={(event) => {
               const next = event.target.value;

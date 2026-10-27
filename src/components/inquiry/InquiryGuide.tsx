@@ -5,11 +5,7 @@ import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker"
 import { InquiryDatePicker } from "@/components/inquiry/InquiryDatePicker";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 import { EMPTY_INQUIRY_DRAFT, interestLabel, toInquirySubmitValues } from "@/lib/os/inquiry-schema";
-import {
-  inquiryDraftsAreActive,
-  readInquiryDrafts,
-  resolveInquirySteps,
-} from "@/lib/os/inquiry-draft";
+import { readInquiryDrafts, resolveInquirySteps, type InquiryDrafts } from "@/lib/os/inquiry-draft";
 import {
   formatInquiryDate,
   formatInquiryPhone,
@@ -37,13 +33,14 @@ export function InquiryGuide({
   onSubmit,
   disabled = false,
   showHoneypot = false,
+  drafts: draftsProp,
 }: {
   onSubmit: (values: InquiryFormValues) => Promise<void>;
   disabled?: boolean;
   showHoneypot?: boolean;
+  drafts?: InquiryDrafts;
 }) {
-  const drafts = useMemo(() => readInquiryDrafts(), []);
-  const usingDrafts = inquiryDraftsAreActive(drafts);
+  const drafts = useMemo(() => draftsProp ?? readInquiryDrafts(), [draftsProp]);
   const [values, setValues] = useState<InquiryFormValues>(EMPTY_INQUIRY_DRAFT);
   const [index, setIndex] = useState(0);
   const steps = useMemo(() => resolveInquirySteps(values.interest, drafts), [values.interest, drafts]);
@@ -65,12 +62,6 @@ export function InquiryGuide({
 
   return (
     <section className="auth-panel inquire-panel inquire-guide inquire-guide--path">
-      {usingDrafts ? (
-        <p className="inquire-draft-banner">
-          You’re seeing your draft wording.{" "}
-          <a href="/inquire/preview">Back to the editor</a>
-        </p>
-      ) : null}
       <div className="inquire-guide-top">
         <div className="inquire-guide-dashes" aria-hidden="true">
           {steps.map((item, itemIndex) => (

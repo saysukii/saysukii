@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 
 const roleSchema = z.enum(["admin", "team"]);
@@ -54,6 +54,20 @@ export const listAdminSettings = createServerFn({ method: "GET" })
       members: members.data ?? [],
       invites: invites.data ?? [],
     };
+  });
+
+export const listRecentIssues = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("integration_events")
+      .select("id, provider, event_type, error_message, updated_at")
+      .eq("status", "failed")
+      .order("updated_at", { ascending: false })
+      .limit(12);
+    if (error) throw new Error(error.message);
+    return data ?? [];
   });
 
 export const inviteTeamMember = createServerFn({ method: "POST" })
@@ -109,6 +123,23 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
     }
 
     return { email, role: data.role };
+  });
+
+const profileNameSchema = z.object({
+  fullName: z.string().trim().min(1).max(80),
+});
+
+export const updateOwnProfile = createServerFn({ method: "POST" })
+  .middleware([requireStudioAuth])
+  .validator((input: unknown) => profileNameSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ full_name: data.fullName })
+      .eq("id", context.profile.id);
+    if (error) throw new Error(error.message);
+    return { fullName: data.fullName };
   });
 
 export const deactivateTeamMember = createServerFn({ method: "POST" })

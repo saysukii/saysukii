@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { toast } from "sonner";
 
 import { TextShimmer } from "@/components/core/text-shimmer";
+import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
 import { FloralAgreement } from "@/components/proposal/FloralAgreement";
 import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -59,7 +60,7 @@ import { importProposalPdf } from "@/lib/os/proposals.functions";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
 
-type Focus = "conversation" | "proposal" | "files" | "note";
+type Focus = "conversation" | "proposal" | "invoice" | "files" | "note";
 export type LeadSurface = "full" | "job" | "mail" | "notes" | "activity" | "rail";
 
 function prefersAppleMaps() {
@@ -1454,8 +1455,12 @@ function InvoicePreview({
   totalCents,
   depositCents,
   issuedOn,
+  clientEmail = "",
+  onSend,
+  sending = false,
 }: {
   clientName: string;
+  clientEmail?: string;
   number: string;
   service: string;
   bookingLine: string;
@@ -1464,6 +1469,8 @@ function InvoicePreview({
   totalCents: number;
   depositCents: number;
   issuedOn: string;
+  onSend?: () => void;
+  sending?: boolean;
 }) {
   const dueLabel = depositCents >= totalCents && totalCents > 0 ? "due in full" : "deposit due";
   const list = formatMoneyExact(listCents);
@@ -1530,6 +1537,7 @@ function InvoicePreview({
             <div>
               <p>bill to</p>
               <b>{clientName}</b>
+              {clientEmail ? <span>{clientEmail}</span> : null}
             </div>
             <div>
               <p>from</p>
@@ -1542,6 +1550,13 @@ function InvoicePreview({
         {summary}
         <p className="studio-invoice-note">{INVOICE_THANKS}</p>
       </article>
+      {onSend ? (
+        <div className="studio-invoice-send">
+          <button type="button" className="studio-today-go" disabled={sending} onClick={onSend}>
+            {sending ? "sending" : "send invoice"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1549,6 +1564,9 @@ function InvoicePreview({
 function PacketPreview({
   kind,
   clientName,
+  clientEmail = "",
+  onSend,
+  sending = false,
   work,
   totalCents,
   courtesyCents,
@@ -1559,6 +1577,9 @@ function PacketPreview({
 }: {
   kind: "proposal" | "agreement" | "invoice";
   clientName: string;
+  clientEmail?: string;
+  onSend?: () => void;
+  sending?: boolean;
   work: StatementOfWork;
   totalCents: number;
   courtesyCents: number;
@@ -1634,6 +1655,8 @@ function PacketPreview({
       {kind === "invoice" ? (
         <InvoicePreview
           clientName={clientName || "Client"}
+          clientEmail={clientEmail}
+          {...(onSend ? { onSend, sending } : {})}
           number={invoiceNumber || stored?.number || "preview"}
           service={floralPackageName(work.occasion || work.flowers)}
           bookingLine={invoiceBookingLine(work.occasion || work.flowers, invoiceDateLabel(work.eventWhen))}
@@ -1682,7 +1705,6 @@ export function InquiryLeadPane({
   const [removedNotes, setRemovedNotes] = useState<string[]>([]);
   const [threadKey, setThreadKey] = useState<string | null>(null);
   const [placeDraft, setPlaceDraft] = useState<string | null>(null);
-  const [investmentDraft, setInvestmentDraft] = useState<string | null>(null);
   const [startingThread, setStartingThread] = useState(false);
   const [namingThread, setNamingThread] = useState(false);
   const [newSubject, setNewSubject] = useState("");
@@ -2203,7 +2225,6 @@ export function InquiryLeadPane({
   const space = formLine(formBlob, "space");
   const cadence = formLine(formBlob, "cadence");
   const placeText = placeDraft ?? inquiry.venue_text ?? "";
-  const investmentText = investmentDraft ?? inquiry.budget_range ?? "";
   const answers = inquiryAnswers({
     event_type: inquiry.event_type,
     message: formBlob,
@@ -2221,12 +2242,6 @@ export function InquiryLeadPane({
     saveMoment.mutate({ venue_text: next });
   }
 
-  function keepInvestment(next: string) {
-    setInvestmentDraft(next);
-    if (next === (inquiry.budget_range ?? "")) return;
-    saveMoment.mutate({ budget_range: next });
-  }
-
   function chooseStatus(status: InquiryStatus) {
     if (status === "closed") {
       setConfirmArchive(true);
@@ -2242,6 +2257,7 @@ export function InquiryLeadPane({
 
   const threadOpen = showSideThread || (showStack && (focus === "conversation" || focus === "note"));
   const offerOpen = showStack && focus === "proposal";
+  const invoiceOpen = showStack && focus === "invoice";
   const filesOpen = showStack && focus === "files";
   const replyFacts = {
     eventDate: inquiry.event_date,
@@ -2485,6 +2501,34 @@ export function InquiryLeadPane({
     }
   }
 
+  async function emailInvoice() {
+    if (!proposalCents) {
+      setProposalError("add the amount.");
+      return;
+    }
+    setProposalBusy(true);
+    setProposalError("");
+    try {
+      const first = firstName(client?.name);
+      const dueLabel = proposalPay === "full" ? "due in full" : "deposit due";
+      const title = savedInvoiceTitle || "your invoice";
+      const lines = [
+        `hi ${first},`,
+        "",
+        `${title} is ready.`,
+        `${dueLabel}: ${formatMoneyExact(depositCents)}`,
+      ];
+      if (proposalHref) lines.push("", proposalHref);
+      lines.push("", "<3");
+      await post.mutateAsync({ body: lines.join("\n"), fresh: true, subject: title });
+      setPacketOpen(false);
+    } catch (error) {
+      setProposalError(problemText(error, "could not send the invoice"));
+    } finally {
+      setProposalBusy(false);
+    }
+  }
+
   const listCents = dollarsToCents(proposalAmount);
   const courtesyCents = dollarsToCents(proposalCourtesy) ?? 0;
   const proposalCents = listCents == null ? null : Math.max(0, listCents - courtesyCents);
@@ -2661,8 +2705,19 @@ export function InquiryLeadPane({
                 <dd>{cadence}</dd>
               </div>
             ) : null}
-            <MomentEdit label="place" value={placeText} placeholder="add a place" onSave={keepPlace} map />
-            <MomentEdit label="investment" value={investmentText} placeholder="add an investment" onSave={keepInvestment} />
+            <div className="studio-facts-place">
+              <dt>place</dt>
+              <dd>
+                <FloridaAddressPicker
+                  line
+                  label="place"
+                  value={placeText}
+                  placeholder="add a place"
+                  onChange={setPlaceDraft}
+                  onCommit={keepPlace}
+                />
+              </dd>
+            </div>
           </dl>
           {client ? (
             <div className="studio-row-action">
@@ -2796,7 +2851,7 @@ export function InquiryLeadPane({
 
       {showStack ? (
       <div className="studio-tabs" role="tablist" aria-label="job sections">
-        {(["conversation", "proposal", "files", "note"] as const).map((item) => (
+        {(["conversation", "proposal", "invoice", "files", "note"] as const).map((item) => (
           <button
             key={item}
             type="button"
@@ -2964,8 +3019,19 @@ export function InquiryLeadPane({
                 <dd>{cadence}</dd>
               </div>
             ) : null}
-            <MomentEdit label="place" value={placeText} placeholder="add a place" onSave={keepPlace} map />
-            <MomentEdit label="investment" value={investmentText} placeholder="add an investment" onSave={keepInvestment} />
+            <div className="studio-facts-place">
+              <dt>place</dt>
+              <dd>
+                <FloridaAddressPicker
+                  line
+                  label="place"
+                  value={placeText}
+                  placeholder="add a place"
+                  onChange={setPlaceDraft}
+                  onCommit={keepPlace}
+                />
+              </dd>
+            </div>
           </dl>
         </section>
       ) : null}
@@ -3201,6 +3267,9 @@ export function InquiryLeadPane({
               <PacketPreview
                 kind={packetKind}
                 clientName={client?.name ?? ""}
+                clientEmail={client?.email ?? ""}
+                onSend={() => void emailInvoice()}
+                sending={proposalBusy || post.isPending}
                 work={work}
                 totalCents={proposalCents ?? 0}
                 courtesyCents={courtesyCents}
@@ -3236,6 +3305,82 @@ export function InquiryLeadPane({
               </div>
             </DialogContent>
           </Dialog>
+        </section>
+      ) : null}
+
+      {invoiceOpen ? (
+        <section className="studio-module studio-lead-offer">
+          <p className="studio-home-label">
+            <FileText aria-hidden="true" strokeWidth={1.5} />
+            invoice
+          </p>
+          <div className="studio-proposal-terms is-cards">
+            <div className="studio-proposal-money">
+              <label className="studio-ask-field">
+                <span className="studio-ask-label">amount</span>
+                <span className="studio-money">
+                  <span aria-hidden="true">$</span>
+                  <input
+                    className="studio-textarea"
+                    value={proposalAmount}
+                    onChange={(event) => {
+                      proposalDirty.current = true;
+                      setProposalAmount(formatDollarInput(event.target.value));
+                    }}
+                    placeholder="12,000"
+                    inputMode="decimal"
+                  />
+                </span>
+              </label>
+              <label className="studio-ask-field">
+                <span className="studio-ask-label">courtesy discount</span>
+                <span className="studio-money">
+                  <span aria-hidden="true">$</span>
+                  <input
+                    className="studio-textarea"
+                    value={proposalCourtesy}
+                    onChange={(event) => {
+                      proposalDirty.current = true;
+                      setProposalCourtesy(formatDollarInput(event.target.value));
+                    }}
+                    placeholder="0"
+                    inputMode="decimal"
+                  />
+                </span>
+              </label>
+            </div>
+            <div className="studio-proposal-cards" role="group" aria-label="payment method">
+              <div className={cn("studio-proposal-card", proposalPay === "deposit" && "is-on")} onClick={() => { proposalDirty.current = true; setProposalPay("deposit"); }}>
+                <button type="button" aria-pressed={proposalPay === "deposit"} onClick={() => { proposalDirty.current = true; setProposalPay("deposit"); }}>
+                  {proposalPay === "deposit" ? <i className="studio-pill-dot" aria-hidden="true" /> : null}
+                  deposit
+                </button>
+                <small>{proposalCents ? formatMoneyExact(Math.round(proposalCents / 2)) : "half the amount"}</small>
+              </div>
+              <div className={cn("studio-proposal-card", proposalPay === "full" && "is-on")} onClick={() => { proposalDirty.current = true; setProposalPay("full"); }}>
+                <button type="button" aria-pressed={proposalPay === "full"} onClick={() => { proposalDirty.current = true; setProposalPay("full"); }}>
+                  {proposalPay === "full" ? <i className="studio-pill-dot" aria-hidden="true" /> : null}
+                  pay in full
+                </button>
+                <small>{proposalCents ? formatMoneyExact(proposalCents) : "the whole amount"}</small>
+              </div>
+            </div>
+          </div>
+          {proposalError ? <p className="studio-composer-note">{proposalError}</p> : null}
+          <InvoicePreview
+            clientName={client?.name || "client"}
+            clientEmail={client?.email ?? ""}
+            number={savedInvoiceTitle || "invoice"}
+            service={floralPackageName(work.occasion || work.flowers)}
+            bookingLine={invoiceBookingLine(work.occasion || work.flowers, invoiceDateLabel(work.eventWhen))}
+            listCents={(proposalCents ?? 0) + courtesyCents}
+            courtesyCents={courtesyCents}
+            totalCents={proposalCents ?? 0}
+            depositCents={depositCents}
+            issuedOn={new Date().toISOString()}
+            onSend={() => void emailInvoice()}
+            sending={proposalBusy || post.isPending}
+          />
         </section>
       ) : null}
 

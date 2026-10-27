@@ -1,13 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { CalendarHours } from "@/components/portal/CalendarHours";
 import { StudioChip } from "@/components/portal/studio";
 import { PersonName } from "@/components/studio/PersonName";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  readInquiryDrafts,
+  resolveInquirySteps,
+  resolveSharedSteps,
+  snapshotInquiryPath,
+  snapshotSharedPath,
+  visibleInquirySteps,
+  writeInquiryDrafts,
+  type InquiryDrafts,
+  type InquiryEditorTab,
+  type InquiryPathDraft,
+} from "@/lib/os/inquiry-draft";
+import { getInquiryForms, saveInquiryForms } from "@/lib/os/inquiry-forms.functions";
+import { INTEREST_OPTIONS } from "@/lib/os/inquiry-schema";
 import {
   beginGoogleOAuth,
   beginSquareOAuth,
@@ -16,6 +30,7 @@ import {
   getGmailStatus,
   inviteTeamMember,
   listAdminSettings,
+  updateOwnProfile,
 } from "@/lib/os/settings.functions";
 import { getDevPreviewSettings } from "@/lib/dev-preview";
 import { useDevPreview } from "@/lib/use-dev-preview";
@@ -36,10 +51,11 @@ export const Route = createFileRoute("/_authenticated/settings")({
 });
 
 const sections = [
-  { id: "hours", label: "hours", blurb: "when the meeting page is open." },
+  { id: "account", label: "account", blurb: "your name and password." },
   { id: "connections", label: "connections", blurb: "google and square." },
-  { id: "people", label: "people", blurb: "who can come into the studio." },
-  { id: "health", label: "health", blurb: "failures, venues, and vendors." },
+  { id: "people", label: "people", blurb: "invite someone into the studio." },
+  { id: "forms", label: "forms", blurb: "the questions a client answers." },
+  { id: "health", label: "health", blurb: "sends and payment links that did not go through." },
 ] as const;
 
 type SettingsSection = (typeof sections)[number]["id"];
@@ -56,6 +72,50 @@ const providers = [
     description: "deposit checkout links and payment status.",
   },
 ] as const;
+
+const formTabs: Array<{ id: InquiryEditorTab; label: string }> = [
+  { id: "shared", label: "contact" },
+  ...INTEREST_OPTIONS.map((option) => ({ id: option.value, label: option.label.toLowerCase() })),
+];
+
+type FormQuestion = {
+  id: string;
+  label: string;
+  hint: string;
+  options: Array<{ value: string; label: string }>;
+};
+
+function questionsFor(tab: InquiryEditorTab, drafts: InquiryDrafts): FormQuestion[] {
+  const steps =
+    tab === "shared" ? resolveSharedSteps(drafts) : visibleInquirySteps(resolveInquirySteps(tab, drafts));
+  return steps.filter((step) => step.kind !== "review").map((step) => ({
+    id: step.id,
+    label: step.label.toLowerCase(),
+    hint: (step.hint ?? "").toLowerCase(),
+    options:
+      step.kind === "choice" || step.kind === "multi"
+        ? step.options.map((option) => ({ value: option.value, label: option.label.toLowerCase() }))
+        : [],
+  }));
+}
+
+function storeTab(drafts: InquiryDrafts, tab: InquiryEditorTab, questions: FormQuestion[]): InquiryDrafts {
+  const path: InquiryPathDraft =
+    tab === "shared" ? (drafts.shared ?? snapshotSharedPath()) : (drafts[tab] ?? snapshotInquiryPath(tab));
+  const copy = { ...path.copy };
+  for (const question of questions) {
+    const options = question.options.length
+      ? Object.fromEntries(question.options.map((option) => [option.value, option.label.trim().toLowerCase()]))
+      : copy[question.id]?.options;
+    copy[question.id] = {
+      label: question.label.trim().toLowerCase(),
+      hint: question.hint.trim().toLowerCase(),
+      ...(options ? { options } : {}),
+    };
+  }
+  const nextPath = { ...path, copy };
+  return tab === "shared" ? { ...drafts, shared: nextPath } : { ...drafts, [tab]: nextPath };
+}
 
 function formatSeen(value: string | null | undefined) {
   if (!value) return "never";
@@ -84,6 +144,17 @@ function SettingsPage() {
   const disconnectGoogleFn = useServerFn(disconnectGoogle);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "team">("team");
+  const [accountName, setAccountName] = useState(profile.full_name ?? "");
+  const [resetting, setResetting] = useState(false);
+  const [formTab, setFormTab] = useState<InquiryEditorTab>("shared");
+  const [drafts, setDrafts] = useState<InquiryDrafts>(() => readInquiryDrafts());
+  const [formQuestions, setFormQuestions] = useState<FormQuestion[]>(() => questionsFor("shared", readInquiryDrafts()));
+  const [savingForm, setSavingForm] = useState(false);
+  const formTabRef = useRef(formTab);
+  formTabRef.current = formTab;
+  const saveName = useServerFn(updateOwnProfile);
+  const fetchForms = useServerFn(getInquiryForms);
+  const saveForms = useServerFn(saveInquiryForms);
 
   const { data, isPending } = useQuery({
     queryKey: ["os", "admin-settings", devPreview],
@@ -113,6 +184,20 @@ function SettingsPage() {
     },
     enabled: isAdmin,
   });
+
+  useEffect(() => {
+    let stop = false;
+    void fetchForms()
+      .then((saved) => {
+        if (stop || !saved) return;
+        setDrafts(saved);
+        setFormQuestions(questionsFor(formTabRef.current, saved));
+      })
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, [fetchForms]);
 
   useEffect(() => {
     if (!integration || !status) return;
@@ -205,27 +290,113 @@ function SettingsPage() {
     },
   });
 
+  const rename = useMutation({
+    mutationFn: (fullName: string) => {
+      if (devPreview) {
+        toast.message("preview mode — name stays on this screen");
+        return Promise.resolve({ fullName });
+      }
+      return saveName({ data: { fullName } });
+    },
+    onSuccess: () => {
+      if (!devPreview) toast.success("name saved");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  async function sendReset() {
+    if (devPreview) {
+      toast.message("preview mode — reset email is not sent");
+      return;
+    }
+    setResetting(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
+      redirectTo: `${window.location.origin}/onboarding?reset=1`,
+    });
+    setResetting(false);
+    if (error) toast.error("we couldn't send the reset email.");
+    else toast.success("password reset sent.");
+  }
+
   function submitInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     invite.mutate({ email, role });
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="studio-page">
-        <div className="studio-page">
-          <p className="studio-kicker">studio</p>
-          <h1>settings</h1>
-          <p>studio access is managed by admin users.</p>
-        </div>
-      </div>
-    );
+  function showForm(next: InquiryEditorTab) {
+    const stored = storeTab(drafts, formTab, formQuestions);
+    setDrafts(stored);
+    setFormTab(next);
+    setFormQuestions(questionsFor(next, stored));
+  }
+
+  async function saveForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const next = storeTab(drafts, formTab, formQuestions);
+    setDrafts(next);
+    setFormQuestions(questionsFor(formTab, next));
+    writeInquiryDrafts(next);
+    setSavingForm(true);
+    try {
+      if (!devPreview) await saveForms({ data: next });
+      toast.success("form saved");
+    } catch {
+      toast.error("the form could not save.");
+    } finally {
+      setSavingForm(false);
+    }
   }
 
   const connections = data?.connections ?? [];
   const members = data?.members ?? [];
   const pendingInvites = data?.invites ?? [];
   const failedEvents = data?.failedEvents ?? [];
+
+  const accountBlock = (
+    <section className="studio-panel">
+      <div className="studio-connect-list studio-account">
+        <div className="studio-connect-row studio-account-name">
+          <label className="studio-field">
+            <span>name</span>
+            <input
+              className="studio-input"
+              value={accountName}
+              onChange={(event) => setAccountName(event.target.value)}
+              autoComplete="name"
+            />
+          </label>
+          <div className="studio-connect-go">
+            <button
+              type="button"
+              className="studio-today-go"
+              disabled={!accountName.trim() || rename.isPending}
+              onClick={() => rename.mutate(accountName.trim())}
+            >
+              {rename.isPending ? "saving…" : "save name"}
+            </button>
+          </div>
+        </div>
+        <div className="studio-connect-row">
+          <div>
+            <b>email</b>
+            <p>used to sign in.</p>
+          </div>
+          <span className="studio-account-value">{profile.email}</span>
+        </div>
+        <div className="studio-connect-row">
+          <div>
+            <b>password</b>
+            <p>a reset link goes to your email.</p>
+          </div>
+          <div className="studio-connect-go">
+            <button type="button" className="studio-ghost" disabled={resetting} onClick={() => void sendReset()}>
+              {resetting ? "sending…" : "reset password"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 
   const connectionsBlock = (
     <section className="studio-panel">
@@ -310,8 +481,12 @@ function SettingsPage() {
     <section className="studio-panel">
       <div className="studio-panel-head">
         <div>
-          <p className="studio-kicker">studio access</p>
-          <h2>people</h2>
+          <p className="studio-kicker">the studio</p>
+          <h2>invite someone in</h2>
+          <p>
+            an invitation emails a link that lasts 7 days. they set a password and join this studio. team can work the
+            book. an admin can also change settings and invite others.
+          </p>
         </div>
       </div>
       <form className="studio-stack" style={{ marginTop: 16 }} onSubmit={submitInvite}>
@@ -329,8 +504,8 @@ function SettingsPage() {
         <label className="studio-field">
           <span>role</span>
           <select className="studio-select" value={role} onChange={(event) => setRole(event.target.value as "admin" | "team")}>
-            <option value="team">team</option>
-            <option value="admin">admin</option>
+            <option value="team">team — works the book</option>
+            <option value="admin">admin — settings and invites too</option>
           </select>
         </label>
         <button type="submit" className="studio-today-go" disabled={invite.isPending || !email}>
@@ -370,17 +545,102 @@ function SettingsPage() {
     </section>
   );
 
+  const formsBlock = (
+    <section className="studio-panel">
+      <div className="studio-form-tabs" role="tablist" aria-label="forms">
+        {formTabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={formTab === tab.id}
+            className={formTab === tab.id ? "is-on" : undefined}
+            onClick={() => showForm(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <form className="studio-stack" onSubmit={saveForm}>
+        {formQuestions.map((question) => (
+          <div key={question.id} className="studio-form-question">
+            <div className="studio-ask-grid is-two">
+              <label className="studio-field">
+                <span>question</span>
+                <input
+                  className="studio-input"
+                  value={question.label}
+                  onChange={(event) =>
+                    setFormQuestions((current) =>
+                      current.map((item) =>
+                        item.id === question.id ? { ...item, label: event.target.value.toLowerCase() } : item,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label className="studio-field">
+                <span>note</span>
+                <input
+                  className="studio-input"
+                  value={question.hint}
+                  onChange={(event) =>
+                    setFormQuestions((current) =>
+                      current.map((item) =>
+                        item.id === question.id ? { ...item, hint: event.target.value.toLowerCase() } : item,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            </div>
+            {question.options.length ? (
+              <div className="studio-ask-grid is-two">
+                {question.options.map((option) => (
+                  <label key={option.value} className="studio-field">
+                    <span>choice</span>
+                    <input
+                      className="studio-input"
+                      value={option.label}
+                      onChange={(event) =>
+                        setFormQuestions((current) =>
+                          current.map((item) =>
+                            item.id === question.id
+                              ? {
+                                  ...item,
+                                  options: item.options.map((choice) =>
+                                    choice.value === option.value
+                                      ? { ...choice, label: event.target.value.toLowerCase() }
+                                      : choice,
+                                  ),
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+        <button
+          type="submit"
+          className="studio-today-go"
+          disabled={savingForm || formQuestions.some((question) => !question.label.trim())}
+        >
+          {savingForm ? "saving" : "save form"}
+        </button>
+      </form>
+    </section>
+  );
+
   const healthBlock = (
     <section className="studio-panel">
-      <div className="studio-panel-head">
-        <div>
-          <p className="studio-kicker">health</p>
-          <h2>recent failures</h2>
-        </div>
-        <StudioChip tone={failedEvents.length ? "due" : "soft"}>{failedEvents.length || "clear"}</StudioChip>
-      </div>
+      <p className="studio-kicker">recent issues</p>
       {failedEvents.length ? (
-        <div style={{ marginTop: 16 }}>
+        <div>
           {failedEvents.map((event) => (
             <div key={event.id} className="studio-member">
               <div>
@@ -394,20 +654,15 @@ function SettingsPage() {
           ))}
         </div>
       ) : (
-        <p className="studio-empty">no failed integration events.</p>
+        <p className="studio-empty">no recent issues.</p>
       )}
-      <p className="studio-muted" style={{ marginTop: 18 }}>
-        default deposits stay on the server for v1. proposal-specific amounts are set when you send.
-      </p>
-      <Link to="/library" className="auth-text-action" style={{ marginTop: 12, display: "inline-flex" }}>
-        library
-      </Link>
     </section>
   );
 
   function panelFor(id: SettingsSection) {
-    if (id !== "hours" && isPending) return <p className="studio-empty">gathering…</p>;
-    if (id === "hours") return <CalendarHours />;
+    if (id === "account") return accountBlock;
+    if (id === "forms") return formsBlock;
+    if (isPending) return <p className="studio-empty">gathering…</p>;
     if (id === "connections") return connectionsBlock;
     if (id === "people") return accessBlock;
     return healthBlock;
@@ -419,12 +674,12 @@ function SettingsPage() {
         <div>
           <p className="studio-kicker">studio</p>
           <h1>settings</h1>
-          <p>hours, connections, and who can come in.</p>
+          <p>{isAdmin ? "your account, connections, and who can come in." : "your account."}</p>
         </div>
       </header>
 
       <div className="studio-settings-index">
-        {sections.map((item) => {
+        {(isAdmin ? sections : sections.filter((item) => item.id === "account")).map((item) => {
           const isOpen = open === item.id;
           return (
             <section key={item.id} className={isOpen ? "studio-settings-fold is-open" : "studio-settings-fold"}>

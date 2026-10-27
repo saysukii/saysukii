@@ -25,6 +25,8 @@ import { PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
 import { listFreshArrivals, syncStudioInbox } from "@/lib/os/inquiries.functions";
+import { listRecentIssues } from "@/lib/os/settings.functions";
+import { getDevPreviewSettings } from "@/lib/dev-preview";
 import { PREVIEW_ARRIVALS_KEY } from "@/lib/preview-arrivals";
 import {
   dismissNotice,
@@ -89,6 +91,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const { user, profile, devPreview } = useRouteContext({ from: "/_authenticated" });
   const arrivals = useServerFn(listFreshArrivals);
   const syncInbox = useServerFn(syncStudioInbox);
+  const recentIssues = useServerFn(listRecentIssues);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -164,6 +167,42 @@ export function Shell({ children }: { children: ReactNode }) {
       window.clearInterval(timer);
     };
   }, [arrivals, devPreview, profile.role]);
+
+  useEffect(() => {
+    if (profile.role !== "admin") return;
+    const seen = new Set<string>();
+    let ready = false;
+    let stop = false;
+    async function look() {
+      try {
+        const rows = devPreview ? getDevPreviewSettings().failedEvents : await recentIssues();
+        if (stop) return;
+        if (!ready) {
+          for (const row of rows) seen.add(row.id);
+          ready = true;
+          return;
+        }
+        for (const row of rows) {
+          if (seen.has(row.id)) continue;
+          seen.add(row.id);
+          pushNotice({
+            id: `issue-${row.id}`,
+            title: `${row.provider} · ${row.event_type.replaceAll("_", " ")}`,
+            body: row.error_message || "a studio issue was recorded.",
+            href: "/settings",
+          });
+        }
+      } catch {
+        // issues stay in settings if the studio cannot reach them
+      }
+    }
+    void look();
+    const timer = window.setInterval(() => void look(), 20_000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [devPreview, profile.role, recentIssues]);
 
   async function signOut() {
     if (devPreview) {
@@ -322,6 +361,10 @@ function useNoticeModal(notices: StudioNotice[]) {
                 action: {
                   label: "open",
                   onClick: () => {
+                    if (href === "/settings") {
+                      void router.navigate({ to: "/settings" });
+                      return;
+                    }
                     const slug = href.split("/").filter(Boolean).pop();
                     if (!slug) return;
                     void router.navigate({ to: "/pipeline/$id", params: { id: slug } });

@@ -7,12 +7,16 @@ import { InquiryGuide } from "@/components/inquiry/InquiryGuide";
 import { InquiryThanks } from "@/components/inquiry/InquiryThanks";
 import { firstName } from "@/lib/os/connect-letter";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
+import { getInquiryForms } from "@/lib/os/inquiry-forms.functions";
+import type { InquiryDrafts } from "@/lib/os/inquiry-draft";
 import { submitPublicInquiry } from "@/lib/os/inquiries.functions";
 import { rememberPreviewArrival } from "@/lib/preview-arrivals";
 import { pushNotice } from "@/lib/studio-notices";
 
 export function InquirePublicPage() {
   const submitInquiry = useServerFn(submitPublicInquiry);
+  const loadForms = useServerFn(getInquiryForms);
+  const [liveDrafts, setLiveDrafts] = useState<InquiryDrafts | undefined>(undefined);
   const submit = useMutation({
     mutationFn: (values: InquiryFormValues) =>
       submitInquiry({ data: { ...values, website: values.website ?? "" } }),
@@ -24,6 +28,18 @@ export function InquirePublicPage() {
       setPreviewSent(true);
     }
   }, []);
+
+  useEffect(() => {
+    let stop = false;
+    void loadForms()
+      .then((saved) => {
+        if (!stop && saved) setLiveDrafts(saved);
+      })
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, [loadForms]);
 
   return (
     <InquireScene>
@@ -43,6 +59,7 @@ export function InquirePublicPage() {
           ) : null}
           <InquiryGuide
             showHoneypot
+            {...(liveDrafts ? { drafts: liveDrafts } : {})}
             disabled={submit.isPending}
             onSubmit={async (values) => {
               const result = await submit.mutateAsync(values);

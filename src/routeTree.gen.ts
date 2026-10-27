@@ -20,6 +20,7 @@ import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
+import { Route as AuthenticatedLoadingRouteImport } from './routes/_authenticated/loading'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedShelfRouteImport } from './routes/_authenticated/shelf'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -95,6 +96,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedLibraryRoute = AuthenticatedLibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLoadingRoute = AuthenticatedLoadingRouteImport.update({
+  id: '/loading',
+  path: '/loading',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
@@ -230,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/library': typeof AuthenticatedLibraryRoute
+  '/loading': typeof AuthenticatedLoadingRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -263,6 +270,7 @@ export interface FileRoutesByTo {
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/library': typeof AuthenticatedLibraryRoute
+  '/loading': typeof AuthenticatedLoadingRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -297,6 +305,7 @@ export interface FileRoutesById {
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/library': typeof AuthenticatedLibraryRoute
+  '/_authenticated/loading': typeof AuthenticatedLoadingRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -333,6 +342,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/dashboard'
     | '/library'
+    | '/loading'
     | '/settings'
     | '/shelf'
     | '/auth/callback'
@@ -366,6 +376,7 @@ export interface FileRouteTypes {
     | '/calendar'
     | '/dashboard'
     | '/library'
+    | '/loading'
     | '/settings'
     | '/shelf'
     | '/auth/callback'
@@ -399,6 +410,7 @@ export interface FileRouteTypes {
     | '/_authenticated/calendar'
     | '/_authenticated/dashboard'
     | '/_authenticated/library'
+    | '/_authenticated/loading'
     | '/_authenticated/settings'
     | '/_authenticated/shelf'
     | '/auth/callback'
@@ -518,6 +530,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof AuthenticatedLibraryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/loading': {
+      id: '/_authenticated/loading'
+      path: '/loading'
+      fullPath: '/loading'
+      preLoaderRoute: typeof AuthenticatedLoadingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings': {
@@ -717,6 +736,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLibraryRoute: typeof AuthenticatedLibraryRoute
+  AuthenticatedLoadingRoute: typeof AuthenticatedLoadingRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShelfRoute: typeof AuthenticatedShelfRoute
   AuthenticatedClientsIdRoute: typeof AuthenticatedClientsIdRoute
@@ -731,6 +751,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLibraryRoute: AuthenticatedLibraryRoute,
+  AuthenticatedLoadingRoute: AuthenticatedLoadingRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShelfRoute: AuthenticatedShelfRoute,
   AuthenticatedClientsIdRoute: AuthenticatedClientsIdRoute,

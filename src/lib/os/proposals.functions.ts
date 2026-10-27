@@ -469,7 +469,7 @@ export const getPublicProposal = createServerFn({ method: "GET" })
     ]);
     return {
       proposal: publicProposal(bundle.proposal),
-      client: { name: bundle.client.name },
+      client: { name: bundle.client.name, email: bundle.client.email },
       venue: bundle.venue ? { name: bundle.venue.name, address: bundle.venue.address } : null,
       items: bundle.items.map(
         ({ label, description, quantity, unit_price_cents, line_total_cents }) => ({

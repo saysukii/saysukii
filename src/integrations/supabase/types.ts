@@ -383,6 +383,7 @@ export type StudioRow = {
   name: string;
   created_at: string;
   calendar_settings: Json | null;
+  inquiry_forms: Json | null;
 };
 
 export type InternalNoteRow = {

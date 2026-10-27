@@ -131,8 +131,25 @@ export function resolveInquirySteps(
     .map((id) => byId.get(id))
     .filter((step): step is InquiryStep => Boolean(step))
     .map((step) =>
-      applyStepCopy(step, isSharedInquiryStep(step.id) ? sharedDraft?.copy[step.id] : pathDraft?.copy[step.id]),
+      lowerInquiryStep(
+        applyStepCopy(step, isSharedInquiryStep(step.id) ? sharedDraft?.copy[step.id] : pathDraft?.copy[step.id]),
+      ),
     );
+}
+
+function lowerInquiryStep(step: InquiryStep): InquiryStep {
+  const label = step.label.toLowerCase();
+  if (step.kind === "review") return { ...step, label };
+  const hint = step.hint?.toLowerCase();
+  const next = hint ? { ...step, label, hint } : { ...step, label };
+  if (step.kind !== "choice" && step.kind !== "multi") return next;
+  return {
+    ...next,
+    options: step.options.map((option) => ({
+      value: option.value,
+      label: option.label.toLowerCase(),
+    })),
+  };
 }
 
 export function resolveSharedSteps(drafts: InquiryDrafts = {}) {

@@ -264,6 +264,7 @@ function PublicProposalPage() {
 
   const status = preview?.status ?? data?.proposal.status ?? "sent";
   const clientName = preview?.clientName ?? data?.client.name ?? "";
+  const clientEmail = data?.client.email ?? "";
   const number = preview?.number ?? data?.proposal.number ?? "";
   const depositCents = preview?.depositCents ?? data?.proposal.deposit_amount_cents ?? 0;
   const signedName = preview?.signedName ?? data?.agreement?.signedName ?? keptSignature;
@@ -362,7 +363,15 @@ function PublicProposalPage() {
           </p>
           <p className="client-packet-kicker is-number">{invoiceNumber}</p>
           <p>
-            Bill to: {clientName}
+            Bill to
+            <br />
+            {clientName}
+            {clientEmail ? (
+              <>
+                <br />
+                {clientEmail}
+              </>
+            ) : null}
             {paid ? (
               <>
                 <br />
@@ -420,10 +429,6 @@ function PublicProposalPage() {
       <div className="client-packet-wrap">
         <header className="client-packet-mast">
           <Wordmark tone="ink" className="client-packet-mark" />
-          <p className="client-packet-client">
-            {clientName}
-            {number ? <span>{number === "SS-0917" ? "Floral Proposal Quote" : number}</span> : null}
-          </p>
         </header>
 
         <div className="client-packet-steps" aria-label="packet">
