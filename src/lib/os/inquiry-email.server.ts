@@ -4,6 +4,7 @@ import { Resend } from "resend";
 
 import type { EventType } from "@/integrations/supabase/types";
 import { emailOrigin, renderSaySukiiEmail } from "@/lib/os/email-layout";
+import { studioNotificationEmail } from "@/lib/os/email.server";
 import { encodeGmailRaw } from "@/lib/os/gmail-outbound.server";
 import { EVENT_LABEL, recordSlug } from "@/lib/os/inquiry-desk";
 
@@ -73,11 +74,11 @@ function inquiryReceivedText(details: InquiryEmailDetails, origin?: string) {
   ].join("\n");
 }
 
-function noticeRfc822(subject: string, html: string, text: string) {
+function noticeRfc822(subject: string, html: string, text: string, to: string) {
   const boundary = "saysukii-notice";
   const headers = [
     `From: "Say Sukii" <${STUDIO_INBOX}>`,
-    `To: ${STUDIO_INBOX}`,
+    `To: ${to}`,
     `Subject: =?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`,
     `Date: ${new Date().toUTCString().replace(/UTC$/i, "GMT")}`,
     `Message-ID: <${randomUUID()}@saysukii.com>`,
@@ -159,37 +160,63 @@ async function insertStudioNotice(raw: string) {
   return true;
 }
 
+async function sendNotice(raw: string) {
+  const { getGmailPublicStatus, validGmailAccessToken } = await import("@/lib/os/gmail.server");
+  const gmail = await getGmailPublicStatus();
+  if (gmail.status !== "connected") return false;
+  const accessToken = await validGmailAccessToken();
+  const sent = await gmailWrite("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", accessToken, {
+    raw: encodeGmailRaw(raw),
+  });
+  if (!sent.ok || !sent.payload?.id) {
+    console.error("[Inquiry email] gmail did not send the notice:", sent.payload?.error?.message || sent.status);
+    return false;
+  }
+  return true;
+}
+
 export async function sendInquiryReceivedEmail(details: InquiryEmailDetails) {
+  const to = studioNotificationEmail();
   const subject = `someone wrote in · ${details.clientName}`;
   const html = inquiryReceivedHtml(details);
   const text = inquiryReceivedText(details);
+  const raw = noticeRfc822(subject, html, text, to);
 
-  try {
-    const placed = await insertStudioNotice(noticeRfc822(subject, html, text));
-    if (placed) return { sent: true as const };
-  } catch (error) {
-    console.error("[Inquiry email] inbox insert failed:", error);
+  if (to === STUDIO_INBOX) {
+    try {
+      const placed = await insertStudioNotice(raw);
+      if (placed) return { sent: true as const };
+    } catch (error) {
+      console.error("[Inquiry email] inbox insert failed:", error);
+    }
   }
 
   const apiKey = process.env["RESEND_API_KEY"];
-  if (!apiKey) return { sent: false as const };
+  if (apiKey) {
+    try {
+      const resend = new Resend(apiKey);
+      const { error } = await resend.emails.send({
+        from: process.env["RESEND_FROM_EMAIL"] ?? "Say Sukii OS <onboarding@resend.dev>",
+        to,
+        subject,
+        html,
+        text,
+      });
+      if (error) {
+        console.error("[Inquiry email]", error.message);
+      } else {
+        return { sent: true as const };
+      }
+    } catch (error) {
+      console.error("[Inquiry email]", error);
+    }
+  }
 
   try {
-    const resend = new Resend(apiKey);
-    const { error } = await resend.emails.send({
-      from: process.env["RESEND_FROM_EMAIL"] ?? "Say Sukii OS <onboarding@resend.dev>",
-      to: STUDIO_INBOX,
-      subject,
-      html,
-      text,
-    });
-    if (error) {
-      console.error("[Inquiry email]", error.message);
-      return { sent: false as const };
-    }
-    return { sent: true as const };
+    const sent = await sendNotice(raw);
+    if (sent) return { sent: true as const };
   } catch (error) {
-    console.error("[Inquiry email]", error);
-    return { sent: false as const };
+    console.error("[Inquiry email] gmail send failed:", error);
   }
+  return { sent: false as const };
 }

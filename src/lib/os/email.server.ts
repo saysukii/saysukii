@@ -11,6 +11,13 @@ type SendInput = {
   eventType: string;
 };
 
+const STUDIO_INBOX = "info@saysukii.com";
+
+export function studioNotificationEmail() {
+  const configured = process.env["INQUIRY_NOTIFICATION_EMAIL"]?.trim();
+  return configured || STUDIO_INBOX;
+}
+
 function studioFrom() {
   return process.env["RESEND_FROM_EMAIL"] ?? "Say Sukii <studio@saysukii.com>";
 }

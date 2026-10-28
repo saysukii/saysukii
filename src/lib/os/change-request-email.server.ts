@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 
 import { emailOrigin, renderSaySukiiEmail } from "@/lib/os/email-layout";
+import { studioNotificationEmail } from "@/lib/os/email.server";
 
 export type ChangeRequestMail = {
   clientName: string;
@@ -11,7 +12,9 @@ export type ChangeRequestMail = {
   note: string;
 };
 
-const TO = "info@saysukii.com";
+function notificationRecipient() {
+  return studioNotificationEmail();
+}
 
 function momentDate(value: string | null) {
   const raw = value?.trim().slice(0, 10);
@@ -63,7 +66,7 @@ function htmlMessage(input: ChangeRequestMail) {
   const subject = `changes requested — ${input.clientName}`;
   const headers = [
     `From: "Say Sukii" <info@saysukii.com>`,
-    `To: ${TO}`,
+    `To: ${notificationRecipient()}`,
     `Subject: =?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`,
     `Date: ${new Date().toUTCString().replace(/UTC$/i, "GMT")}`,
     "MIME-Version: 1.0",
@@ -102,7 +105,7 @@ export async function sendChangeRequestEmail(input: ChangeRequestMail) {
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
       from: process.env["RESEND_FROM_EMAIL"] ?? "Say Sukii <onboarding@resend.dev>",
-      to: TO,
+      to: notificationRecipient(),
       subject: `changes requested — ${input.clientName}`,
       html: changeRequestHtml(input),
       text: changeRequestText(input),
