@@ -1154,7 +1154,7 @@ export function AddInquiry({
     if (step.kind === "choice" || step.kind === "multi") {
       const selected = step.kind === "multi" ? (values.sources ?? []) : [String(values[step.field] ?? "")];
       return (
-        <div key={step.id} className={cn("studio-ask-field", step.id !== "event_setting" && "studio-ask-span")}>
+        <div key={step.id} className={cn("studio-ask-field", !pairedAsk(step.id) && "studio-ask-span")}>
           <span className="studio-ask-label is-prompt">{askLabel(step)}</span>
           <div className="studio-task-kinds" role="listbox" aria-label={askLabel(step)}>
             {step.options.map((option) => {
@@ -1243,7 +1243,7 @@ export function AddInquiry({
             <AskChips options={INTEREST_OPTIONS} value={interest} onPick={pickInterest} />
           </div>
           <div className="studio-ask-grid is-two studio-ask-stack-form">
-            {arrangeAskSteps(questions, activation).map((step, index, steps) => {
+            {arrangeAskSteps(questions, interest).map((step, index, steps) => {
               const node = renderAskStep(step, steps[index + 1]);
               if (step.kind !== "date" || !step.withTime) return node;
               return (
@@ -1284,17 +1284,28 @@ export function AddInquiry({
   );
 }
 
-function arrangeAskSteps(steps: InquiryStep[], events: boolean) {
-  if (!events) return steps;
-  const venueAt = steps.findIndex((step) => step.kind === "address");
-  const settingAt = steps.findIndex((step) => step.id === "event_setting");
-  if (venueAt < 0 || settingAt < 0) return steps;
+function pairedAsk(id: string) {
+  return id === "event_setting" || id === "space" || id === "cadence";
+}
+
+function moveAfter(steps: InquiryStep[], id: string, afterId: string) {
+  const from = steps.findIndex((step) => step.id === id);
+  const after = steps.findIndex((step) => step.id === afterId);
+  if (from < 0 || after < 0 || from === after + 1) return steps;
   const next = [...steps];
-  const [venue] = next.splice(venueAt, 1);
-  const setting = next.findIndex((step) => step.id === "event_setting");
-  if (!venue || setting < 0) return steps;
-  next.splice(setting + 1, 0, venue);
+  const [step] = next.splice(from, 1);
+  const target = next.findIndex((item) => item.id === afterId);
+  if (!step || target < 0) return steps;
+  next.splice(target + 1, 0, step);
   return next;
+}
+
+function arrangeAskSteps(steps: InquiryStep[], interest: InquiryInterest) {
+  if (interest === "events") return moveAfter(steps, "venue_text", "event_setting");
+  if (interest === "subscriptions") {
+    return moveAfter(moveAfter(steps, "cadence", "space"), "source", "message");
+  }
+  return steps;
 }
 
 function askLabel(step: InquiryStep) {
