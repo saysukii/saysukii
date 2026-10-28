@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter, useRouteContext, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Bell, ChevronDown, Menu, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Wordmark } from "./bits";
-import { BloomPass, takeLoginBloom } from "@/components/portal/StudioLoader";
+import { BloomPass, loginBloomArmed } from "@/components/portal/StudioLoader";
 import { PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
@@ -220,11 +220,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const givenName = profile.full_name?.trim() || "";
   const displayName = givenName || email;
   const initial = (displayName || email || "s").charAt(0).toLowerCase();
-  const [bloom, setBloom] = useState(0);
-
-  useEffect(() => {
-    if (!takeLoginBloom()) return;
-    setBloom(1);
+  const [bloom, setBloom] = useState(() => (loginBloomArmed() ? 1 : 0));
+  useLayoutEffect(() => {
+    if (loginBloomArmed()) setBloom(1);
   }, []);
 
   return (

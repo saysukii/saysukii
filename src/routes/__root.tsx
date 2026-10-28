@@ -82,7 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "The studio operating system for Say Sukii.",
       },
       { name: "author", content: "Say Sukii" },
-      { name: "theme-color", content: "#F2EFF0" },
+      { name: "theme-color", content: "#f5e6e8" },
       { property: "og:title", content: "say sukii" },
       { property: "og:site_name", content: "say sukii" },
       {
@@ -129,6 +129,11 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(sessionStorage.getItem("say-sukii-bloom-login")!=="1")return;var cover=document.createElement("div");cover.id="studio-login-bloom";cover.className="studio-bloom-pass";cover.setAttribute("role","status");cover.setAttribute("aria-label","opening the studio");cover.innerHTML='<div class="studio-bloom-mark"><span class="is-playing"><span class="studio-loader is-bloom" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></span></div>';var place=function(){if(!document.getElementById("studio-login-bloom"))document.body.appendChild(cover);};if(document.body)place();else document.addEventListener("DOMContentLoaded",place);}catch(e){}})();`,
+          }}
+        />
         {children}
         <Scripts />
       </body>

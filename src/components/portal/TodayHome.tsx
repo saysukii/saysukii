@@ -14,7 +14,8 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { INQUIRE_EVENT_TIMES } from "@/components/inquiry/InquiryDatePicker";
+import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
+import { InquiryDatePicker, InquiryTimePicker } from "@/components/inquiry/InquiryDatePicker";
 import { EVENT_LABEL, inquiryAnswers, inquiryTime, initials, nextMove, recordSlug } from "@/lib/os/inquiry-desk";
 import { type InquiryFormValues } from "@/lib/os/inquiry-form";
 import {
@@ -992,7 +993,6 @@ function DueCalendar({
 export function AddInquiry({
   open,
   busy,
-  marks,
   onOpenChange,
   onCreate,
 }: {
@@ -1003,7 +1003,6 @@ export function AddInquiry({
   onCreate: (values: InquiryFormValues) => Promise<void>;
 }) {
   const [values, setValues] = useState<InquiryFormValues>({ ...EMPTY_INQUIRY_DRAFT, interest: "weddings" });
-  const [calOpen, setCalOpen] = useState(false);
   const [hint, setHint] = useState("");
   const interest = (values.interest || "weddings") as InquiryInterest;
   const steps = buildInquirySteps(interest);
@@ -1014,7 +1013,6 @@ export function AddInquiry({
 
   function reset() {
     setValues({ ...EMPTY_INQUIRY_DRAFT, interest: "weddings" });
-    setCalOpen(false);
     setHint("");
   }
 
@@ -1031,7 +1029,6 @@ export function AddInquiry({
       phone: current.phone,
       interest: next,
     }));
-    setCalOpen(false);
     setHint("");
   }
 
@@ -1045,7 +1042,6 @@ export function AddInquiry({
       if (current.event_date === date || current.event_dates?.includes(date)) return current;
       return { ...current, event_date_tbd: false, event_dates: [...(current.event_dates ?? []), date] };
     });
-    if (!activation) setCalOpen(false);
   }
 
   function dropDate(date: string) {
@@ -1064,7 +1060,6 @@ export function AddInquiry({
       event_date_tbd: next,
       ...(next ? { event_date: null, event_dates: [], event_time: "" } : {}),
     }));
-    if (next) setCalOpen(false);
     setHint("");
   }
 
@@ -1085,10 +1080,10 @@ export function AddInquiry({
     onOpenChange(false);
   }
 
-  function renderAskStep(step: InquiryStep) {
+  function renderAskStep(step: InquiryStep, next?: InquiryStep) {
     if (step.kind === "text" || step.kind === "email" || step.kind === "tel") {
       return (
-        <AskField key={step.id} label={askLabel(step)}>
+        <AskField key={step.id} label={askLabel(step)} className={step.field === "recipient" ? "studio-ask-span" : undefined}>
           <input
             type={step.kind === "text" ? "text" : step.kind}
             value={String(values[step.field] ?? "")}
@@ -1105,63 +1100,32 @@ export function AddInquiry({
     }
 
     if (step.kind === "date") {
-      const dateLabel = values.event_date_tbd
-        ? "tbd"
-        : chosenDates.length > 1
-          ? `${chosenDates.length} dates`
-          : values.event_date
-            ? shortDay(values.event_date)
-            : "date";
+      const paired = next?.kind === "address" || Boolean(step.withTime);
       return (
         <Fragment key={step.id}>
-          <div className="studio-ask-field">
+          <div className={cn("studio-ask-field", !paired && "studio-ask-span")}>
             <span className="studio-ask-label is-prompt">{askLabel(step)}</span>
             <div className={cn("studio-ask-date", values.event_date_tbd && "is-tbd")}>
-              <button
-                type="button"
-                className={cn("studio-ask-date-go", (calOpen || Boolean(values.event_date)) && "is-on")}
-                aria-expanded={calOpen}
+              <InquiryDatePicker
+                withTime={false}
+                allowPast
+                value={values.event_date_tbd ? null : values.event_date}
+                placeholder={values.event_date_tbd ? "tbd" : "date"}
                 disabled={values.event_date_tbd}
-                onClick={() => setCalOpen((open) => !open)}
-              >
-                {dateLabel}
-              </button>
-              {step.withTime && !values.event_date_tbd ? (
-                <select
-                  value={values.event_time ?? ""}
-                  aria-label="time"
-                  onChange={(event) => setField("event_time", event.target.value)}
-                >
-                  <option value="">time</option>
-                  {INQUIRE_EVENT_TIMES.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
+                onChange={(nextDate) => {
+                  if (!nextDate) {
+                    pickTbd(true);
+                    return;
+                  }
+                  pickDate(nextDate);
+                }}
+              />
               <label className="studio-ask-check">
                 <input type="checkbox" checked={values.event_date_tbd} onChange={(event) => pickTbd(event.target.checked)} />
                 tbd
               </label>
             </div>
           </div>
-          {activation && chosenDates.length > 0 ? (
-            <div className="studio-ask-dates">
-              {chosenDates.map((date) => (
-                <button key={date} type="button" onClick={() => dropDate(date)}>
-                  {shortDay(date)}
-                  <X aria-hidden="true" strokeWidth={1.5} />
-                  <span className="sr-only">remove {shortDay(date)}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {calOpen && !values.event_date_tbd ? (
-            <div className="studio-ask-span">
-              <DueCalendar marks={marks} selected={values.event_date ?? ""} onSelect={pickDate} />
-            </div>
-          ) : null}
         </Fragment>
       );
     }
@@ -1171,12 +1135,12 @@ export function AddInquiry({
         <div key={step.id} className="studio-ask-field">
           <span className="studio-ask-label is-prompt">{askLabel(step)}</span>
           <div className={cn("studio-ask-date", values.venue_tbd && "is-tbd")}>
-            <input
+            <FloridaAddressPicker
+              label={askLabel(step)}
               value={values.venue_tbd ? "" : values.venue_text}
-              maxLength={240}
               disabled={Boolean(values.venue_tbd)}
-              placeholder={values.venue_tbd ? "tbd" : "venue"}
-              onChange={(event) => setField("venue_text", event.target.value)}
+              placeholder={values.venue_tbd ? "tbd" : "search a place"}
+              onChange={(next) => setField("venue_text", next)}
             />
             <label className="studio-ask-check">
               <input type="checkbox" checked={Boolean(values.venue_tbd)} onChange={(event) => pickVenueTbd(event.target.checked)} />
@@ -1190,7 +1154,7 @@ export function AddInquiry({
     if (step.kind === "choice" || step.kind === "multi") {
       const selected = step.kind === "multi" ? (values.sources ?? []) : [String(values[step.field] ?? "")];
       return (
-        <div key={step.id} className="studio-ask-field studio-ask-span">
+        <div key={step.id} className={cn("studio-ask-field", step.id !== "event_setting" && "studio-ask-span")}>
           <span className="studio-ask-label is-prompt">{askLabel(step)}</span>
           <div className="studio-task-kinds" role="listbox" aria-label={askLabel(step)}>
             {step.options.map((option) => {
@@ -1279,7 +1243,34 @@ export function AddInquiry({
             <AskChips options={INTEREST_OPTIONS} value={interest} onPick={pickInterest} />
           </div>
           <div className="studio-ask-grid is-two studio-ask-stack-form">
-            {questions.map((step) => renderAskStep(step))}
+            {arrangeAskSteps(questions, activation).map((step, index, steps) => {
+              const node = renderAskStep(step, steps[index + 1]);
+              if (step.kind !== "date" || !step.withTime) return node;
+              return (
+                <Fragment key={step.id}>
+                  {node}
+                  <div className="studio-ask-field">
+                    <span className="studio-ask-label is-prompt">time</span>
+                    <InquiryTimePicker
+                      value={values.event_time ?? ""}
+                      disabled={values.event_date_tbd}
+                      onChange={(time) => setField("event_time", time)}
+                    />
+                  </div>
+                  {chosenDates.length > 0 ? (
+                    <div className="studio-ask-dates">
+                      {chosenDates.map((date) => (
+                        <button key={date} type="button" onClick={() => dropDate(date)}>
+                          {shortDay(date)}
+                          <X aria-hidden="true" strokeWidth={1.5} />
+                          <span className="sr-only">remove {shortDay(date)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </div>
           {hint ? <p className="studio-ask-hint">{hint}</p> : null}
           <div className="studio-ask-foot">
@@ -1291,6 +1282,19 @@ export function AddInquiry({
       </DialogContent>
     </Dialog>
   );
+}
+
+function arrangeAskSteps(steps: InquiryStep[], events: boolean) {
+  if (!events) return steps;
+  const venueAt = steps.findIndex((step) => step.kind === "address");
+  const settingAt = steps.findIndex((step) => step.id === "event_setting");
+  if (venueAt < 0 || settingAt < 0) return steps;
+  const next = [...steps];
+  const [venue] = next.splice(venueAt, 1);
+  const setting = next.findIndex((step) => step.id === "event_setting");
+  if (!venue || setting < 0) return steps;
+  next.splice(setting + 1, 0, venue);
+  return next;
 }
 
 function askLabel(step: InquiryStep) {

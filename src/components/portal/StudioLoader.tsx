@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
-import { Wordmark } from "@/components/portal/bits";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 export const STUDIO_LOADERS = ["bloom", "page", "line", "dots", "veil", "ring"] as const;
 
@@ -50,27 +49,55 @@ export function BloomWait({ label, compact = false }: { label: string; compact?:
 }
 
 const LOGIN_BLOOM = "say-sukii-bloom-login";
+const bloomWaiters = new Set<() => void>();
 
 export function markLoginBloom() {
   if (typeof window === "undefined") return;
   window.sessionStorage.setItem(LOGIN_BLOOM, "1");
 }
 
-export function takeLoginBloom() {
-  if (typeof window === "undefined") return false;
-  const armed = window.sessionStorage.getItem(LOGIN_BLOOM) === "1";
-  if (armed) window.sessionStorage.removeItem(LOGIN_BLOOM);
-  return armed;
+export function loginBloomArmed() {
+  return typeof window !== "undefined" && window.sessionStorage.getItem(LOGIN_BLOOM) === "1";
+}
+
+export function releaseLoginBloom() {
+  if (typeof document === "undefined") return;
+  window.sessionStorage.removeItem(LOGIN_BLOOM);
+  document.getElementById("studio-login-bloom")?.remove();
+  for (const waiter of bloomWaiters) waiter();
+}
+
+function onLoginBloomRelease(waiter: () => void) {
+  bloomWaiters.add(waiter);
+  return () => {
+    bloomWaiters.delete(waiter);
+  };
 }
 
 export function BloomPass({ play }: { play: number }) {
-  const [phase, setPhase] = useState<"on" | "out" | "off">("off");
+  const [phase, setPhase] = useState<"on" | "out" | "off">(play ? "on" : "off");
+
+  useLayoutEffect(() => {
+    if (!play) return;
+    document.getElementById("studio-login-bloom")?.remove();
+  }, [play]);
 
   useEffect(() => {
     if (!play) return;
+    const started = Date.now();
     setPhase("on");
-    const out = window.setTimeout(() => setPhase("out"), 900);
-    return () => window.clearTimeout(out);
+    let timer = 0;
+    const finish = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setPhase("out"), Math.max(0, 2800 - (Date.now() - started)));
+    };
+    const stop = onLoginBloomRelease(finish);
+    const cap = window.setTimeout(() => releaseLoginBloom(), 7000);
+    return () => {
+      stop();
+      window.clearTimeout(cap);
+      window.clearTimeout(timer);
+    };
   }, [play]);
 
   useEffect(() => {
@@ -83,7 +110,6 @@ export function BloomPass({ play }: { play: number }) {
   return (
     <div className={phase === "out" ? "studio-bloom-pass is-out" : "studio-bloom-pass"} role="status" aria-label="opening the studio">
       <div className="studio-bloom-mark">
-        <Wordmark />
         <span className="is-playing">
           <StudioLoader kind="bloom" />
         </span>

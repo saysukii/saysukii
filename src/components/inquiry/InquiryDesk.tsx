@@ -15,7 +15,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getDevPreviewPipeline, previewReviewDecision } from "@/lib/dev-preview";
+import { getDevPreviewInquiryWorkspace, getDevPreviewPipeline, previewReviewDecision } from "@/lib/dev-preview";
 import { formatDateNumeric } from "@/lib/money";
 import {
   BOARD_COLUMNS,
@@ -30,6 +30,7 @@ import { isReviewCandidate } from "@/lib/os/inquiry-detection";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 import {
   createAdminInquiry,
+  getInquiryWorkspace,
   listInquiryPipeline,
   reviewDetectedInquiry,
   type InquiryPipelineItem,
@@ -438,9 +439,26 @@ function glance(inquiry: InquiryPipelineItem) {
 
 function BoardCard({ inquiry }: { inquiry: InquiryPipelineItem }) {
   const item = glance(inquiry);
+  const devPreview = useDevPreview();
+  const queryClient = useQueryClient();
+  const fetchWorkspace = useServerFn(getInquiryWorkspace);
+  function warm() {
+    void queryClient.prefetchQuery({
+      queryKey: ["os", "inquiry-workspace", inquiry.slug, devPreview],
+      queryFn: () =>
+        devPreview ? getDevPreviewInquiryWorkspace(inquiry.slug) : fetchWorkspace({ data: { id: inquiry.slug } }),
+    });
+  }
 
   return (
-    <Link to="/pipeline/$id" params={{ id: inquiry.slug }} className="studio-kanban-card is-glass is-labels">
+    <Link
+      to="/pipeline/$id"
+      params={{ id: inquiry.slug }}
+      className="studio-kanban-card is-glass is-labels"
+      onPointerEnter={warm}
+      onPointerDown={warm}
+      onFocus={warm}
+    >
       <header>
         <b>
           {isPersonType(inquiry.client?.type) && inquiry.client?.name ? (

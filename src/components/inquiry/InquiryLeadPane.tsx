@@ -7,12 +7,12 @@ import { toast } from "sonner";
 
 import { TextShimmer } from "@/components/core/text-shimmer";
 import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
+import { InquiryDatePicker } from "@/components/inquiry/InquiryDatePicker";
 import { FloralAgreement } from "@/components/proposal/FloralAgreement";
 import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Wordmark } from "@/components/portal/bits";
-import { BloomWait } from "@/components/portal/StudioLoader";
 import { PersonName, isPersonType } from "@/components/studio/PersonName";
 import { fileContentType, inquiryHoldDates, isVenueTbd, studioFileKey } from "@/lib/os/inquiry-holds";
 import { mailRecord, uniqueMails } from "@/lib/os/mail-people";
@@ -352,19 +352,42 @@ function personBits(text: string, personName?: string | null) {
   );
 }
 
+function mailParagraphs(body: string) {
+  const text = body.replace(/\r\n/g, "\n");
+  const spaced = text.split(/\n\s*\n/).map((part) => part.replace(/[ \t]+\n/g, "\n").trim()).filter(Boolean);
+  if (spaced.length > 1) return spaced;
+  const lines = text.split(/\n/).map((line) => line.trim()).filter(Boolean);
+  return lines.length ? lines : text.trim() ? [text.trim()] : [];
+}
+
 function MailBody({ body, personName }: { body: string; personName?: string | null }) {
+  const paragraphs = mailParagraphs(body);
+  return (
+    <div className="studio-mail-body">
+      {paragraphs.map((paragraph, index) => (
+        <p key={index}>{mailInline(paragraph, personName, index)}</p>
+      ))}
+    </div>
+  );
+}
+
+function mailInline(body: string, personName: string | null | undefined, seed: number) {
   const parts: ReactNode[] = [];
   const pattern = new RegExp(MAIL_LINK.source, "g");
   let last = 0;
-  let key = 0;
+  let key = seed * 100;
   const pushText = (text: string) => {
-    for (const piece of mailPieces(text)) {
-      const inner = personBits(piece.text, personName);
-      if (piece.kind === "strong") parts.push(<strong key={key}>{inner}</strong>);
-      else if (piece.kind === "em") parts.push(<em key={key}>{inner}</em>);
-      else parts.push(<span key={key}>{inner}</span>);
-      key += 1;
-    }
+    const lines = text.split("\n");
+    lines.forEach((line, lineIndex) => {
+      if (lineIndex > 0) parts.push(<br key={key++} />);
+      for (const piece of mailPieces(line)) {
+        const inner = personBits(piece.text, personName);
+        if (piece.kind === "strong") parts.push(<strong key={key}>{inner}</strong>);
+        else if (piece.kind === "em") parts.push(<em key={key}>{inner}</em>);
+        else if (piece.text) parts.push(<span key={key}>{inner}</span>);
+        key += 1;
+      }
+    });
   };
   for (const match of body.matchAll(pattern)) {
     const index = match.index ?? 0;
@@ -378,7 +401,7 @@ function MailBody({ body, personName }: { body: string; personName?: string | nu
     last = index + match[0].length;
   }
   if (last < body.length) pushText(body.slice(last));
-  return <p className="studio-mail-body">{parts}</p>;
+  return parts;
 }
 
 function withoutSignoff(text: string) {
@@ -1831,7 +1854,6 @@ export function InquiryLeadPane({
   const [removedNotes, setRemovedNotes] = useState<string[]>([]);
   const [threadKey, setThreadKey] = useState<string | null>(null);
   const [placeDraft, setPlaceDraft] = useState<string | null>(null);
-  const [dateOpen, setDateOpen] = useState(false);
   const [dateDraft, setDateDraft] = useState<{ event_date: string | null; event_date_tbd: boolean } | null>(null);
   const [startingThread, setStartingThread] = useState(false);
   const [namingThread, setNamingThread] = useState(false);
@@ -2288,11 +2310,31 @@ export function InquiryLeadPane({
   }, [focus, id, threadedMessages.length, activeThread, startingThread]);
 
   if (isPending) {
+    const rows =
+      queryClient.getQueryData<
+        Array<{
+          id: string;
+          slug: string;
+          event_date: string | null;
+          event_date_tbd: boolean;
+          venue_text: string | null;
+          client: { name: string; type: string } | null;
+        }>
+      >(["inquiry-pipeline", devPreview]) ?? [];
+    const known = rows.find((item) => item.slug === id || item.id === id);
+    const who = known?.client;
+    if (!known || !who) return null;
     return (
-      <>
-        <RecordHello title="client record" note="opening the job…" />
-        <p className="studio-empty">opening the job…</p>
-      </>
+      <div className="studio-lead is-new is-layout-workflow">
+        <div className="studio-lead-top is-mast">
+          <RecordMast
+            title={isPersonType(who.type) ? <PersonName name={who.name} /> : who.name}
+            date={known.event_date_tbd ? "date tbd" : formatDateNumeric(known.event_date)}
+            time=""
+            place={known.venue_text?.split(",")[0]?.trim() ?? ""}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -2868,30 +2910,25 @@ export function InquiryLeadPane({
             <div>
               <dt>date</dt>
               <dd className="studio-fact-date">
-                <button type="button" onClick={() => setDateOpen((open) => !open)}>
-                  {eventWhen || "add a date"}
-                </button>
-                {dateOpen ? (
-                  <span>
-                    <input
-                      type="date"
-                      value={dateValue ?? ""}
-                      aria-label="date"
-                      onChange={(event) => {
-                        const next = event.target.value;
-                        saveMoment.mutate(next ? { event_date: next, event_date_tbd: false } : { event_date: null, event_date_tbd: true });
-                      }}
-                    />
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={dateTbd}
-                        onChange={(event) => saveMoment.mutate({ event_date: null, event_date_tbd: event.target.checked })}
-                      />
-                      tbd
-                    </label>
-                  </span>
-                ) : null}
+                <InquiryDatePicker
+                  compact
+                  allowPast
+                  withTime={false}
+                  value={dateTbd ? null : dateValue}
+                  placeholder={dateTbd ? "tbd" : "add a date"}
+                  disabled={dateTbd}
+                  onChange={(next) => {
+                    saveMoment.mutate(next ? { event_date: next, event_date_tbd: false } : { event_date: null, event_date_tbd: true });
+                  }}
+                />
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={dateTbd}
+                    onChange={(event) => saveMoment.mutate({ event_date: null, event_date_tbd: event.target.checked })}
+                  />
+                  tbd
+                </label>
               </dd>
             </div>
             {space ? (
@@ -3206,7 +3243,27 @@ export function InquiryLeadPane({
           <dl className="studio-facts">
             <div>
               <dt>date</dt>
-              <dd>{eventWhen || "—"}</dd>
+              <dd className="studio-fact-date">
+                <InquiryDatePicker
+                  compact
+                  allowPast
+                  withTime={false}
+                  value={dateTbd ? null : dateValue}
+                  placeholder={dateTbd ? "tbd" : "add a date"}
+                  disabled={dateTbd}
+                  onChange={(next) => {
+                    saveMoment.mutate(next ? { event_date: next, event_date_tbd: false } : { event_date: null, event_date_tbd: true });
+                  }}
+                />
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={dateTbd}
+                    onChange={(event) => saveMoment.mutate({ event_date: null, event_date_tbd: event.target.checked })}
+                  />
+                  tbd
+                </label>
+              </dd>
             </div>
             {space ? (
               <div>

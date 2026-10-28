@@ -172,7 +172,7 @@
   body {
     min-width: 320px;
     min-height: 100vh;
-    background: linear-gradient(145deg, #f2eff0 0%, #e1d8dc 100%);
+    background: #f5e6e8;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -4510,10 +4510,16 @@
   --auth-button-ink: #f8f4ed;
   position: relative;
   isolation: isolate;
+  --studio-paper: #f5e6e8;
+  --studio-mist: #ffe8ee;
+  --studio-veil: rgba(255, 244, 246, 0.56);
+  --studio-veil-on: rgba(255, 248, 249, 0.72);
+  --studio-rail: rgba(255, 244, 246, 0.78);
+  --studio-veil-line: color-mix(in srgb, var(--auth-ink) 8%, transparent);
   height: 100svh;
   min-height: 100svh;
   overflow: hidden;
-  background: var(--auth-bg);
+  background: var(--studio-paper);
   color: var(--auth-ink);
 }
 
@@ -4529,31 +4535,26 @@
 }
 
 .studio-pearl-aura-far {
-  top: -18%;
-  left: -28%;
-  right: 40%;
-  bottom: -18%;
-  opacity: 0.48;
+  top: -22%;
+  right: -18%;
+  bottom: 18%;
+  left: -18%;
+  opacity: 1;
+  filter: blur(88px) saturate(104%);
   background:
-    radial-gradient(circle at 36% 34%, rgba(251, 185, 194, 0.58) 0 14%, transparent 48%),
-    radial-gradient(circle at 22% 72%, rgba(255, 196, 168, 0.36) 0 16%, transparent 50%);
-  filter: blur(100px) saturate(96%);
+    radial-gradient(ellipse 42% 46% at 4% 28%, #efc27a 0%, transparent 58%),
+    radial-gradient(ellipse 70% 62% at 58% 0%, #f4b3c0 0%, transparent 68%);
 }
 
 .studio-pearl-aura-near {
-  top: -8%;
-  left: -6%;
-  width: min(58vmax, 720px);
-  height: min(58vmax, 720px);
+  top: -14%;
+  left: 28%;
+  width: min(62vw, 840px);
+  height: min(42vw, 520px);
   border-radius: 50%;
-  opacity: 0.28;
-  background: radial-gradient(
-    circle at 44% 42%,
-    rgba(255, 255, 255, 0.58) 0 8%,
-    rgba(251, 185, 194, 0.42) 26%,
-    transparent 72%
-  );
-  filter: blur(68px);
+  opacity: 0.42;
+  filter: blur(80px);
+  background: radial-gradient(circle at 50% 40%, var(--studio-mist) 0%, transparent 72%);
 }
 
 .studio-pearl-frame {
@@ -6560,6 +6561,34 @@ button.studio-metric:hover {
   box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
 }
 
+.studio-ask-field:focus-within {
+  position: relative;
+  z-index: 4;
+}
+
+.studio-ask-date .inquire-datetime,
+.studio-ask-date .inquire-address,
+.studio-ask-date .inquire-address-field {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.studio-ask-date .inquire-date-trigger,
+.studio-ask-date .inquire-address-input {
+  min-height: 0;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.studio-ask-date .inquire-address-results {
+  z-index: 30;
+}
+
 .studio-task-form .studio-ask-date input:not([type="checkbox"]),
 .studio-ask-date input:not([type="checkbox"]) {
   width: auto;
@@ -6593,8 +6622,86 @@ button.studio-metric:hover {
 }
 
 .studio-fact-date {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.studio-fact-date .inquire-datetime {
+  flex: 1;
+  min-width: 0;
+}
+
+.studio-fact-date .inquire-datetime.is-compact .inquire-date-trigger,
+.studio-fact-date .inquire-date-trigger {
+  width: 100%;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 244, 246, 0.8);
+  background-color: rgba(255, 244, 246, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+  font-size: 14px;
+  font-weight: 300;
+}
+
+.studio-facts > div:has(.studio-fact-date) {
+  align-items: center;
+}
+
+.inquire-time-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 244, 246, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 300;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inquire-time-trigger.is-empty span {
+  color: rgba(36, 34, 31, 0.45);
+}
+
+.inquire-time-trigger.is-open,
+.inquire-time-trigger:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 1px #fbb9c2;
+}
+
+.inquire-time-trigger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.inquire-time-popover {
+  padding: 8px;
+  border-radius: 16px;
+  background: #fff8f9;
+  box-shadow:
+    inset 0 0 0 1px rgba(36, 34, 31, 0.08),
+    0 16px 36px rgba(73, 68, 61, 0.14);
+}
+
+.inquire-time-popover .inquire-times-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.inquire-time-popover .inquire-times-grid button {
+  opacity: 1;
+  transform: none;
 }
 
 .studio-fact-date > button {
@@ -9365,12 +9472,20 @@ button.studio-metric:hover {
   margin-bottom: 4px;
 }
 
-.studio-lead-thread .studio-mail-body {
+.studio-lead-thread .studio-mail-body,
+.studio-mail-body {
+  display: grid;
+  gap: 0.9em;
   margin: 0;
   color: #24221f;
   font-size: 13px;
   font-weight: 300;
   line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.studio-mail-body p {
+  margin: 0;
   white-space: pre-wrap;
 }
 
@@ -11169,6 +11284,19 @@ button.studio-metric:hover {
     flex: 1;
     min-height: 0;
     overflow: hidden;
+  }
+
+  .studio-home.is-book:not(.is-record) .studio-book-body > .studio-directory {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+
+  .studio-home.is-book:not(.is-record) .studio-book-body > .studio-directory::-webkit-scrollbar {
+    display: none;
   }
 
   .studio-home.is-book:not(.is-record) .studio-kanban {
@@ -14689,7 +14817,7 @@ a.studio-kicker:hover {
 }
 
 .studio-loader.is-waiting.is-bloom i {
-  animation: studio-bloom-wait 1.35s ease-in-out infinite;
+  animation: studio-bloom-wait 2.8s ease-in-out infinite;
 }
 
 .studio-bloom-wait {
@@ -14704,7 +14832,7 @@ a.studio-kicker:hover {
 
 .studio-bloom-wait .studio-loader.is-bloom,
 .studio-bloom-pass .studio-loader.is-bloom {
-  transform: scale(1.7);
+  transform: scale(2.4);
 }
 
 .studio-bloom-wait.is-compact .studio-loader.is-bloom {
@@ -14723,9 +14851,7 @@ a.studio-kicker:hover {
 
 .studio-bloom-mark {
   display: grid;
-  justify-items: center;
-  gap: 28px;
-  width: min(168px, 42vw);
+  place-items: center;
 }
 
 .studio-bloom-pass.is-out {
@@ -14734,7 +14860,7 @@ a.studio-kicker:hover {
 }
 
 .studio-bloom-pass .is-playing .studio-loader.is-bloom i {
-  animation: studio-bloom 680ms ease forwards;
+  animation: studio-bloom 2200ms ease forwards;
 }
 
 @keyframes studio-bloom {

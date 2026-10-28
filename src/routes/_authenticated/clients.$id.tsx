@@ -6,10 +6,10 @@ import { toast } from "sonner";
 
 import type { ClientType } from "@/integrations/supabase/types";
 import { shownName, isPersonType } from "@/components/studio/PersonName";
-import { BloomWait } from "@/components/portal/StudioLoader";
 import { formatDate } from "@/lib/money";
 import { archiveClient, getClient, saveClient } from "@/lib/os/clients.functions";
-import { getDevPreviewClient } from "@/lib/dev-preview";
+import { getDevPreviewClient, getDevPreviewInquiryWorkspace } from "@/lib/dev-preview";
+import { getInquiryWorkspace } from "@/lib/os/inquiries.functions";
 import { findPreviewClient, previewDirectoryRecord, updatePreviewClient } from "@/lib/preview-clients";
 import { EVENT_LABEL, STATUS_LABEL } from "@/lib/os/inquiry-desk";
 import { useDevPreview } from "@/lib/use-dev-preview";
@@ -29,6 +29,7 @@ function ClientDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const fetchClient = useServerFn(getClient);
+  const fetchWorkspace = useServerFn(getInquiryWorkspace);
   const submitClient = useServerFn(saveClient);
   const removeClient = useServerFn(archiveClient);
   const [editing, setEditing] = useState(false);
@@ -112,21 +113,17 @@ function ClientDetailPage() {
 
   if (!isAdmin) {
     return (
-      <div className="studio-page">
+      <div className="studio-home is-book">
         <p className="studio-pearl-note">client records are for studio admins.</p>
       </div>
     );
   }
   if (isPending) {
-    return (
-      <div className="studio-page">
-        <p className="studio-empty">opening the client…</p>
-      </div>
-    );
+    return <div className="studio-home is-book is-record" />;
   }
   if (!data) {
     return (
-      <div className="studio-page">
+      <div className="studio-home is-book is-record">
         <Link to="/directories/clients" className="auth-text-action">
           back to clients
         </Link>
@@ -236,6 +233,15 @@ function ClientDetailPage() {
                     to="/pipeline/$id"
                     params={{ id: inquiry.slug }}
                     className={inquiry.status === "closed" ? "studio-book-row is-quiet" : "studio-book-row"}
+                    onPointerEnter={() => {
+                      void queryClient.prefetchQuery({
+                        queryKey: ["os", "inquiry-workspace", inquiry.slug, devPreview],
+                        queryFn: () =>
+                          devPreview
+                            ? getDevPreviewInquiryWorkspace(inquiry.slug)
+                            : fetchWorkspace({ data: { id: inquiry.slug } }),
+                      });
+                    }}
                   >
                     <span>
                       <b>{EVENT_LABEL[inquiry.event_type]}</b>

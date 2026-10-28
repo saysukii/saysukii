@@ -85,6 +85,10 @@ describe("Gmail inbound capture", () => {
     assert.equal(parsed?.to_addr, "info@saysukii.com");
     assert.equal(parsed?.body, "plain body");
     assert.equal(htmlToText("<p>Need peonies &amp; ranunculus</p>"), "Need peonies & ranunculus");
+    assert.equal(
+      htmlToText("<div>Hi Kaitlin,</div><div><br></div><div>See you on the 9th.</div>"),
+      "Hi Kaitlin,\n\nSee you on the 9th.",
+    );
   });
 
   it("captures new inbox mail and de-duplicates by gmail_message_id", async () => {

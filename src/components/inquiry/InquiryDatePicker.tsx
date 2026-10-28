@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { format, parseISO, startOfToday } from "date-fns";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Clock } from "lucide-react";
 
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -140,5 +140,60 @@ export function InquiryDatePicker({
         </div>
       ) : null}
     </div>
+  );
+}
+
+export function InquiryTimePicker({
+  value,
+  times = INQUIRE_EVENT_TIMES,
+  disabled = false,
+  placeholder = "time",
+  onChange,
+}: {
+  value: string;
+  times?: readonly string[];
+  disabled?: boolean;
+  placeholder?: string;
+  onChange: (time: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn("inquire-time-trigger", open && "is-open", !value && "is-empty")}
+        >
+          <Clock className="size-4 shrink-0 opacity-55" aria-hidden="true" />
+          <span>{value || placeholder}</span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={8}
+        collisionPadding={12}
+        className="inquire-time-popover z-[80] w-auto border-0 p-0 shadow-none"
+      >
+        <div className="inquire-times-grid" role="listbox" aria-label="time">
+          {times.map((slot) => (
+            <button
+              key={slot}
+              type="button"
+              role="option"
+              aria-selected={value === slot}
+              className={cn(value === slot && "is-on")}
+              onClick={() => {
+                onChange(slot);
+                setOpen(false);
+              }}
+            >
+              {slot}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

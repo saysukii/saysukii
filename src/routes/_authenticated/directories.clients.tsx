@@ -5,14 +5,13 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
-import { BloomWait } from "@/components/portal/StudioLoader";
 import { shownName, isPersonType } from "@/components/studio/PersonName";
 import type { ClientRow } from "@/integrations/supabase/types";
-import { getDevPreviewClients } from "@/lib/dev-preview";
-import { importClients, listClients } from "@/lib/os/clients.functions";
+import { getDevPreviewClient, getDevPreviewClients } from "@/lib/dev-preview";
+import { getClient, importClients, listClients } from "@/lib/os/clients.functions";
 import { csvImportNote, readClientCsv } from "@/lib/os/directory-csv";
 import { clientSlugs } from "@/lib/os/inquiry-desk";
-import { mergePreviewClients } from "@/lib/preview-clients";
+import { mergePreviewClients, previewDirectoryRecord } from "@/lib/preview-clients";
 import { useDevPreview } from "@/lib/use-dev-preview";
 
 export const Route = createFileRoute("/_authenticated/directories/clients")({
@@ -27,6 +26,7 @@ function ClientDirectoryPage() {
   const devPreview = useDevPreview();
   const isAdmin = profile.role === "admin";
   const fetchClients = useServerFn(listClients);
+  const fetchClient = useServerFn(getClient);
   const bringIn = useServerFn(importClients);
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -134,6 +134,16 @@ function ClientDirectoryPage() {
               to="/clients/$id"
               params={{ id: slugs.get(client.id) ?? client.id }}
               className="studio-book-row"
+              onPointerEnter={() => {
+                const id = slugs.get(client.id) ?? client.id;
+                void queryClient.prefetchQuery({
+                  queryKey: ["os", "client", id, devPreview],
+                  queryFn: () => {
+                    if (!devPreview) return fetchClient({ data: { id } });
+                    return previewDirectoryRecord(id) ?? getDevPreviewClient(id);
+                  },
+                });
+              }}
             >
               <span>
                 <b>{shownName(client.name, isPersonType(client.type))}</b>

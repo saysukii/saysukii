@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import { releaseLoginBloom } from "@/components/portal/StudioLoader";
 import { TodayHome, type DeskTaskDraft } from "@/components/portal/TodayHome";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 import { createAdminInquiry, getInquiryDashboard } from "@/lib/os/inquiries.functions";
@@ -119,15 +121,17 @@ function DashboardPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  useEffect(() => {
+    if (data) releaseLoginBloom();
+  }, [data]);
+
   return (
-    <div className="studio-today">
+    <div className={data ? "studio-today" : "studio-home"}>
       {!devPreview && isError ? (
         <p className="studio-pearl-note">the inquiry board is available to studio admins only.</p>
       ) : null}
 
-      {isPending || !data ? (
-        null
-      ) : (
+      {isPending || !data ? null : (
         <TodayHome
           data={data}
           name={profile.full_name}
