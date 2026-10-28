@@ -40,8 +40,8 @@ function VenuePage() {
 
   if (isPending) {
     return (
-      <DirectoryHome title="venue" back={{ to: "/directories/venues", label: "venues" }} lede="gathering…">
-        <p className="studio-empty">gathering…</p>
+      <DirectoryHome title="venue" back={{ to: "/directories/venues", label: "venues" }}>
+        null
       </DirectoryHome>
     );
   }

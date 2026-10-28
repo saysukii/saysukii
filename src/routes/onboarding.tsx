@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { Wordmark } from "@/components/portal/bits";
+import { markLoginBloom } from "@/components/portal/StudioLoader";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/onboarding")({
@@ -33,6 +34,7 @@ function OnboardingPage() {
         p_full_name: fullName.trim(),
       });
       if (profileError) throw profileError;
+      markLoginBloom();
       await router.navigate({ to: "/dashboard" });
     } catch {
       toast.error("We couldn't finish setting up your studio access.");

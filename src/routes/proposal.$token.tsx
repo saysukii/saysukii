@@ -9,6 +9,7 @@ import { FloralAgreement } from "@/components/proposal/FloralAgreement";
 import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { isSignatureDataUrl, SignaturePad } from "@/components/proposal/SignaturePad";
 import { Wordmark } from "@/components/portal/bits";
+import { BloomWait } from "@/components/portal/StudioLoader";
 import { statementFromNotes, courtesyFromNotes, floralPackageName, invoiceBookingLine, invoiceDateLabel, invoiceSharedDate, statementOfWork, INVOICE_THANKS } from "@/lib/floral-agreement";
 import { invoiceTitle } from "@/lib/invoice-title";
 import { formatMoneyExact } from "@/lib/money";
@@ -63,6 +64,10 @@ function formatEventWhen(value: string | null) {
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
+
+function optionDeposit(total: number, percent: number) {
+  return Math.round(total * (percent / 100));
 }
 
 function pdfFrameUrl(value: string) {
@@ -124,7 +129,7 @@ function PublicProposalPage() {
     retry: false,
   });
 
-  const pdfSource = preview?.pdfDataUrl ?? data?.pdfUrl ?? null;
+  const pdfSource = preview?.pdfDataUrl || data?.pdfUrl || null;
   useEffect(() => {
     if (!pdfSource) {
       setFrameUrl(null);
@@ -265,8 +270,10 @@ function PublicProposalPage() {
   const status = preview?.status ?? data?.proposal.status ?? "sent";
   const clientName = preview?.clientName ?? data?.client.name ?? "";
   const clientEmail = data?.client.email ?? "";
+  const payPercent =
+    preview?.depositPercent ??
+    ((data?.proposal.total_cents ?? 0) > 0 && (data?.proposal.deposit_amount_cents ?? 0) >= (data?.proposal.total_cents ?? 0) ? 100 : 50);
   const number = preview?.number ?? data?.proposal.number ?? "";
-  const depositCents = preview?.depositCents ?? data?.proposal.deposit_amount_cents ?? 0;
   const signedName = preview?.signedName ?? data?.agreement?.signedName ?? keptSignature;
   const paid = preview?.paid ?? data?.invoice?.status === "paid";
   const link = paymentLink ?? data?.invoice?.paymentLink ?? null;
@@ -286,8 +293,9 @@ function PublicProposalPage() {
     occasion: savedWork?.occasion || occasion,
     venue: savedWork?.venue || venue || "",
   });
-  const totalCents = preview?.totalCents ?? data?.proposal.total_cents ?? depositCents;
+  const totalCents = preview?.totalCents ?? data?.proposal.total_cents ?? 0;
   const courtesyCents = preview?.courtesyCents ?? courtesyFromNotes(data?.proposal.notes);
+  const depositCents = preview?.depositCents ?? data?.proposal.deposit_amount_cents ?? optionDeposit(totalCents, payPercent);
   const listCents = totalCents + courtesyCents;
   const packageName = floralPackageName(work.occasion || occasion);
   const bookingLine = invoiceBookingLine(work.occasion || occasion, invoiceDateLabel(preview?.eventDate ?? data?.proposal.event_date ?? work.eventWhen));
@@ -445,14 +453,26 @@ function PublicProposalPage() {
 
         {step === "proposal" ? (
           <div className="client-packet-nav">
-            <button type="button" className="client-packet-arrow" aria-label="Previous page" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>
+            <button
+              type="button"
+              className="client-packet-arrow"
+              aria-label="Previous page"
+              disabled={safePage <= 0}
+              onClick={() => setPage(safePage - 1)}
+            >
               <ChevronLeft size={18} strokeWidth={1.4} />
             </button>
             <div className="client-packet-count">
               proposal
               <span> · {safePage + 1} / {proposalCount}</span>
             </div>
-            <button type="button" className="client-packet-arrow" aria-label="Next page" disabled={safePage >= proposalCount - 1} onClick={() => setPage(safePage + 1)}>
+            <button
+              type="button"
+              className="client-packet-arrow"
+              aria-label="Next page"
+              disabled={safePage >= proposalCount - 1}
+              onClick={() => setPage(safePage + 1)}
+            >
               <ChevronRight size={18} strokeWidth={1.4} />
             </button>
           </div>
@@ -473,7 +493,7 @@ function PublicProposalPage() {
                 key={index}
                 type="button"
                 className={index === safePage ? "client-packet-dot is-on" : "client-packet-dot"}
-                aria-label={`Go to proposal ${index + 1}`}
+                aria-label={`Go to page ${index + 1}`}
                 onClick={() => setPage(index)}
               />
             ))}

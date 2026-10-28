@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, X } from "lucide-react";
 
 import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
 import { InquiryDatePicker } from "@/components/inquiry/InquiryDatePicker";
@@ -184,10 +184,10 @@ function Review({ values }: { values: InquiryFormValues }) {
           <dt>Date</dt>
           <dd>{formatInquiryDate(values) || "—"}</dd>
         </div>
-        {values.venue_text ? (
+        {values.venue_text || values.venue_tbd ? (
           <div data-review-stop={!values.budget_range && !values.arrangement_size ? "" : undefined}>
             <dt>Place</dt>
-            <dd>{values.venue_text}</dd>
+            <dd>{values.venue_tbd ? "TBD" : values.venue_text}</dd>
           </div>
         ) : null}
         {values.budget_range || values.arrangement_size ? (
@@ -309,12 +309,49 @@ function GuideField({
           withTime={step.withTime !== false}
           disabled={disabled || values.event_date_tbd}
           onChange={(next) => {
-            onChange("event_date", next);
             onChange("event_date_tbd", false);
-            if (!next) onChange("event_time", "");
+            if (!next) {
+              onChange("event_date", null);
+              onChange("event_time", "");
+              return;
+            }
+            if (values.interest !== "events") {
+              onChange("event_date", next);
+              onChange("event_dates", []);
+              return;
+            }
+            const held = [values.event_date, ...(values.event_dates ?? [])].filter((date): date is string => Boolean(date));
+            if (held.includes(next)) return;
+            if (!values.event_date) onChange("event_date", next);
+            else onChange("event_dates", [...(values.event_dates ?? []), next]);
           }}
           onTimeChange={(next) => onChange("event_time", next)}
         />
+        {values.interest === "events" && (values.event_date || (values.event_dates?.length ?? 0) > 0) ? (
+          <div className="inquire-date-list">
+            {[values.event_date, ...(values.event_dates ?? [])]
+              .filter((date): date is string => Boolean(date))
+              .map((date) => (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => {
+                    if (date === values.event_date) {
+                      const rest = values.event_dates ?? [];
+                      onChange("event_date", rest[0] ?? null);
+                      onChange("event_dates", rest.slice(1));
+                      return;
+                    }
+                    onChange("event_dates", (values.event_dates ?? []).filter((item) => item !== date));
+                  }}
+                >
+                  {formatInquiryDate({ ...values, event_date: date, event_dates: [], event_time: "" }) || date}
+                  <X aria-hidden="true" strokeWidth={1.5} />
+                  <span className="sr-only">remove this date</span>
+                </button>
+              ))}
+          </div>
+        ) : null}
         <button
           type="button"
           className={cn("auth-text-action", values.event_date_tbd && "is-on")}
@@ -323,6 +360,7 @@ function GuideField({
             onChange("event_date_tbd", !values.event_date_tbd);
             if (!values.event_date_tbd) {
               onChange("event_date", null);
+              onChange("event_dates", []);
               onChange("event_time", "");
             }
           }}
@@ -354,11 +392,26 @@ function GuideField({
       <div className="auth-field">
         {hideLabel ? null : <span>{step.label}</span>}
         <FloridaAddressPicker
-          value={values.venue_text}
-          disabled={disabled}
-          placeholder={step.placeholder}
-          onChange={(next) => onChange("venue_text", next)}
+          value={values.venue_tbd ? "" : values.venue_text}
+          disabled={disabled || Boolean(values.venue_tbd)}
+          placeholder={values.venue_tbd ? "tbd" : step.placeholder}
+          onChange={(next) => {
+            onChange("venue_tbd", false);
+            onChange("venue_text", next);
+          }}
         />
+        <button
+          type="button"
+          className={cn("auth-text-action", values.venue_tbd && "is-on")}
+          disabled={disabled}
+          onClick={() => {
+            const next = !values.venue_tbd;
+            onChange("venue_tbd", next);
+            if (next) onChange("venue_text", "");
+          }}
+        >
+          Venue is still TBD
+        </button>
       </div>
     );
   }

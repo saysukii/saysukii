@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
-import { useMemo, useState, useEffect, useLayoutEffect, useRef, type FormEvent, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { Fragment, useMemo, useState, useEffect, useLayoutEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { TextShimmer } from "@/components/core/text-shimmer";
@@ -14,24 +14,22 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { INQUIRE_EVENT_TIMES } from "@/components/inquiry/InquiryDatePicker";
 import { EVENT_LABEL, inquiryAnswers, inquiryTime, initials, nextMove, recordSlug } from "@/lib/os/inquiry-desk";
+import { type InquiryFormValues } from "@/lib/os/inquiry-form";
 import {
-  BUDGET_RANGES,
-  DIRECT_OUTREACH_SOURCE,
-  type InquiryFormValues,
-} from "@/lib/os/inquiry-form";
-import {
+  EMPTY_INQUIRY_DRAFT,
   INTEREST_OPTIONS,
-  mapInquiryClientType,
-  mapInquiryEventType,
+  toInquirySubmitValues,
   type InquiryInterest,
 } from "@/lib/os/inquiry-schema";
+import { buildInquirySteps, formatInquiryPhone, isStepComplete, type InquiryStep } from "@/lib/os/inquiry-steps";
 import type { InquiryMessageRow, TaskRow } from "@/integrations/supabase/types";
 import {
   DESK_KIND_LABEL,
   dayGreeting,
   deskGlance,
+  deskKind,
   isDeskTask,
   longDate,
   toDeskTask,
@@ -118,14 +116,16 @@ function MonthBoard({
   const today = stamp(now.getFullYear(), now.getMonth(), now.getDate());
   const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
   useEffect(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selected)) return;
     const date = new Date(`${selected}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return;
     setView({ year: date.getFullYear(), month: date.getMonth() });
   }, [selected]);
   const first = new Date(view.year, view.month, 1);
   const startPad = first.getDay();
   const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
   const marked = new Set(marks);
-  const monthLabel = first.toLocaleString("en-US", { month: "long" });
+  const monthLabel = Number.isNaN(first.getTime()) ? "" : first.toLocaleString("en-US", { month: "long" });
   const cells = Array.from({ length: startPad + daysInMonth }, (_, index) => {
     if (index < startPad) return null;
     const day = index - startPad + 1;
@@ -279,6 +279,8 @@ export function TodayHome({
 }) {
   const [adding, setAdding] = useState(false);
   const [leadsOpen, setLeadsOpen] = useState(false);
+  const [todayOpen, setTodayOpen] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState(false);
   const [bookedOpen, setBookedOpen] = useState(false);
   const [tasking, setTasking] = useState(false);
   const [added, setAdded] = useState<TaskRow[]>([]);
@@ -360,10 +362,16 @@ export function TodayHome({
       .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
       .map((talk) => {
         const clock = talk.allDay ? "all day" : studioClock(talk.startsAt);
+        const person = !organizations.has(talk.name.trim().toLowerCase());
         return {
           id: talk.id,
+          name: talk.name,
+          person,
+          hello: clock || "today",
+          nextTitle: "on the schedule",
+          nextNote: talk.note.trim() || "today.",
           bits: [
-            { text: talk.name, person: !organizations.has(talk.name.trim().toLowerCase()) },
+            { text: talk.name, person },
             ...(clock ? [{ text: ` · ${clock}` }] : []),
           ],
         };
@@ -371,7 +379,15 @@ export function TodayHome({
     const events = [
       ...data.projects
         .filter((project) => project.event_date === today)
-        .map((project) => ({ id: project.id, bits: [{ text: project.event_name }] })),
+        .map((project) => ({
+          id: project.id,
+          name: project.event_name,
+          person: false,
+          hello: project.venue_text?.split(",")[0]?.trim() || "today",
+          nextTitle: "on the floor",
+          nextNote: project.notes?.trim() || "the date is today.",
+          bits: [{ text: project.event_name }],
+        })),
       ...data.waiting
         .filter(
           (inquiry) =>
@@ -381,22 +397,46 @@ export function TodayHome({
         )
         .map((inquiry) => {
           const person = isPersonType(inquiry.client?.type) && Boolean(inquiry.client?.name?.trim());
+          const name = person ? inquiry.client!.name.trim() : inquiry.client?.name?.trim() || EVENT_LABEL[inquiry.event_type];
+          const next = nextMove(inquiry.status);
           return {
             id: inquiry.id,
-            bits: [
-              {
-                text: person ? inquiry.client!.name.trim() : inquiry.client?.name?.trim() || EVENT_LABEL[inquiry.event_type],
-                person,
-              },
-            ],
+            name,
+            person,
+            hello: "today",
+            nextTitle: next.title,
+            nextNote: next.note,
+            slug: inquiry.slug,
+            bits: [{ text: name, person }],
           };
         }),
     ];
     const due = live
       .filter((task) => task.status === "open" && task.due_at?.slice(0, 10) === today)
-      .map((task) => ({ id: task.id, bits: [{ text: task.title }] }));
+      .map((task) => {
+        const linked =
+          task.linked_type === "inquiry" ? data.waiting.find((inquiry) => inquiry.id === task.linked_id) : undefined;
+        return {
+          id: task.id,
+          name: task.title,
+          person: false,
+          hello: "due today",
+          nextTitle: DESK_KIND_LABEL[deskKind(task)],
+          nextNote: "still open.",
+          ...(linked?.slug ? { slug: linked.slug } : {}),
+          bits: [{ text: task.title }],
+        };
+      });
     return [...meetings, ...events, ...due];
   }, [data.projects, data.waiting, live, talks, today]);
+  const pendingInquiries = data.waiting
+    .filter((inquiry) => inquiry.status !== "booked" && inquiry.status !== "closed")
+    .sort((left, right) => {
+      const followUp = (inquiry: TodayInquiry) => (inquiry.status === "proposal_sent" ? 1 : 0);
+      const byKind = followUp(left) - followUp(right);
+      if (byKind !== 0) return byKind;
+      return right.days_waiting - left.days_waiting;
+    });
   const booked = [...data.projects].sort((left, right) => left.event_date.localeCompare(right.event_date));
   const leadBits = freshLeads.map((lead) => ({
     id: lead.id,
@@ -535,11 +575,11 @@ export function TodayHome({
       </header>
 
       <div className="studio-home-metrics">
-        <article className="studio-metric is-mist">
+        <button type="button" className="studio-metric is-mist" onClick={() => setTodayOpen(true)}>
           <p className="studio-kicker">today</p>
           <strong>{todayPlan.length || "—"}</strong>
           <p className="is-clip">{todayPlan[0] ? <LineBits bits={todayPlan[0].bits} /> : "a quiet day"}</p>
-        </article>
+        </button>
         <button type="button" className="studio-metric is-sage" onClick={() => setLeadsOpen(true)}>
           <p className="studio-kicker">new leads</p>
           <strong>{freshLeads.length || "—"}</strong>
@@ -554,11 +594,11 @@ export function TodayHome({
                 ))}
           </p>
         </button>
-        <article className="studio-metric is-sand">
+        <button type="button" className="studio-metric is-sand" onClick={() => setPendingOpen(true)}>
           <p className="studio-kicker">pending</p>
           <strong>{pendingCount || "—"}</strong>
           <p>{pendingLine || "the path is clear"}</p>
-        </article>
+        </button>
         <button type="button" className="studio-metric is-blush" onClick={() => setBookedOpen(true)}>
           <p className="studio-kicker">booked</p>
           <strong>{booked.length || "—"}</strong>
@@ -639,25 +679,7 @@ export function TodayHome({
                   {booked.map((project) => {
                     const place = project.venue_text?.split(",")[0]?.trim() ?? "";
                     const hello = [formatDateNumeric(project.event_date), place].filter((part) => part && part !== "—").join(" · ");
-                    const nextTask = live
-                      .filter(
-                        (task) =>
-                          task.status === "open" && task.linked_type === "project" && task.linked_id === project.id,
-                      )
-                      .sort((left, right) => (left.due_at ?? "").localeCompare(right.due_at ?? ""))[0];
-                    const nextTitle = nextTask?.title ?? "the date is held";
-                    const nextNote = nextTask?.due_at
-                      ? `due ${shortDay(nextTask.due_at.slice(0, 10))}`
-                      : project.notes?.trim() || "the date is on the books.";
-                    return (
-                      <GlanceListCard
-                        key={project.id}
-                        name={project.event_name}
-                        hello={hello}
-                        nextTitle={nextTitle}
-                        nextNote={nextNote}
-                      />
-                    );
+                    return <GlanceListCard key={project.id} name={project.event_name} hello={hello} />;
                   })}
                 </div>
               )}
@@ -668,6 +690,105 @@ export function TodayHome({
 
       <div className="studio-home-stage">
         <aside className="studio-home-day">
+      <Dialog open={todayOpen} onOpenChange={setTodayOpen}>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+          <div className="studio-task-head">
+            <DialogClose className="studio-task-close" aria-label="Close">
+              <X aria-hidden="true" />
+            </DialogClose>
+          </div>
+          <DialogTitle className="sr-only">today</DialogTitle>
+          <DialogDescription className="sr-only">what’s on the schedule today.</DialogDescription>
+          <div className="studio-task-form">
+            <div className="studio-task-composer-title">
+              <p>today</p>
+            </div>
+            <div className="studio-ask-grid studio-ask-stack-form">
+              {todayPlan.length === 0 ? (
+                <p className="studio-ask-label is-prompt">a quiet day.</p>
+              ) : (
+                <div className="studio-lead-glance">
+                  {todayPlan.map((item) => (
+                    <GlanceListCard
+                      key={item.id}
+                      name={item.name}
+                      {...(item.person ? { person: true } : {})}
+                      hello={item.hello}
+                      {...(item.slug
+                        ? {
+                            action: (
+                              <Link
+                                to="/pipeline/$id"
+                                params={{ id: item.slug }}
+                                className="studio-ghost"
+                                onClick={() => setTodayOpen(false)}
+                              >
+                                <TextShimmer duration={1.2} className={glanceShimmer}>
+                                  open inquiry
+                                </TextShimmer>
+                              </Link>
+                            ),
+                          }
+                        : {})}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pendingOpen} onOpenChange={setPendingOpen}>
+        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+          <div className="studio-task-head">
+            <DialogClose className="studio-task-close" aria-label="Close">
+              <X aria-hidden="true" />
+            </DialogClose>
+          </div>
+          <DialogTitle className="sr-only">pending</DialogTitle>
+          <DialogDescription className="sr-only">what still needs a proposal, and what needs a follow up.</DialogDescription>
+          <div className="studio-task-form">
+            <div className="studio-task-composer-title">
+              <p>pending</p>
+            </div>
+            <div className="studio-ask-grid studio-ask-stack-form">
+              {pendingInquiries.length === 0 ? (
+                <p className="studio-ask-label is-prompt">the path is clear.</p>
+              ) : (
+                <div className="studio-lead-glance">
+                  {pendingInquiries.map((inquiry) => {
+                    const next = nextMove(inquiry.status);
+                    return (
+                      <GlanceListCard
+                        key={inquiry.id}
+                        name={inquiry.client?.name?.trim() || "someone new"}
+                        person={isPersonType(inquiry.client?.type)}
+                        hello={inquiryHello(inquiry).hello}
+                        nextTitle={next.title}
+                        nextNote={next.note}
+                        action={
+                          <Link
+                            to="/pipeline/$id"
+                            params={{ id: inquiry.slug }}
+                            className="studio-ghost"
+                            onClick={() => setPendingOpen(false)}
+                          >
+                            <TextShimmer duration={1.2} className={glanceShimmer}>
+                              open inquiry
+                            </TextShimmer>
+                          </Link>
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
           <p className="studio-home-label">{HOME_LABELS.calendar}</p>
           <MonthBoard marks={marks} selected={day} onSelect={chooseDay} />
           {(dayMarks.inquiries.length > 0 || dayMarks.projects.length > 0 || dayMarks.talks.length > 0) && (
@@ -881,97 +1002,248 @@ export function AddInquiry({
   onOpenChange: (open: boolean) => void;
   onCreate: (values: InquiryFormValues) => Promise<void>;
 }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [organization, setOrganization] = useState("");
-  const [interest, setInterest] = useState<InquiryInterest>("weddings");
-  const [eventDate, setEventDate] = useState<string | null>(null);
-  const [dateTbd, setDateTbd] = useState(false);
+  const [values, setValues] = useState<InquiryFormValues>({ ...EMPTY_INQUIRY_DRAFT, interest: "weddings" });
   const [calOpen, setCalOpen] = useState(false);
-  const [venue, setVenue] = useState("");
-  const [guests, setGuests] = useState("");
-  const [budgetRange, setBudgetRange] = useState("");
-  const [message, setMessage] = useState("");
   const [hint, setHint] = useState("");
-
-  const draft: InquiryFormValues = {
-    name: name.trim(),
-    email: email.trim(),
-    phone: phone.trim(),
-    organization: organization.trim(),
-    client_type: "individual",
-    event_date: dateTbd ? null : eventDate,
-    event_date_tbd: dateTbd,
-    event_type: "wedding",
-    venue_text: venue.trim(),
-    guest_count: guests ? Number(guests) : null,
-    budget_range: budgetRange,
-    source: DIRECT_OUTREACH_SOURCE,
-    message: message.trim(),
-    interest,
-  };
-
-  const ready =
-    draft.name.length > 0 &&
-    draft.email.length > 0 &&
-    draft.phone.length > 0 &&
-    Boolean(budgetRange) &&
-    draft.message.length > 0 &&
-    (Boolean(eventDate) || dateTbd);
-
-  const dateLabel = eventDate ? shortDay(eventDate) : "date";
+  const interest = (values.interest || "weddings") as InquiryInterest;
+  const steps = buildInquirySteps(interest);
+  const questions = steps.filter((step) => step.kind !== "review" && step.id !== "name" && step.id !== "interest");
+  const activation = interest === "events";
+  const chosenDates = [values.event_date, ...(values.event_dates ?? [])].filter((date): date is string => Boolean(date));
+  const ready = steps.every((step) => step.kind === "review" || isStepComplete(step, values));
 
   function reset() {
-    setName("");
-    setEmail("");
-    setPhone("");
-    setOrganization("");
-    setInterest("weddings");
-    setEventDate(null);
-    setDateTbd(false);
+    setValues({ ...EMPTY_INQUIRY_DRAFT, interest: "weddings" });
     setCalOpen(false);
-    setVenue("");
-    setGuests("");
-    setBudgetRange("");
-    setMessage("");
+    setHint("");
+  }
+
+  function setField<K extends keyof InquiryFormValues>(key: K, value: InquiryFormValues[K]) {
+    setValues((current) => ({ ...current, [key]: value }));
+    setHint("");
+  }
+
+  function pickInterest(next: InquiryInterest) {
+    setValues((current) => ({
+      ...EMPTY_INQUIRY_DRAFT,
+      name: current.name,
+      email: current.email,
+      phone: current.phone,
+      interest: next,
+    }));
+    setCalOpen(false);
     setHint("");
   }
 
   function pickDate(date: string) {
-    setEventDate(date);
-    setDateTbd(false);
-    setCalOpen(false);
     setHint("");
+    setValues((current) => {
+      if (current.interest !== "events") {
+        return { ...current, event_date: date, event_date_tbd: false, event_dates: [] };
+      }
+      if (!current.event_date) return { ...current, event_date: date, event_date_tbd: false };
+      if (current.event_date === date || current.event_dates?.includes(date)) return current;
+      return { ...current, event_date_tbd: false, event_dates: [...(current.event_dates ?? []), date] };
+    });
+    if (!activation) setCalOpen(false);
+  }
+
+  function dropDate(date: string) {
+    setValues((current) => {
+      if (date === current.event_date) {
+        const [next, ...rest] = current.event_dates ?? [];
+        return { ...current, event_date: next ?? null, event_dates: rest };
+      }
+      return { ...current, event_dates: (current.event_dates ?? []).filter((item) => item !== date) };
+    });
   }
 
   function pickTbd(next: boolean) {
-    setDateTbd(next);
-    if (next) {
-      setEventDate(null);
-      setCalOpen(false);
-    }
+    setValues((current) => ({
+      ...current,
+      event_date_tbd: next,
+      ...(next ? { event_date: null, event_dates: [], event_time: "" } : {}),
+    }));
+    if (next) setCalOpen(false);
     setHint("");
+  }
+
+  function pickVenueTbd(next: boolean) {
+    setValues((current) => ({ ...current, venue_tbd: next, venue_text: next ? "tbd" : "" }));
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!eventDate && !dateTbd) {
-      setHint("choose a date, or mark it tbd.");
-      return;
-    }
-    if (!budgetRange) {
-      setHint("choose a budget.");
+    const missing = steps.find((step) => step.kind !== "review" && !isStepComplete(step, values));
+    if (missing) {
+      setHint(missing.label);
       return;
     }
     if (!ready || busy) return;
-    await onCreate({
-      ...draft,
-      client_type: mapInquiryClientType(draft),
-      event_type: mapInquiryEventType(draft),
-    });
+    await onCreate(toInquirySubmitValues(values));
     reset();
     onOpenChange(false);
+  }
+
+  function renderAskStep(step: InquiryStep) {
+    if (step.kind === "text" || step.kind === "email" || step.kind === "tel") {
+      return (
+        <AskField key={step.id} label={askLabel(step)}>
+          <input
+            type={step.kind === "text" ? "text" : step.kind}
+            value={String(values[step.field] ?? "")}
+            placeholder={step.placeholder}
+            maxLength={step.kind === "email" ? 320 : step.field === "recipient" ? 160 : 40}
+            autoComplete={step.kind === "email" ? "email" : step.kind === "tel" ? "tel" : "off"}
+            onChange={(event) => {
+              const next = step.kind === "tel" ? formatInquiryPhone(event.target.value) : event.target.value;
+              setField(step.field, next);
+            }}
+          />
+        </AskField>
+      );
+    }
+
+    if (step.kind === "date") {
+      const dateLabel = values.event_date_tbd
+        ? "tbd"
+        : chosenDates.length > 1
+          ? `${chosenDates.length} dates`
+          : values.event_date
+            ? shortDay(values.event_date)
+            : "date";
+      return (
+        <Fragment key={step.id}>
+          <div className="studio-ask-field">
+            <span className="studio-ask-label is-prompt">{askLabel(step)}</span>
+            <div className={cn("studio-ask-date", values.event_date_tbd && "is-tbd")}>
+              <button
+                type="button"
+                className={cn("studio-ask-date-go", (calOpen || Boolean(values.event_date)) && "is-on")}
+                aria-expanded={calOpen}
+                disabled={values.event_date_tbd}
+                onClick={() => setCalOpen((open) => !open)}
+              >
+                {dateLabel}
+              </button>
+              {step.withTime && !values.event_date_tbd ? (
+                <select
+                  value={values.event_time ?? ""}
+                  aria-label="time"
+                  onChange={(event) => setField("event_time", event.target.value)}
+                >
+                  <option value="">time</option>
+                  {INQUIRE_EVENT_TIMES.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <label className="studio-ask-check">
+                <input type="checkbox" checked={values.event_date_tbd} onChange={(event) => pickTbd(event.target.checked)} />
+                tbd
+              </label>
+            </div>
+          </div>
+          {activation && chosenDates.length > 0 ? (
+            <div className="studio-ask-dates">
+              {chosenDates.map((date) => (
+                <button key={date} type="button" onClick={() => dropDate(date)}>
+                  {shortDay(date)}
+                  <X aria-hidden="true" strokeWidth={1.5} />
+                  <span className="sr-only">remove {shortDay(date)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {calOpen && !values.event_date_tbd ? (
+            <div className="studio-ask-span">
+              <DueCalendar marks={marks} selected={values.event_date ?? ""} onSelect={pickDate} />
+            </div>
+          ) : null}
+        </Fragment>
+      );
+    }
+
+    if (step.kind === "address") {
+      return (
+        <div key={step.id} className="studio-ask-field">
+          <span className="studio-ask-label is-prompt">{askLabel(step)}</span>
+          <div className={cn("studio-ask-date", values.venue_tbd && "is-tbd")}>
+            <input
+              value={values.venue_tbd ? "" : values.venue_text}
+              maxLength={240}
+              disabled={Boolean(values.venue_tbd)}
+              placeholder={values.venue_tbd ? "tbd" : "venue"}
+              onChange={(event) => setField("venue_text", event.target.value)}
+            />
+            <label className="studio-ask-check">
+              <input type="checkbox" checked={Boolean(values.venue_tbd)} onChange={(event) => pickVenueTbd(event.target.checked)} />
+              tbd
+            </label>
+          </div>
+        </div>
+      );
+    }
+
+    if (step.kind === "choice" || step.kind === "multi") {
+      const selected = step.kind === "multi" ? (values.sources ?? []) : [String(values[step.field] ?? "")];
+      return (
+        <div key={step.id} className="studio-ask-field studio-ask-span">
+          <span className="studio-ask-label is-prompt">{askLabel(step)}</span>
+          <div className="studio-task-kinds" role="listbox" aria-label={askLabel(step)}>
+            {step.options.map((option) => {
+              const on = selected.includes(option.value);
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  className={cn(on && "is-on")}
+                  onClick={() => {
+                    if (step.kind === "multi") {
+                      const next = on
+                        ? (values.sources ?? []).filter((item) => item !== option.value)
+                        : [...(values.sources ?? []), option.value];
+                      setField("sources", next);
+                      return;
+                    }
+                    setField(step.field, option.value);
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          {step.kind === "choice" && step.otherField && values[step.field] === "other" ? (
+            <input
+              value={String(values[step.otherField] ?? "")}
+              maxLength={160}
+              placeholder={step.otherPlaceholder ?? ""}
+              onChange={(event) => setField(step.otherField!, event.target.value)}
+            />
+          ) : null}
+        </div>
+      );
+    }
+
+    if (step.kind === "textarea") {
+      return (
+        <AskField key={step.id} label={askLabel(step)} className="studio-ask-span">
+          <textarea
+            value={values.message}
+            maxLength={step.maxLength ?? 6000}
+            placeholder={step.placeholder}
+            onChange={(event) => setField("message", event.target.value)}
+          />
+        </AskField>
+      );
+    }
+
+    return null;
   }
 
   return (
@@ -990,99 +1262,24 @@ export function AddInquiry({
         </div>
         <DialogTitle className="sr-only">add an inquiry</DialogTitle>
         <DialogDescription className="sr-only">from a dm, text, or email.</DialogDescription>
-        <form className="studio-task-form" onSubmit={submit}>
+        <form className="studio-task-form" noValidate onSubmit={submit}>
           <label className="studio-task-composer-title">
-            <span className="sr-only">who is this</span>
+            <span className="sr-only">what’s your name?</span>
             <input
               autoFocus
-              value={name}
+              value={values.name}
               maxLength={160}
               autoComplete="name"
               placeholder="who is this…"
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => setField("name", event.target.value)}
             />
           </label>
-          <AskChips options={INTEREST_OPTIONS} value={interest} onPick={setInterest} />
+          <div className="studio-ask-field">
+            <span className="studio-ask-label is-prompt">i am interested in</span>
+            <AskChips options={INTEREST_OPTIONS} value={interest} onPick={pickInterest} />
+          </div>
           <div className="studio-ask-grid is-two studio-ask-stack-form">
-            <AskField label="email">
-              <input
-                type="email"
-                value={email}
-                maxLength={320}
-                autoComplete="email"
-                required
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </AskField>
-            <AskField label="phone">
-              <input
-                type="tel"
-                value={phone}
-                maxLength={40}
-                autoComplete="tel"
-                required
-                onChange={(event) => setPhone(event.target.value)}
-              />
-            </AskField>
-            <div className="studio-ask-field">
-              <span className="studio-ask-label">date</span>
-              <div className={cn("studio-ask-date", dateTbd && "is-tbd")}>
-                <button
-                  type="button"
-                  className={cn("studio-ask-date-go", (calOpen || Boolean(eventDate)) && "is-on")}
-                  aria-expanded={calOpen}
-                  disabled={dateTbd}
-                  onClick={() => setCalOpen((open) => !open)}
-                >
-                  {dateLabel}
-                </button>
-                <label className="studio-ask-check">
-                  <input
-                    type="checkbox"
-                    checked={dateTbd}
-                    onChange={(event) => pickTbd(event.target.checked)}
-                  />
-                  tbd
-                </label>
-              </div>
-            </div>
-            <AskField label="venue">
-              <input value={venue} maxLength={240} onChange={(event) => setVenue(event.target.value)} />
-            </AskField>
-            {calOpen && !dateTbd ? (
-              <div className="studio-ask-span">
-                <DueCalendar marks={marks} selected={eventDate ?? ""} onSelect={pickDate} />
-              </div>
-            ) : null}
-            <AskField label="organization">
-              <input
-                value={organization}
-                maxLength={160}
-                autoComplete="organization"
-                onChange={(event) => setOrganization(event.target.value)}
-              />
-            </AskField>
-            <AskField label="budget">
-              <AskBudget value={budgetRange} onChange={setBudgetRange} />
-            </AskField>
-            <AskField label="guests">
-              <input
-                type="number"
-                min={0}
-                max={100000}
-                value={guests}
-                onChange={(event) => setGuests(event.target.value)}
-              />
-            </AskField>
-            <AskField label="vision" className="studio-ask-span">
-              <textarea
-                value={message}
-                maxLength={6000}
-                placeholder="the vision…"
-                required
-                onChange={(event) => setMessage(event.target.value)}
-              />
-            </AskField>
+            {questions.map((step) => renderAskStep(step))}
           </div>
           {hint ? <p className="studio-ask-hint">{hint}</p> : null}
           <div className="studio-ask-foot">
@@ -1096,6 +1293,23 @@ export function AddInquiry({
   );
 }
 
+function askLabel(step: InquiryStep) {
+  const text = step.label.toLowerCase();
+  if (step.kind === "email") return "email";
+  if (step.kind === "tel") return "phone";
+  if (step.kind === "text") return "recipient";
+  if (step.kind === "date") return text.includes("arrive") ? "arrive" : text.includes("start") ? "start" : "date";
+  if (step.kind === "address") return text.includes("address") ? "address" : "venue";
+  if (step.id === "event_setting") return "setting";
+  if (step.id === "budget_range") return "budget";
+  if (step.id === "arrangement_size") return "size";
+  if (step.id === "space") return "space";
+  if (step.id === "cadence") return "cadence";
+  if (step.id === "source" || step.id === "sources") return "found us";
+  if (step.kind === "textarea") return text.includes("card") ? "card" : text.includes("else") ? "notes" : "vision";
+  return step.label;
+}
+
 function AskField({
   label,
   children,
@@ -1107,69 +1321,9 @@ function AskField({
 }) {
   return (
     <label className={cn("studio-ask-field", className)}>
-      <span className="studio-ask-label">{label}</span>
+      <span className="studio-ask-label is-prompt">{label}</span>
       {children}
     </label>
-  );
-}
-
-function AskBudget({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = BUDGET_RANGES.find((option) => option.value === value);
-
-  return (
-    <Popover modal open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn("studio-ask-drop-go", !selected && "is-empty", open && "is-open")}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-        >
-          <span>{selected ? selected.label.toLowerCase() : "select a range"}</span>
-          <span className="studio-ask-drop-caret" aria-hidden="true">
-            <ChevronDown strokeWidth={1.75} />
-          </span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="bottom"
-        sideOffset={4}
-        collisionPadding={16}
-        className="studio-ask-drop-list w-[var(--radix-popover-trigger-width)] border-0 p-0 shadow-none data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        onCloseAutoFocus={(event) => event.preventDefault()}
-      >
-        <div role="listbox" aria-label="budget">
-          {BUDGET_RANGES.map((option) => {
-            const on = option.value === value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={on}
-                className={cn(on && "is-on")}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-              >
-                <span>{option.label.toLowerCase()}</span>
-                <Check className="studio-ask-drop-mark" aria-hidden="true" />
-              </button>
-            );
-          })}
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
 
@@ -1521,8 +1675,8 @@ function GlanceListCard({
   name: string;
   person?: boolean;
   hello: string;
-  nextTitle: string;
-  nextNote: string;
+  nextTitle?: string;
+  nextNote?: string;
   action?: ReactNode;
 }) {
   return (
@@ -1540,14 +1694,16 @@ function GlanceListCard({
         </div>
         {action}
       </header>
-      <article className="studio-glance-card is-next">
-        <p className="studio-glance-label">
-          <span className="studio-next-mark" aria-hidden="true" />
-          up next
-        </p>
-        <b>{nextTitle}</b>
-        <p>{nextNote}</p>
-      </article>
+      {nextTitle ? (
+        <article className="studio-glance-card is-next">
+          <p className="studio-glance-label">
+            <span className="studio-next-mark" aria-hidden="true" />
+            up next
+          </p>
+          <b>{nextTitle}</b>
+          <p>{nextNote}</p>
+        </article>
+      ) : null}
     </article>
   );
 }

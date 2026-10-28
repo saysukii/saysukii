@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { BloomWait } from "@/components/portal/StudioLoader";
 import { openProposal, paintProposalPage, releaseProposal, type ProposalDocument } from "@/lib/proposal-pages";
 
 export function ProposalPages({
@@ -59,7 +60,7 @@ export function ProposalPages({
 
   return (
     <div className="client-packet-pages">
-      {state === "opening" ? <p className="client-packet-copy">opening the proposal</p> : null}
+      {state === "opening" ? <BloomWait label="opening the proposal" compact /> : null}
       <div ref={host} />
     </div>
   );

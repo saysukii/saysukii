@@ -3,7 +3,6 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import { StudioLoader } from "@/components/portal/StudioLoader";
 import { TodayHome, type DeskTaskDraft } from "@/components/portal/TodayHome";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 import { createAdminInquiry, getInquiryDashboard } from "@/lib/os/inquiries.functions";
@@ -127,10 +126,7 @@ function DashboardPage() {
       ) : null}
 
       {isPending || !data ? (
-        <div className="studio-home studio-today-wait" role="status">
-          <span className="sr-only">opening today</span>
-          <StudioLoader kind="line" waiting />
-        </div>
+        null
       ) : (
         <TodayHome
           data={data}

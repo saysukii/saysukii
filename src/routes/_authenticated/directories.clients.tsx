@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
+import { BloomWait } from "@/components/portal/StudioLoader";
 import { shownName, isPersonType } from "@/components/studio/PersonName";
 import type { ClientRow } from "@/integrations/supabase/types";
 import { getDevPreviewClients } from "@/lib/dev-preview";
@@ -114,7 +115,7 @@ function ClientDirectoryPage() {
     <DirectoryHome
       title="clients"
       back={{ to: "/library", label: "library" }}
-      lede={isPending ? "gathering…" : `${people.length} ${people.length === 1 ? "person" : "people"}`}
+      lede={isPending ? undefined : `${people.length} ${people.length === 1 ? "person" : "people"}`}
       action={
         <DirectoryImport
           hint="columns: name, email, phone, organization, type, source, notes"

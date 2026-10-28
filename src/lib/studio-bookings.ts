@@ -11,6 +11,7 @@ export type StudioBooking = {
   note: string;
   allDay?: boolean;
   joinUrl?: string;
+  inquirySlug?: string;
 };
 
 export type MeetingBrief = {

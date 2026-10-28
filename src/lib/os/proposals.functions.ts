@@ -28,6 +28,8 @@ import { renderAgreementPdf, renderInvoicePdf } from "@/lib/pdf.server";
 import { createPublicToken, hashToken } from "./crypto.server";
 import { createSquarePaymentLink } from "./square.server";
 import { syncInquiryAutoTaskFor } from "@/lib/os/tasks.functions";
+import { renderSaySukiiEmail } from "@/lib/os/email-layout";
+import { sendStudioNotice, studioNotificationEmail } from "@/lib/os/email.server";
 import { refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
 
 const lineItemInput = z.object({
@@ -238,7 +240,7 @@ export const importProposalPdf = createServerFn({ method: "POST" })
 
     const existing = await context.supabase
       .from("proposals")
-      .select("id, number, status, access_token, pdf_path")
+      .select("id, number, status, access_token, pdf_path, notes")
       .eq("inquiry_id", inquiry.id)
       .eq("archived", false)
       .maybeSingle();
@@ -267,7 +269,7 @@ export const importProposalPdf = createServerFn({ method: "POST" })
     const deposit = Math.round(data.total_cents * (data.deposit_percent / 100));
     const courtesy = Math.min(data.courtesy_cents, data.total_cents);
     const listCents = data.total_cents + courtesy;
-    const notes = statementNotes(statementOfWork(data.statement), courtesy, data.file_name);
+    let notes = statementNotes(statementOfWork(data.statement), courtesy, data.file_name);
     const venueText = data.statement?.venue.trim() || inquiry.venue_text;
     let proposalId = existing.data?.id ?? "";
     let number = existing.data?.number ?? "";
@@ -433,13 +435,12 @@ export const getPublicProposal = createServerFn({ method: "GET" })
       bundle.proposal.status = nextStatus;
       bundle.proposal.viewed_at = viewedAt;
     }
-    const pdfUrl = bundle.proposal.pdf_path
-      ? (
-          await supabaseAdmin.storage
-            .from("documents")
-            .createSignedUrl(bundle.proposal.pdf_path, 60 * 15)
-        ).data?.signedUrl
-      : null;
+    const signPdf = async (path: string | null | undefined) => {
+      if (!path) return null;
+      const signed = await supabaseAdmin.storage.from("documents").createSignedUrl(path, 60 * 15);
+      return signed.data?.signedUrl ?? null;
+    };
+    const pdfUrl = await signPdf(bundle.proposal.pdf_path);
     if (bundle.proposal.total_cents > 0) {
       const existingInvoice = await supabaseAdmin
         .from("invoices")
@@ -529,6 +530,33 @@ export const acceptPublicProposal = createServerFn({ method: "POST" })
       { onConflict: "proposal_id" },
     );
     if (error) throw new Error(error.message);
+    await recordClientDecision(bundle, {
+      subject: "proposal approved",
+      body: `${bundle.client.name} approved the proposal.`,
+    });
+    const amount = moneyLabel(bundle.proposal.total_cents);
+    await sendStudioNotice({
+      subject: `proposal approved · ${bundle.client.name}`,
+      text: [
+        "proposal approved",
+        `${bundle.client.name} approved the proposal.`,
+        `total: ${amount}`,
+        `proposal: ${bundle.proposal.number}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      html: renderSaySukiiEmail({
+        eyebrow: "proposal",
+        eyebrowColor: "#6F8A72",
+        headline: "proposal approved",
+        body: `${bundle.client.name} approved the proposal. the agreement is ready for their signature.`,
+        facts: [
+          { label: "client", value: bundle.client.name },
+          { label: "total", value: amount },
+          { label: "proposal", value: bundle.proposal.number },
+        ],
+      }),
+    });
     return { accepted: true, agreement: agreementContent, signedName: null };
   });
 
@@ -590,6 +618,10 @@ export const requestProposalChanges = createServerFn({ method: "POST" })
     }
     const { sendChangeRequestEmail } = await import("@/lib/os/change-request-email.server");
     const inquiry = bundle.inquiry;
+    await recordClientDecision(bundle, {
+      subject: "changes requested",
+      body: data.note,
+    });
     await sendChangeRequestEmail({
       clientName: bundle.client.name,
       clientEmail: bundle.client.email,
@@ -655,6 +687,30 @@ type ProposalBundle = {
   venue: VenueRow | null;
   items: ProposalLineItemRow[];
 };
+
+async function recordClientDecision(
+  bundle: ProposalBundle,
+  input: { subject: string; body: string },
+) {
+  const { error } = await supabaseAdmin.from("inquiry_messages").insert({
+    inquiry_id: bundle.proposal.inquiry_id,
+    direction: "inbound",
+    channel: "note",
+    subject: input.subject,
+    body: input.body,
+    from_address: bundle.client.email,
+    to_address: studioNotificationEmail(),
+    author: bundle.client.name,
+    sent_at: new Date().toISOString(),
+    status: "received",
+  });
+  if (error) console.error("[proposal] client decision was not filed", error.message);
+  else await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
+}
+
+function moneyLabel(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
 
 async function loadProposalBundleById(id: string): Promise<ProposalBundle> {
   const { data, error } = await supabaseAdmin

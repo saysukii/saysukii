@@ -375,16 +375,19 @@ export function formatInquiryPhone(value: string) {
 
 export function formatInquiryDate(values: InquiryFormValues) {
   if (values.event_date_tbd) return "TBD";
-  if (!values.event_date) return "";
-  const day = new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(
-    new Date(`${values.event_date}T12:00:00`),
+  const dates = [values.event_date, ...(values.event_dates ?? [])].filter((date): date is string => Boolean(date));
+  if (!dates.length) return "";
+  const days = dates.map((date) =>
+    new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(new Date(`${date}T12:00:00`)),
   );
-  return values.event_time ? `${day} · ${values.event_time}` : day;
+  const day = days.join(", ");
+  return values.event_time && days.length === 1 ? `${day} · ${values.event_time}` : day;
 }
 
 export function formatStepAnswer(step: InquiryStep, values: InquiryFormValues) {
   if (step.kind === "review") return "";
   if (step.kind === "date") return formatInquiryDate(values) || "";
+  if (step.field === "venue_text" && values.venue_tbd) return "TBD";
   if (step.kind === "multi") {
     return (values.sources ?? [])
       .map((value) => step.options.find((option) => option.value === value)?.label ?? value)

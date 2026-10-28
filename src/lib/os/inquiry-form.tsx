@@ -16,9 +16,11 @@ export type InquiryFormValues = {
   client_type: ClientType;
   event_date: string | null;
   event_date_tbd: boolean;
+  event_dates?: string[];
   event_time?: string;
   event_type: EventType;
   venue_text: string;
+  venue_tbd?: boolean;
   guest_count: number | null;
   budget_range: string;
   source: string;

@@ -7,8 +7,11 @@
  *   - how the model must answer
  *
  * Labels on ignored / dismissed mail are stored for later tuning.
- * There is no real-time learning in V1 — changing this file is the tuning loop.
+ * Accepted and skipped inquiries are also replayed as studio lessons
+ * the next time mail is sorted.
  */
+
+import type { InquiryLesson } from "@/lib/os/inquiry-lessons";
 
 export const ROUTING_EVENT_TYPES = [
   "wedding",
@@ -46,13 +49,18 @@ Extract when present, but do not require them to count as a true inquiry:
 NOT a true inquiry:
 - vendor / wholesaler / rental pitches, cold sales, SEO, "partnerships" that are ads
 - newsletters, marketing blasts, social notifications, calendar invites with no ask
+- event invitations, RSVPs, "you're invited", conference or gala blasts with no floral ask
 - receipts, invoices, shipping, tracking, payment processors, banks
+- product support and hosting mail (Railway, Vercel, GitHub, Supabase, Stripe, and similar)
 - bounces, out-of-office, unsubscribe, mailer-daemon
 - job applications, internships, press kits with no floral booking ask
 - personal mail to Sukii that is not asking for studio work
 - logistics-only noise with no tie to an active booking (spam, wrong inbox)
 - a past client writing about something that is clearly not a new or continuing floral job
   (e.g. "are you free for coffee", forwarding a meme)
+
+The word "event" alone is not a floral ask. A conference invitation or a support email
+that mentions an event is still not a true inquiry.
 
 A reply that continues an active booking (venue details, guest count, "yes please send a proposal",
 moodboard, "can we add ceremony chairs") is relevant to that inquiry even if it is not a *new* lead.`;
@@ -88,7 +96,13 @@ the Gmail thread id and/or the sender email. Matches are labeled:
      create a candidate instead.
    - Never invent a matched_inquiry_id that is not in the provided match list.
    - Never mark a true inquiry ignored because extraction is incomplete.
-   - The AI never puts a lead in the book. Candidates are proposals for a human.`;
+   - The AI never puts a lead in the book. Candidates are proposals for a human.
+
+5. STUDIO LESSONS
+   The user message may include studio_lessons: mail Sukii already accepted or skipped.
+   Mail that resembles a skipped lesson is not a true inquiry.
+   Mail that resembles an accepted lesson is a true inquiry, even when the ask is brief.
+   A lesson never overrides rule 1 (attach to the active thread).`;
 
 export const INQUIRY_ROUTING_OUTPUT = `OUTPUT — JSON only, no markdown, no preamble.
 
@@ -147,7 +161,11 @@ export type RoutingPromptMatch = {
 
 const BODY_LIMIT = 8000;
 
-export function formatRoutingUserMessage(message: RoutingPromptMessage, matches: RoutingPromptMatch[]) {
+export function formatRoutingUserMessage(
+  message: RoutingPromptMessage,
+  matches: RoutingPromptMatch[],
+  lessons: InquiryLesson[] = [],
+) {
   const body = (message.body ?? "").slice(0, BODY_LIMIT);
   return JSON.stringify(
     {
@@ -175,6 +193,16 @@ export function formatRoutingUserMessage(message: RoutingPromptMessage, matches:
         match_via: match.match_via,
         latest_message_excerpt: match.latest_message_excerpt,
       })),
+      ...(lessons.length
+        ? {
+            studio_lessons: lessons.slice(0, 16).map((lesson) => ({
+              decision: lesson.label,
+              from: lesson.from,
+              subject: lesson.subject,
+              excerpt: lesson.text.slice(0, 240),
+            })),
+          }
+        : {}),
     },
     null,
     2,

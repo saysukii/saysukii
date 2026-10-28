@@ -22,6 +22,7 @@ export {
   PREVIEW_IDS,
   previewArchiveInquiry,
   previewReviewDecision,
+  previewSetInquiryStatus,
 } from "@/lib/dev-preview-data";
 
 export function isDevPreviewEnabled() {

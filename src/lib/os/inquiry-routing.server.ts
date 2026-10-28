@@ -2,9 +2,12 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import type {
   ClientRow,
   ClientType,
+  Database,
   DetectionStatus,
   EventType,
   InboundMessageRow,
@@ -19,6 +22,8 @@ import type {
   RoutingLabelSource,
 } from "../../integrations/supabase/types";
 import { BOOK_DETECTION_STATUSES } from "./inquiry-detection";
+import { belongsInReview, inboundAsk, isAutomatedSender } from "./inquiry-mail";
+import { lessonVerdict, makeLesson, type InquiryLesson } from "./inquiry-lessons";
 import {
   ROUTING_EVENT_TYPES,
   formatRoutingUserMessage,
@@ -73,6 +78,7 @@ export type RoutingRunResult = {
 export type ClassifyInbound = (input: {
   message: InboundMessageRow;
   matches: InquiryMatch[];
+  lessons?: InquiryLesson[];
 }) => Promise<unknown>;
 
 export type RoutingStore = {
@@ -96,6 +102,7 @@ export type RoutingStore = {
     processedAt: string;
   }): Promise<void>;
   logNegative(row: InquiryRoutingLabelRow): Promise<void>;
+  listLessons(): Promise<InquiryLesson[]>;
 };
 
 export type MemoryRoutingState = {
@@ -293,6 +300,7 @@ export function normalizeRoutingDecision(
     matchedId = null;
   } else if (action === "ignored") {
     matchedId = null;
+    if (isTrue) action = "candidate";
   } else {
     action = isTrue ? "candidate" : "ignored";
     matchedId = null;
@@ -417,6 +425,9 @@ export function createMemoryRoutingStore(seed: Partial<MemoryRoutingState> = {})
     },
     async logNegative(row) {
       state.labels.push(row);
+    },
+    async listLessons() {
+      return lessonsFromMemory(state);
     },
   };
 
@@ -545,6 +556,7 @@ export async function recordDismissedCandidate(
 export async function classifyWithAnthropic(input: {
   message: InboundMessageRow;
   matches: InquiryMatch[];
+  lessons?: InquiryLesson[];
   fetchImpl?: typeof fetch;
   apiKey?: string;
   model?: string;
@@ -568,7 +580,7 @@ export async function classifyWithAnthropic(input: {
       messages: [
         {
           role: "user",
-          content: formatRoutingUserMessage(input.message, input.matches),
+          content: formatRoutingUserMessage(input.message, input.matches, input.lessons ?? []),
         },
       ],
     }),
@@ -711,6 +723,8 @@ export async function routeUnprocessedInbound(deps: {
     errors: 0,
   };
 
+  const lessons = await deps.store.listLessons();
+
   for (const message of queued) {
     try {
       const email = normalizeSenderEmail(message.from_addr);
@@ -735,12 +749,48 @@ export async function routeUnprocessedInbound(deps: {
         tally(result, action);
         continue;
       }
-      const raw = await deps.classify({ message, matches });
+      const verdict = lessonVerdict(
+        { from: message.from_addr, subject: message.subject, body: message.body },
+        lessons,
+      );
+      if (verdict === "skip") {
+        const skipped: RoutingDecision = {
+          action: "ignored",
+          matched_inquiry_id: null,
+          is_true_inquiry: false,
+          confidence: 0.92,
+          reason: "similar to mail that was skipped",
+          extraction: { ...EMPTY_EXTRACTION, email },
+        };
+        const action = await applyDecision(message, skipped, deps.store, now());
+        tally(result, action);
+        continue;
+      }
+      const raw = await deps.classify({ message, matches, lessons });
       const decision = normalizeRoutingDecision(raw, matches, message);
+      if (verdict === "accept" && decision.action === "ignored") {
+        decision.action = "candidate";
+        decision.is_true_inquiry = true;
+        decision.confidence = Math.max(decision.confidence, 0.8);
+        decision.reason = "similar to an inquiry that was accepted";
+      }
       if (decision.action === "candidate" && !normalizeSenderEmail(decision.extraction.email ?? message.from_addr)) {
         decision.action = "ignored";
         decision.reason = "candidate requires a sender email";
         decision.is_true_inquiry = false;
+      } else if (
+        decision.action === "candidate" &&
+        verdict !== "accept" &&
+        !belongsInReview({
+          from: decision.extraction.email ?? message.from_addr,
+          subject: message.subject,
+          body: message.body,
+          confidence: decision.confidence,
+        })
+      ) {
+        decision.action = "ignored";
+        decision.is_true_inquiry = false;
+        decision.reason = "not a floral inquiry";
       }
       const action = await applyDecision(message, decision, deps.store, now());
       tally(result, action);
@@ -753,8 +803,6 @@ export async function routeUnprocessedInbound(deps: {
   return publicRoutingResult(result);
 }
 
-const INQUIRY_CUES =
-  /\b(wedding|bridal|elopement|ceremony|reception|bouquet|flowers?|floral|arrangement|centerpiece|install(?:ation)?|subscription|concierge|photoshoot|styled shoot|brand activation)\b/i;
 const ROUTING_NOISE =
   /\b(unsubscribe|newsletter|wholesale|partnership opportunity|password reset|verify your email|your receipt|order confirmation|tracking number|out of office|automatic reply|mailer-daemon)\b/i;
 
@@ -776,8 +824,7 @@ function guessEventType(text: string): EventType | null {
 }
 
 function routingNoise(email: string | null, text: string) {
-  if (email && /^(no-?reply|noreply|notifications?|mailer-daemon|bounce|newsletter)@/i.test(email)) return true;
-  if (email && email.endsWith("@saysukii.com")) return true;
+  if (isAutomatedSender(email)) return true;
   return ROUTING_NOISE.test(text);
 }
 
@@ -787,6 +834,7 @@ export function heuristicRoutingRaw(input: {
 }): unknown {
   const email = normalizeSenderEmail(input.message.from_addr);
   const text = `${input.message.subject ?? ""}\n${input.message.body ?? ""}`;
+  const ask = inboundAsk(input.message.subject, input.message.body);
   const name = senderName(input.message.from_addr);
   if (routingNoise(email, text)) {
     return {
@@ -823,8 +871,15 @@ export function heuristicRoutingRaw(input: {
     };
   }
 
-  if (INQUIRY_CUES.test(text)) {
-    const vision = (input.message.body ?? "").replace(/\s+/g, " ").trim();
+  if (
+    belongsInReview({
+      from: input.message.from_addr,
+      subject: input.message.subject,
+      body: input.message.body,
+      confidence: 0.6,
+    })
+  ) {
+    const vision = ask.replace(/\s+/g, " ").trim();
     return {
       action: "candidate",
       is_true_inquiry: true,
@@ -833,7 +888,7 @@ export function heuristicRoutingRaw(input: {
       extraction: {
         email,
         name,
-        event_type: guessEventType(text),
+        event_type: guessEventType(ask),
         vision: vision ? vision.slice(0, 280) : null,
       },
     };
@@ -875,6 +930,65 @@ export async function runGmailInboundRouting(deps?: {
 
 function supabaseConfigured() {
   return Boolean(process.env["SUPABASE_URL"] && process.env["SUPABASE_SERVICE_ROLE_KEY"]);
+}
+
+function lessonsFromMemory(state: MemoryRoutingState): InquiryLesson[] {
+  const lessons: InquiryLesson[] = [];
+  for (const inquiry of state.inquiries) {
+    if (inquiry.origin !== "detected") continue;
+    if (inquiry.detection_status !== "confirmed" && inquiry.detection_status !== "dismissed") continue;
+    const person = state.clients.find((row) => row.id === inquiry.client_id);
+    const mail = state.messages.find((row) => row.inquiry_id === inquiry.id && row.direction === "inbound");
+    const lesson = makeLesson({
+      accepted: inquiry.detection_status === "confirmed",
+      from: mail?.from_address ?? person?.email,
+      subject: mail?.subject,
+      body: mail?.body ?? inquiry.message,
+    });
+    if (lesson) lessons.push(lesson);
+  }
+  return lessons.slice(0, 40);
+}
+
+export async function loadInquiryLessons(client: SupabaseClient<Database>): Promise<InquiryLesson[]> {
+  const { data, error } = await client
+    .from("inquiries")
+    .select("id, detection_status, message, source_message_id, client_id")
+    .eq("origin", "detected")
+    .in("detection_status", ["confirmed", "dismissed"])
+    .order("updated_at", { ascending: false })
+    .limit(40);
+  if (error || !data?.length) return [];
+  const clientIds = [...new Set(data.map((row) => row.client_id))];
+  const sourceIds = [...new Set(data.map((row) => row.source_message_id).filter((id): id is string => Boolean(id)))];
+  const [people, inbound] = await Promise.all([
+    client.from("clients").select("id, email").in("id", clientIds),
+    sourceIds.length
+      ? client.from("inbound_messages").select("id, from_addr, subject, body").in("id", sourceIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; from_addr: string | null; subject: string | null; body: string | null }> }),
+  ]);
+  const emailByClient = new Map((people.data ?? []).map((row) => [row.id, row.email]));
+  const mailById = new Map((inbound.data ?? []).map((row) => [row.id, row]));
+  return data.flatMap((row) => {
+    const mail = row.source_message_id ? mailById.get(row.source_message_id) : null;
+    const lesson = makeLesson({
+      accepted: row.detection_status === "confirmed",
+      from: mail?.from_addr ?? emailByClient.get(row.client_id),
+      subject: mail?.subject,
+      body: mail?.body ?? row.message,
+    });
+    return lesson ? [lesson] : [];
+  });
+}
+
+async function loadInquiryLessonsFromSupabase() {
+  if (!supabaseConfigured()) return null;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return await loadInquiryLessons(supabaseAdmin);
+  } catch {
+    return null;
+  }
 }
 
 function liveRoutingStore(): RoutingStore {
@@ -942,6 +1056,11 @@ function liveRoutingStore(): RoutingStore {
       const labels = await readJsonFile<InquiryRoutingLabelRow[]>(LABELS_PATH, []);
       labels.push(row);
       await writeJsonFile(LABELS_PATH, labels);
+    },
+    async listLessons() {
+      const fromDb = await loadInquiryLessonsFromSupabase();
+      if (fromDb) return fromDb;
+      return [];
     },
   };
 }

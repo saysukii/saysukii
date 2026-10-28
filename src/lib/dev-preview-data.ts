@@ -34,11 +34,20 @@ export const PREVIEW_IDS = {
   clientMaya: "10000000-0000-4000-8000-000000000014",
   clientElena: "10000000-0000-4000-8000-000000000015",
   clientCamila: "10000000-0000-4000-8000-000000000016",
+  clientNoor: "10000000-0000-4000-8000-000000000017",
+  clientJules: "10000000-0000-4000-8000-000000000018",
   inquiryWedding: "20000000-0000-4000-8000-000000000021",
   inquiryBrand: "20000000-0000-4000-8000-000000000022",
   inquiryCorporate: "20000000-0000-4000-8000-000000000023",
   inquiryFresh: "20000000-0000-4000-8000-000000000027",
   inquiryCandidate: "20000000-0000-4000-8000-000000000028",
+  inquiryReviewMaya: "20000000-0000-4000-8000-00000000002a",
+  inquiryReviewLumen: "20000000-0000-4000-8000-00000000002b",
+  inquiryReviewAmelia: "20000000-0000-4000-8000-00000000002c",
+  inquiryReviewHarbor: "20000000-0000-4000-8000-00000000002d",
+  inquiryReviewCamila: "20000000-0000-4000-8000-00000000002e",
+  inquiryReviewNoor: "20000000-0000-4000-8000-00000000002f",
+  inquiryReviewJules: "20000000-0000-4000-8000-000000000030",
   inquiryArrived: "20000000-0000-4000-8000-000000000029",
   proposalDraft: "40000000-0000-4000-8000-000000000041",
   proposalSent: "40000000-0000-4000-8000-000000000042",
@@ -141,6 +150,32 @@ const clients: Record<string, ClientRow> = {
     archived: false,
     created_at: iso(0),
     updated_at: iso(0),
+  },
+  [PREVIEW_IDS.clientNoor]: {
+    id: PREVIEW_IDS.clientNoor,
+    name: "Noor Hale",
+    email: "noor@example.com",
+    phone: null,
+    organization: null,
+    type: "individual",
+    source: "gmail",
+    notes: null,
+    archived: false,
+    created_at: iso(-3),
+    updated_at: iso(-3),
+  },
+  [PREVIEW_IDS.clientJules]: {
+    id: PREVIEW_IDS.clientJules,
+    name: "Jules Park",
+    email: "jules@example.com",
+    phone: null,
+    organization: null,
+    type: "brand",
+    source: "gmail",
+    notes: null,
+    archived: false,
+    created_at: iso(-4),
+    updated_at: iso(-4),
   },
 };
 
@@ -412,6 +447,84 @@ const inquiries: InquiryRow[] = [
     received_at: iso(-2),
     source_message_id: "c0000000-0000-4000-8000-0000000000c1",
   }),
+  inquiry(PREVIEW_IDS.inquiryReviewMaya, PREVIEW_IDS.clientMaya, "new", {
+    origin: "detected",
+    detection_status: "candidate",
+    detection_confidence: 0.74,
+    detection_reason: "ceremony flowers for a hotel wedding",
+    source: "gmail",
+    event_type: "wedding",
+    venue_text: "Seminole Hard Rock Hotel",
+    message: "Could you do ceremony flowers at the Hard Rock? Soft pinks, nothing too tall.",
+    received_at: iso(-6),
+  }),
+  inquiry(PREVIEW_IDS.inquiryReviewLumen, PREVIEW_IDS.clientLumen, "new", {
+    origin: "detected",
+    detection_status: "candidate",
+    detection_confidence: 0.81,
+    detection_reason: "brand install for a wynwood pop-up",
+    source: "gmail",
+    event_type: "brand_activation",
+    venue_text: "Wynwood",
+    message: "We need a floral install for a two-day pop-up in Wynwood. Sculptural, mostly white.",
+    received_at: iso(-5),
+  }),
+  inquiry(PREVIEW_IDS.inquiryReviewAmelia, PREVIEW_IDS.clientAmelia, "new", {
+    origin: "detected",
+    detection_status: "candidate",
+    detection_confidence: 0.91,
+    detection_reason: "reception flowers at vizcaya",
+    source: "gmail",
+    event_type: "wedding",
+    venue_text: "Vizcaya Museum & Gardens",
+    message: "Reception flowers at Vizcaya. Garden roses, low centerpieces, a quiet palette.",
+    received_at: iso(-4),
+  }),
+  inquiry(PREVIEW_IDS.inquiryReviewHarbor, PREVIEW_IDS.clientHarbor, "new", {
+    origin: "detected",
+    detection_status: "candidate",
+    detection_confidence: 0.68,
+    detection_reason: "dinner arrangements on key biscayne",
+    source: "gmail",
+    event_type: "corporate",
+    venue_text: "Key Biscayne",
+    message: "Dinner for 40 on Key Biscayne. Arrangements for a long table, tropical but not loud.",
+    received_at: iso(-3),
+  }),
+  inquiry(PREVIEW_IDS.inquiryReviewCamila, PREVIEW_IDS.clientCamila, "new", {
+    origin: "detected",
+    detection_status: "candidate",
+    detection_confidence: 0.77,
+    detection_reason: "garden ceremony at the w",
+    source: "gmail",
+    event_type: "wedding",
+    venue_text: "The W Hotel",
+    message: "A garden ceremony at the W. Candlelight, garden roses, and something a little wild.",
+    received_at: iso(-2),
+  }),
+  inquiry(PREVIEW_IDS.inquiryReviewNoor, PREVIEW_IDS.clientNoor, "new", {
+    origin: "detected",
+    detection_status: "candidate",
+    detection_confidence: 0.83,
+    detection_reason: "standing weekly flowers",
+    source: "gmail",
+    event_type: "subscription",
+    event_date_tbd: true,
+    event_date: null,
+    message: "I'd love weekly flowers for the house. Quiet colors, something I can live with.",
+    received_at: iso(-1),
+  }),
+  inquiry(PREVIEW_IDS.inquiryReviewJules, PREVIEW_IDS.clientJules, "new", {
+    origin: "detected",
+    detection_status: "candidate",
+    detection_confidence: 0.72,
+    detection_reason: "brand dinner in the design district",
+    source: "gmail",
+    event_type: "brand_activation",
+    venue_text: "Design District",
+    message: "Brand dinner in the Design District next month. Flowers for the table and the entry.",
+    received_at: iso(0),
+  }),
 ];
 
 const proposals: ProposalRow[] = [
@@ -646,6 +759,25 @@ function previewAutoTaskId(inquiryId: string, kind: string) {
 
 const reviewDecisions = new Map<string, { detection_status: InquiryRow["detection_status"]; status: InquiryStatus }>();
 const archivedInquiryIds = new Set<string>();
+const PREVIEW_STATUS_KEY = "say-sukii-preview-inquiry-status";
+
+function storedPreviewStatuses(): Array<[string, InquiryStatus]> {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(PREVIEW_STATUS_KEY) || "{}") as Record<string, InquiryStatus>;
+    return Object.entries(parsed);
+  } catch {
+    return [];
+  }
+}
+
+const previewStatuses = new Map<string, InquiryStatus>(storedPreviewStatuses());
+
+export function previewSetInquiryStatus(id: string, status: InquiryStatus) {
+  previewStatuses.set(id, status);
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(PREVIEW_STATUS_KEY, JSON.stringify(Object.fromEntries(previewStatuses)));
+}
 
 export function previewArchiveInquiry(id: string) {
   archivedInquiryIds.add(id);
@@ -661,7 +793,14 @@ export function previewReviewDecision(id: string, decision: "approve" | "dismiss
 
 function withReview(inquiry: InquiryRow): InquiryRow {
   const patch = reviewDecisions.get(inquiry.id);
-  return patch ? { ...inquiry, ...patch } : inquiry;
+  const status = previewStatuses.get(inquiry.id);
+  const next = patch ? { ...inquiry, ...patch } : inquiry;
+  if (!status) return next;
+  return {
+    ...next,
+    status,
+    booked_at: status === "booked" ? next.booked_at ?? new Date().toISOString() : next.booked_at,
+  };
 }
 
 const CANDIDATE_SOURCE = {
@@ -669,6 +808,49 @@ const CANDIDATE_SOURCE = {
   body: "Hi Say Sukii — we're getting married at PAMM on March 14 and would love you for ceremony and reception. Garden, sculptural, a little wild. Budget around 10–20k.",
   from_addr: "elena@example.com",
 };
+
+const PREVIEW_REVIEW_MAIL: Record<string, { subject: string; body: string; from_addr: string }> = {
+  [PREVIEW_IDS.inquiryCandidate]: CANDIDATE_SOURCE,
+  [PREVIEW_IDS.inquiryReviewMaya]: {
+    subject: "ceremony flowers for the hard rock",
+    body: "Could you do ceremony flowers at the Hard Rock? Soft pinks, nothing too tall.",
+    from_addr: "maya@example.com",
+  },
+  [PREVIEW_IDS.inquiryReviewLumen]: {
+    subject: "wynwood pop-up install",
+    body: "We need a floral install for a two-day pop-up in Wynwood. Sculptural, mostly white.",
+    from_addr: "studio@lumen.example",
+  },
+  [PREVIEW_IDS.inquiryReviewAmelia]: {
+    subject: "vizcaya reception flowers",
+    body: "Reception flowers at Vizcaya. Garden roses, low centerpieces, a quiet palette.",
+    from_addr: "amelia@example.com",
+  },
+  [PREVIEW_IDS.inquiryReviewHarbor]: {
+    subject: "key biscayne dinner arrangements",
+    body: "Dinner for 40 on Key Biscayne. Arrangements for a long table, tropical but not loud.",
+    from_addr: "events@harbor.example",
+  },
+  [PREVIEW_IDS.inquiryReviewCamila]: {
+    subject: "garden ceremony at the w",
+    body: "A garden ceremony at the W. Candlelight, garden roses, and something a little wild.",
+    from_addr: "camila.reyes@gmail.com",
+  },
+  [PREVIEW_IDS.inquiryReviewNoor]: {
+    subject: "weekly flowers for the house",
+    body: "I'd love weekly flowers for the house. Quiet colors, something I can live with.",
+    from_addr: "noor@example.com",
+  },
+  [PREVIEW_IDS.inquiryReviewJules]: {
+    subject: "brand dinner in the design district",
+    body: "Brand dinner in the Design District next month. Flowers for the table and the entry.",
+    from_addr: "jules@example.com",
+  },
+};
+
+function previewReviewMail(id: string) {
+  return PREVIEW_REVIEW_MAIL[id] ?? null;
+}
 
 function autoInquiryTasks(): TaskRow[] {
   return inquiries
@@ -766,10 +948,7 @@ export function getDevPreviewPipeline() {
     ...inquiry,
     studio_wrote: previewStudioWrote(inquiry.id),
     slug: slugs.get(inquiry.id) ?? inquiry.id,
-    source_peek:
-      inquiry.id === PREVIEW_IDS.inquiryCandidate && inquiry.detection_status === "candidate"
-        ? CANDIDATE_SOURCE
-        : null,
+    source_peek: previewReviewMail(inquiry.id),
   }));
 }
 
@@ -849,9 +1028,9 @@ export function getDevPreviewInquiryWorkspace(id: string) {
             inquiry_id: inquiry.id,
             direction: "inbound",
             channel: "email",
-            subject: CANDIDATE_SOURCE.subject,
-            body: CANDIDATE_SOURCE.body,
-            from_address: client?.email ?? CANDIDATE_SOURCE.from_addr,
+            subject: previewReviewMail(inquiry.id)?.subject ?? CANDIDATE_SOURCE.subject,
+            body: previewReviewMail(inquiry.id)?.body ?? inquiry.message ?? CANDIDATE_SOURCE.body,
+            from_address: client?.email ?? previewReviewMail(inquiry.id)?.from_addr ?? CANDIDATE_SOURCE.from_addr,
             to_address: "info@saysukii.com",
             gmail_message_id: "gmail-preview-candidate",
             gmail_thread_id: "thread-preview-candidate",
@@ -1117,7 +1296,7 @@ export function getDevPreviewInquiryWorkspace(id: string) {
     gmailConnected: false,
     source_message:
       inquiry.origin === "detected"
-        ? { ...CANDIDATE_SOURCE, received_at: inquiry.received_at }
+        ? { ...(previewReviewMail(inquiry.id) ?? CANDIDATE_SOURCE), received_at: inquiry.received_at }
         : null,
   };
 }
@@ -1245,11 +1424,17 @@ export function getDevPreviewProposal(id: string) {
   };
 }
 
+const LOCAL_REVIEW_CLIENTS = new Set<string>([PREVIEW_IDS.clientNoor, PREVIEW_IDS.clientJules]);
+
+function studioClients() {
+  return Object.values(clients).filter((client) => !LOCAL_REVIEW_CLIENTS.has(client.id));
+}
+
 export function getDevPreviewProposalBuilderData() {
   return {
-    clients: Object.values(clients),
+    clients: studioClients(),
     inquiries: inquiries
-      .filter((item) => ["new", "contacted", "in_conversation"].includes(item.status))
+      .filter((item) => item.detection_status !== "candidate" && ["new", "contacted", "in_conversation"].includes(item.status))
       .map((item) => ({ ...item, clients: clients[item.client_id] })),
     arrangements,
     venues,
@@ -1394,7 +1579,7 @@ export function getDevPreviewProject(id: string) {
 }
 
 export function getDevPreviewClients() {
-  return Object.values(clients);
+  return studioClients();
 }
 
 export function getDevPreviewClient(id: string) {
@@ -1407,6 +1592,7 @@ export function getDevPreviewClient(id: string) {
     client,
     slug: slugs.get(client.id) ?? client.id,
     inquiries: inquiries
+      .map(withReview)
       .filter((item) => item.client_id === client.id)
       .map((item) => ({
         ...item,

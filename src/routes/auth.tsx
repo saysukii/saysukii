@@ -5,6 +5,7 @@ import { ArrowRight, Eye, EyeOff, Sparkles } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Wordmark } from "@/components/portal/bits";
+import { markLoginBloom } from "@/components/portal/StudioLoader";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -55,6 +56,7 @@ function AuthPage() {
         await supabase.auth.signOut();
         throw new Error("Access denied");
       }
+      markLoginBloom();
       await router.navigate({ to: "/dashboard" });
     } catch {
       toast.error("This account does not have access to the studio.");

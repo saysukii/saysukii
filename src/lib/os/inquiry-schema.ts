@@ -1,4 +1,5 @@
 import type { ClientType, EventType } from "@/integrations/supabase/types";
+import { withDatesNote } from "@/lib/os/inquiry-holds";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 
 export type InquiryInterest =
@@ -77,9 +78,11 @@ export const EMPTY_INQUIRY_DRAFT: InquiryFormValues = {
   client_type: "individual",
   event_date: null,
   event_date_tbd: false,
+  event_dates: [],
   event_time: "",
   event_type: "wedding",
   venue_text: "",
+  venue_tbd: false,
   guest_count: null,
   budget_range: "",
   source: "",
@@ -120,6 +123,9 @@ export function toInquirySubmitValues(values: InquiryFormValues): InquiryFormVal
     values.space === "other"
       ? [values.space, values.space_other?.trim()].filter(Boolean).join(" — ")
       : values.space;
+  const dates = [
+    ...new Set([values.event_date, ...(values.event_dates ?? [])].filter((date): date is string => Boolean(date))),
+  ];
   const details = [
     space ? `Space: ${space}` : "",
     values.cadence
@@ -143,15 +149,15 @@ export function toInquirySubmitValues(values: InquiryFormValues): InquiryFormVal
     phone: values.phone,
     organization: "",
     client_type: mapInquiryClientType(values),
-    event_date: values.event_date,
+    event_date: values.event_date_tbd ? null : (dates[0] ?? null),
     event_date_tbd: values.event_date_tbd,
     event_type: mapInquiryEventType(values),
-    venue_text: values.venue_text,
+    venue_text: values.venue_tbd ? "tbd" : values.venue_text,
     guest_count: null,
     budget_range:
       values.interest === "deliveries" ? values.arrangement_size || values.budget_range : values.budget_range,
     source: values.sources?.length ? values.sources.join(", ") : values.source,
-    message: details,
+    message: withDatesNote(details, values.event_date_tbd || values.interest !== "events" ? [] : dates),
     website: values.website ?? "",
   };
 }

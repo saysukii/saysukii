@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Wordmark } from "./bits";
+import { BloomPass, takeLoginBloom } from "@/components/portal/StudioLoader";
 import { PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
@@ -117,7 +118,7 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [devPreview]);
 
   useEffect(() => {
-    if (devPreview || profile.role !== "admin") return;
+    if (profile.role !== "admin") return;
     let stop = false;
     async function readInbox() {
       try {
@@ -219,6 +220,12 @@ export function Shell({ children }: { children: ReactNode }) {
   const givenName = profile.full_name?.trim() || "";
   const displayName = givenName || email;
   const initial = (displayName || email || "s").charAt(0).toLowerCase();
+  const [bloom, setBloom] = useState(0);
+
+  useEffect(() => {
+    if (!takeLoginBloom()) return;
+    setBloom(1);
+  }, []);
 
   return (
     <div className="studio-pearl">
@@ -269,6 +276,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
 
+      <BloomPass play={bloom} />
       <div className="studio-pearl-frame">
         <aside className="studio-pearl-rail">
           <Link to="/dashboard" className="studio-pearl-brand" aria-label="Say Sukii home">

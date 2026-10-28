@@ -662,7 +662,7 @@ function SettingsPage() {
   function panelFor(id: SettingsSection) {
     if (id === "account") return accountBlock;
     if (id === "forms") return formsBlock;
-    if (isPending) return <p className="studio-empty">gathering…</p>;
+    if (isPending) return null;
     if (id === "connections") return connectionsBlock;
     if (id === "people") return accessBlock;
     return healthBlock;

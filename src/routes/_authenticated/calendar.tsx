@@ -6,6 +6,7 @@ import { ScheduleDesk } from "@/components/portal/ScheduleDesk";
 import { getDevPreviewAppointments, getDevPreviewPipeline } from "@/lib/dev-preview";
 import { listAppointments, listStudioCalendarEvents, getGranolaStatus, getGranolaStatusDev } from "@/lib/os/bookings.functions";
 import { EVENT_LABEL } from "@/lib/os/inquiry-desk";
+import { inquiryHoldDates } from "@/lib/os/inquiry-holds";
 import { listInquiryPipeline } from "@/lib/os/inquiries.functions";
 import { readBookings, type MeetingBrief, type StudioBooking } from "@/lib/studio-bookings";
 import { useDevPreview } from "@/lib/use-dev-preview";
@@ -68,11 +69,13 @@ function SchedulePage() {
     },
   });
 
-  const { data: briefs = [] } = useQuery({
-    queryKey: ["os", "meeting-briefs", devPreview],
+  const pipeline = useQuery({
+    queryKey: ["inquiry-pipeline", devPreview],
     enabled: isAdmin,
-    queryFn: async () => meetingBriefs(devPreview ? getDevPreviewPipeline() : await fetchInquiries()),
+    queryFn: () => (devPreview ? getDevPreviewPipeline() : fetchInquiries()),
   });
+  const briefs = meetingBriefs(pipeline.data ?? []);
+  const holds = acceptedHolds(pipeline.data ?? []);
 
   const granola = useQuery({
     queryKey: ["os", "granola", devPreview],
@@ -92,7 +95,38 @@ function SchedulePage() {
     );
   }
 
-  return <ScheduleDesk bookings={bookings} briefs={briefs} pending={isPending} granolaConnected={granolaConnected} />;
+  const schedule = [...bookings, ...holds].sort(byStart);
+  return <ScheduleDesk bookings={schedule} briefs={briefs} pending={isPending || pipeline.isPending} granolaConnected={granolaConnected} />;
+}
+
+function acceptedHolds(
+  rows: Array<{
+    id: string;
+    status: string;
+    slug: string;
+    event_date: string | null;
+    event_date_tbd: boolean;
+    message: string | null;
+    client: { name?: string | null; email: string | null } | null;
+  }>,
+): StudioBooking[] {
+  const holds: StudioBooking[] = [];
+  for (const row of rows) {
+    if (row.status !== "booked") continue;
+    const name = row.client?.name?.trim() || "accepted";
+    for (const date of inquiryHoldDates(row)) {
+      holds.push({
+        id: `hold-${row.id}-${date}`,
+        startsAt: `${date}T12:00:00`,
+        name,
+        email: row.client?.email ?? "",
+        note: "accepted",
+        allDay: true,
+        inquirySlug: row.slug,
+      });
+    }
+  }
+  return holds;
 }
 
 function meetingBriefs(
@@ -140,7 +174,7 @@ function inquiryWords(value: string | null) {
   const words = value
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line && !/^(size|time|recipient):/i.test(line))
+    .filter((line) => line && !/^(size|time|recipient|dates):/i.test(line))
     .join(" ")
     .replace(/\s+/g, " ")
     .trim()

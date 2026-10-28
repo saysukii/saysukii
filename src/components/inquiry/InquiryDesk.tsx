@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -55,14 +55,29 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
     queryKey: ["inquiry-pipeline", devPreview],
     queryFn: () => (devPreview ? getDevPreviewPipeline() : fetchInquiries()),
   });
+  const mail = useQuery({
+    queryKey: ["inquiry-pipeline", "mail"],
+    enabled: devPreview,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      try {
+        return await fetchInquiries();
+      } catch {
+        return [] as InquiryPipelineItem[];
+      }
+    },
+  });
 
-  const review = useMemo(
-    () =>
-      inquiries
-        .filter(BOARD_REVIEW.match)
-        .sort((left, right) => daysWaiting(right.received_at) - daysWaiting(left.received_at)),
-    [inquiries],
-  );
+  const review = useMemo(() => {
+    const seen = new Set<string>();
+    return [...(devPreview ? (mail.data ?? []) : []), ...inquiries]
+      .filter((inquiry) => {
+        if (!BOARD_REVIEW.match(inquiry) || seen.has(inquiry.id)) return false;
+        seen.add(inquiry.id);
+        return true;
+      })
+      .sort((left, right) => daysWaiting(right.received_at) - daysWaiting(left.received_at));
+  }, [devPreview, inquiries, mail.data]);
   const columns = useMemo(
     () =>
       BOARD_COLUMNS.map((column) => ({
@@ -156,7 +171,6 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
       </header>
 
       {isError ? <p className="studio-pearl-note">the inquiry board is for studio admins.</p> : null}
-      {isPending ? <p className="studio-empty">gathering…</p> : null}
       {!isPending && inquiries.length === 0 ? <p className="studio-empty">nobody is waiting. good place to be.</p> : null}
 
       {!isPending && inquiries.length > 0 ? (
@@ -211,17 +225,75 @@ function ReviewStrip({
   items: InquiryPipelineItem[];
   onOpen: (inquiry: InquiryPipelineItem) => void;
 }) {
+  const [index, setIndex] = useState(0);
+  const startX = useRef<number | null>(null);
+  const swiped = useRef(false);
+  const safe = Math.min(index, Math.max(items.length - 1, 0));
+
+  useEffect(() => {
+    if (index !== safe) setIndex(safe);
+  }, [index, safe]);
+
+  function step(direction: -1 | 1) {
+    setIndex((current) => Math.min(Math.max(current + direction, 0), Math.max(items.length - 1, 0)));
+  }
+
+  function swipe(clientX: number) {
+    if (startX.current == null) return;
+    const delta = clientX - startX.current;
+    startX.current = null;
+    if (delta <= -48) {
+      swiped.current = true;
+      step(1);
+    } else if (delta >= 48) {
+      swiped.current = true;
+      step(-1);
+    }
+  }
+
   return (
     <section className="studio-book-review" aria-label="needs review">
-      <p className="studio-home-label" title="flagged by studio intelligence">
+      <div className="studio-home-label" title="flagged by studio intelligence">
         <span className="studio-summary-mark" aria-hidden="true" />
         needs review
         <span>{items.length}</span>
         <span className="sr-only">flagged by studio intelligence</span>
-      </p>
-      <div className="studio-book-review-rows">
-        {items.map((inquiry) => (
-            <button key={inquiry.id} type="button" className="studio-book-row" onClick={() => onOpen(inquiry)}>
+        {items.length > 1 ? (
+          <span className="studio-review-nav">
+            <button type="button" aria-label="Previous inquiry" disabled={safe <= 0} onClick={() => step(-1)}>
+              <ChevronLeft size={16} strokeWidth={1.5} />
+            </button>
+            <button type="button" aria-label="Next inquiry" disabled={safe >= items.length - 1} onClick={() => step(1)}>
+              <ChevronRight size={16} strokeWidth={1.5} />
+            </button>
+          </span>
+        ) : null}
+      </div>
+      <div
+        className="studio-book-review-window"
+        onPointerDown={(event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          startX.current = event.clientX;
+        }}
+        onPointerUp={(event) => swipe(event.clientX)}
+        onPointerCancel={() => {
+          startX.current = null;
+        }}
+      >
+        <div className="studio-book-review-track" style={{ transform: `translateX(${safe * -100}%)` }}>
+          {items.map((inquiry) => (
+            <button
+              key={inquiry.id}
+              type="button"
+              className="studio-book-row"
+              onClick={() => {
+                if (swiped.current) {
+                  swiped.current = false;
+                  return;
+                }
+                onOpen(inquiry);
+              }}
+            >
               <span>
                 <b>
                   {isPersonType(inquiry.client?.type) && inquiry.client?.name ? (
@@ -234,7 +306,8 @@ function ReviewStrip({
               </span>
               <small>{confidenceLabel(inquiry.detection_confidence) ?? "look"}</small>
             </button>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -332,8 +405,11 @@ function ReviewMessage({
 }
 
 function messagePreview(inquiry: InquiryPipelineItem) {
+  const subject = inquiry.source_peek?.subject?.replace(/\s+/g, " ").trim();
+  if (subject) return subject;
   const raw = inquiry.source_peek?.body?.trim() || inquiry.message?.trim() || "";
-  return raw.replace(/\s+/g, " ");
+  const line = raw.replace(/\s+/g, " ");
+  return line.length > 72 ? `${line.slice(0, 72).trim()}…` : line;
 }
 
 function messageWhen(value: string | null | undefined) {

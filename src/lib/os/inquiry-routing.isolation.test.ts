@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { lessonVerdict } from "./inquiry-lessons";
 import { BOOK_DETECTION_STATUSES } from "./inquiry-detection";
+import { belongsInReview } from "./inquiry-mail";
 import {
   TRUE_INQUIRY_DEFINITION,
   formatRoutingUserMessage,
@@ -649,6 +651,149 @@ describe("classify + route engine", () => {
     assert.equal(candidate.action, "candidate");
     assert.equal(candidate.extraction.event_type, "subscription");
     assert.equal(candidate.extraction.name, "Tai");
+  });
+
+  it("leaves support mail and invitations out of review", () => {
+    const railway = inbound("railway", {
+      from_addr: "Railway Support <support@railway.app>",
+      subject: "Your deployment failed",
+      body: "A build event on your service did not complete.",
+    });
+    const invite = inbound("invite", {
+      from_addr: "Knight Foundation <events@kf.org>",
+      subject: "KMF",
+      body: "You're invited to join Knight Foundation in Miami for the 20th annual Knight Media Forum.",
+    });
+    const wedding = inbound("wedding");
+    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: railway, matches: [] }), [], railway).action, "ignored");
+    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: invite, matches: [] }), [], invite).action, "ignored");
+    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: wedding, matches: [] }), [], wedding).action, "candidate");
+    const quoted = inbound("quoted", {
+      from_addr: "wilaire@wilart.com",
+      subject: "Re: Exhibition Vinyl and Instructions",
+      body: "Sounds good.\n\nOn Mon, Oct 19, 2026 at 2:24 PM Sukii Qi <info@saysukii.com> wrote:\n> see attached\n>\n> Sukii Qi | Say Sukii\n> Floral Artist, Founder & Creative Director\n> saysukii.com",
+    });
+    const payment = inbound("paid", {
+      from_addr: "alerts@vendor.example",
+      subject: "Confirmed: Your payment to Jet Fresh Flowers is complete",
+      body: "The payment went through.",
+    });
+    const toolkit = inbound("toolkit", {
+      from_addr: "vuyo@brand.example",
+      subject: "Your Social Toolkit: Flower Hour this weekend",
+      body: "Download the pop-up assets.",
+    });
+    const pitch = inbound("pitch", {
+      from_addr: "chrise@example.co",
+      subject: "Client Trip App",
+      body: "Hey Sukii, I built a trip app for travel agencies. It can include flowers on every proposal.",
+    });
+    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: quoted, matches: [] }), [], quoted).action, "ignored");
+    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: payment, matches: [] }), [], payment).action, "ignored");
+    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: toolkit, matches: [] }), [], toolkit).action, "ignored");
+    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: pitch, matches: [] }), [], pitch).action, "ignored");
+    assert.equal(
+      belongsInReview({ from: railway.from_addr, subject: railway.subject, body: railway.body, confidence: 0.9 }),
+      false,
+    );
+    assert.equal(
+      belongsInReview({ from: invite.from_addr, subject: invite.subject, body: invite.body, confidence: 0.6 }),
+      false,
+    );
+    assert.equal(
+      belongsInReview({ from: wedding.from_addr, subject: wedding.subject, body: wedding.body, confidence: 0.6 }),
+      true,
+    );
+  });
+
+  it("drops a model candidate when the sender is product support", async () => {
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("railway", {
+          from_addr: "Railway Support <support@railway.app>",
+          subject: "ticket update",
+          body: "Your build event is waiting on a reply.",
+        }),
+      ],
+    });
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async () => ({
+        action: "candidate",
+        is_true_inquiry: true,
+        confidence: 0.92,
+        reason: "sounds like an event",
+        extraction: { event_type: "other" },
+      }),
+    });
+    assert.equal(result.candidates, 0);
+    assert.equal(result.ignored, 1);
+    assert.equal(state.inquiries.length, 0);
+  });
+
+  it("learns accepted inquiries and skips mail that resembles a skip", async () => {
+    const skipped = inquiry("inq-skip", "cli-rail", {
+      origin: "detected",
+      detection_status: "dismissed",
+      source: "gmail",
+      message: "Your deployment failed",
+      event_type: "other",
+    });
+    const accepted = inquiry("inq-yes", "cli-hotel", {
+      origin: "detected",
+      detection_status: "confirmed",
+      source: "gmail",
+      status: "new",
+      message: "Connecting Delano with the studio for the CTulloch dinner",
+      event_type: "private",
+    });
+    const { state, store } = createMemoryRoutingStore({
+      clients: [client("cli-rail", "support@railway.app"), client("cli-hotel", "events@delano.com")],
+      inquiries: [skipped, accepted],
+      messages: [
+        {
+          ...threadMessage("inq-skip", "thread-skip"),
+          from_address: "support@railway.app",
+          subject: "Your deployment failed",
+          body: "A build event on the service did not complete.",
+        },
+        {
+          ...threadMessage("inq-yes", "thread-yes"),
+          from_address: "events@delano.com",
+          subject: "CTulloch dinner",
+          body: "Connecting Delano with the studio for the CTulloch dinner next spring.",
+        },
+      ],
+      inbound: [
+        inbound("rail-again", {
+          from_addr: "support@railway.app",
+          subject: "Deployment failed again",
+          body: "Another build event is waiting.",
+        }),
+        inbound("delano-again", {
+          from_addr: "maya@example.com",
+          subject: "CTulloch dinner",
+          body: "Following up on the CTulloch dinner at Delano next spring.",
+        }),
+      ],
+    });
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async () => ({
+        action: "ignored",
+        is_true_inquiry: false,
+        confidence: 0.4,
+        reason: "not sure",
+        extraction: {},
+      }),
+    });
+    assert.equal(result.ignored, 1);
+    assert.equal(result.candidates, 1);
+    const created = state.inquiries.find((row) => row.origin === "detected" && row.detection_status === "candidate");
+    assert.match(created?.message ?? "", /CTulloch/);
+    assert.equal(lessonVerdict({ from: "support@railway.app", subject: "status", body: "ping" }, await store.listLessons()), "skip");
   });
 
   it("calls Anthropic server-side with the prompt and never returns the key", async () => {

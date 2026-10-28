@@ -22,6 +22,29 @@ function studioFrom() {
   return process.env["RESEND_FROM_EMAIL"] ?? "Say Sukii <studio@saysukii.com>";
 }
 
+export async function sendStudioNotice(input: { subject: string; html: string; text: string }) {
+  const key = process.env["RESEND_API_KEY"];
+  if (!key) return { sent: false as const };
+  try {
+    const resend = new Resend(key);
+    const { error } = await resend.emails.send({
+      from: studioFrom(),
+      to: studioNotificationEmail(),
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    });
+    if (error) {
+      console.error("[studio notice]", error.message);
+      return { sent: false as const };
+    }
+    return { sent: true as const };
+  } catch (error) {
+    console.error("[studio notice]", error);
+    return { sent: false as const };
+  }
+}
+
 export async function sendStudioEmail(input: SendInput) {
   const key = process.env["RESEND_API_KEY"];
   if (!key) {

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { AskField } from "@/components/portal/ask-form";
 import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
+import { BloomWait } from "@/components/portal/StudioLoader";
 import { PersonName } from "@/components/studio/PersonName";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { VenueRow } from "@/integrations/supabase/types";
@@ -156,7 +157,7 @@ function VenueDirectoryPage() {
     <DirectoryHome
       title="venues"
       back={{ to: "/library", label: "library" }}
-      lede={isPending ? "gathering…" : `${venues.length} ${venues.length === 1 ? "venue" : "venues"}`}
+      lede={isPending ? undefined : `${venues.length} ${venues.length === 1 ? "venue" : "venues"}`}
       action={
         <>
           <DirectoryImport

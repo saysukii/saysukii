@@ -27,6 +27,7 @@ describe("Gmail outbound composer", () => {
       date: new Date("2026-09-15T03:00:00.000Z"),
     });
     assert.match(rfc, /To: "Elena Ruiz" <elena@example.com>/);
+    assert.equal(/Cc:/i.test(rfc), false);
     assert.match(rfc, /From: "Say Sukii" <info@saysukii.com>/);
     assert.match(rfc, /Subject: Re: wedding flowers at PAMM/);
     assert.match(rfc, /In-Reply-To: <mid-original@mail.gmail.com>/);
@@ -84,6 +85,22 @@ describe("Gmail outbound composer", () => {
     assert.match(html, /<a href="https:\/\/inside\.saysukii\.com\/schedule"/);
     assert.match(html, /color:#ff4d94/);
     assert.match(html, />calendar link</);
+  });
+
+  it("puts extra recipients on To and copies on Cc", () => {
+    const rfc = buildRfc822({
+      from: "info@saysukii.com",
+      fromName: "Say Sukii",
+      to: "elena@example.com",
+      toName: "Elena Ruiz",
+      tos: ["elena@example.com", "planner@studio.com"],
+      cc: ["mom@example.com", "dad@example.com"],
+      subject: "your invoice",
+      body: "the invoice is ready.",
+      date: new Date("2026-09-15T03:00:00.000Z"),
+    });
+    assert.match(rfc, /To: "Elena Ruiz" <elena@example.com>, planner@studio.com/);
+    assert.match(rfc, /Cc: mom@example.com, dad@example.com/);
   });
 
   it("sends a proposal link as a pink button and other links as pink text", () => {

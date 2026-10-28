@@ -5,6 +5,9 @@ import { z } from "zod";
 import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, EventType, InquiryStatus } from "@/integrations/supabase/types";
 import { inquirySlugs, isRecordUuid, shareNote } from "@/lib/os/inquiry-desk";
+import { belongsInReview } from "@/lib/os/inquiry-mail";
+import { lessonVerdict } from "@/lib/os/inquiry-lessons";
+import { loadInquiryLessons } from "@/lib/os/inquiry-routing.server";
 import { assembleStudioToday } from "@/lib/os/studio-today";
 import {
   BOOK_DETECTION_STATUSES,
@@ -205,10 +208,53 @@ async function listInquiriesWithClients(
     source_peek: null as InquirySourcePeek | null,
   }));
   const slugs = inquirySlugs(rows);
-  return attachSourcePeeks(
+  return dropNonInquiries(
     client,
-    rows.map((row) => ({ ...row, slug: slugs.get(row.id) ?? row.id })),
+    await attachSourcePeeks(
+      client,
+      rows.map((row) => ({ ...row, slug: slugs.get(row.id) ?? row.id })),
+    ),
   );
+}
+
+async function dropNonInquiries<
+  T extends {
+    id: string;
+    detection_status: string;
+    detection_confidence: number | null;
+    message: string | null;
+    client: { email: string } | null;
+    source_peek: InquirySourcePeek | null;
+  },
+>(client: StudioClient, rows: T[]) {
+  const lessons = await loadInquiryLessons(client);
+  const dropIds: string[] = [];
+  const visible = rows.filter((row) => {
+    if (row.detection_status !== "candidate") return true;
+    const mail = {
+      from: row.source_peek?.from_addr || row.client?.email,
+      subject: row.source_peek?.subject,
+      body: `${row.source_peek?.body ?? ""}\n${row.message ?? ""}`,
+    };
+    const verdict = lessonVerdict(mail, lessons);
+    if (verdict === "accept") return true;
+    const keep =
+      verdict !== "skip" &&
+      belongsInReview({
+        ...mail,
+        confidence: row.detection_confidence,
+      });
+    if (!keep) dropIds.push(row.id);
+    return keep;
+  });
+  if (dropIds.length === 0) return visible;
+  const { error } = await client
+    .from("inquiries")
+    .update({ detection_status: "dismissed", detection_reason: "not an inquiry" })
+    .in("id", dropIds)
+    .eq("detection_status", "candidate");
+  if (error) console.error("[inquiry-review] could not clear non-inquiries:", error.message);
+  return visible;
 }
 
 async function attachSourcePeeks<T extends { source_message_id: string | null; source_peek: InquirySourcePeek | null }>(
@@ -466,13 +512,27 @@ export const updateInquiryMoment = createServerFn({ method: "POST" })
         id: z.string().uuid(),
         venue_text: z.string().trim().max(300).optional(),
         budget_range: z.string().trim().max(120).optional(),
+        event_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        event_date_tbd: z.boolean().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const patch: { venue_text?: string | null; budget_range?: string | null } = {};
+    const patch: {
+      venue_text?: string | null;
+      budget_range?: string | null;
+      event_date?: string | null;
+      event_date_tbd?: boolean;
+    } = {};
     if (data.venue_text !== undefined) patch.venue_text = data.venue_text || null;
     if (data.budget_range !== undefined) patch.budget_range = data.budget_range || null;
+    if (data.event_date_tbd) {
+      patch.event_date = null;
+      patch.event_date_tbd = true;
+    } else if (data.event_date !== undefined) {
+      patch.event_date = data.event_date;
+      patch.event_date_tbd = false;
+    }
     if (!Object.keys(patch).length) return { ok: true as const };
     const { error } = await context.supabase
       .from("inquiries")
@@ -841,6 +901,8 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
         subject: z.string().trim().max(200).optional().default(""),
         fresh: z.boolean().optional(),
         thread_id: z.string().trim().max(200).nullable().optional(),
+        to: z.array(z.string().trim().email().max(200)).max(12).optional().default([]),
+        cc: z.array(z.string().trim().email().max(200)).max(12).optional().default([]),
       })
       .parse(input),
   )
@@ -886,8 +948,12 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
       return { ok: true as const, channel: "note" as const };
     }
 
-    const to = clientResult.data.email?.trim();
-    if (!to) throw new Error("This client needs an email address before you can send.");
+    const { mailRecord } = await import("@/lib/os/mail-people");
+    const clientEmail = clientResult.data.email?.trim() ?? "";
+    const people = mailRecord([clientEmail, ...data.to], data.cc);
+    if (!people.to.length) throw new Error("This client needs an email address before you can send.");
+    const to = people.to[0] ?? "";
+    const named = Boolean(clientEmail) && to.toLowerCase() === clientEmail.toLowerCase();
 
     const { getGmailPublicStatus, validGmailAccessToken } = await import("@/lib/os/gmail.server");
     const gmail = await getGmailPublicStatus();
@@ -934,7 +1000,9 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
       from,
       fromName: "Say Sukii",
       to,
-      toName: clientResult.data.name,
+      toName: named ? clientResult.data.name : null,
+      tos: people.to,
+      cc: people.cc,
       subject,
       body: `${data.body.trim()}\n\n${signatureText(sender)}`,
       threadId: fresh ? null : reply.threadId,
@@ -950,7 +1018,7 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
       subject,
       body: data.body,
       from_address: from,
-      to_address: to,
+      to_address: people.cc.length || people.to.length > 1 ? people.line : clientEmail || to,
       gmail_message_id: sent.gmail_message_id,
       gmail_thread_id: sent.gmail_thread_id,
       author: sender,

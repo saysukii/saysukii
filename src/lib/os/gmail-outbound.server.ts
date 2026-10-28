@@ -16,6 +16,8 @@ export type Rfc822Input = {
   fromName?: string | null;
   to: string;
   toName?: string | null;
+  tos?: string[];
+  cc?: string[];
   subject: string;
   body: string;
   inReplyTo?: string | null;
@@ -46,9 +48,22 @@ export function resolveReplyContext(
 
 export function formatMailbox(name: string | null | undefined, email: string) {
   const trimmed = name?.trim();
-  if (!trimmed) return email;
-    const safe = trimmed.replace(/"/g, '\\"');
-  return `"${safe}" <${email}>`;
+  const clean = email.replace(/[\r\n]/g, "").trim();
+  if (!trimmed) return clean;
+  const safe = trimmed.replace(/"/g, '\\"');
+  return `"${safe}" <${clean}>`;
+}
+
+export function mailboxList(emails: string[], namedEmail?: string | null, named?: string | null) {
+  const namedKey = namedEmail?.trim().toLowerCase() ?? "";
+  return emails
+    .map((email) => {
+      const clean = email.replace(/[\r\n]/g, "").trim();
+      if (namedKey && clean.toLowerCase() === namedKey) return formatMailbox(named, clean);
+      return clean;
+    })
+    .filter(Boolean)
+    .join(", ");
 }
 
 export function encodeHeader(value: string) {
@@ -94,9 +109,12 @@ function base64Body(value: string) {
 export function buildRfc822(input: Rfc822Input) {
   const date = (input.date ?? new Date()).toUTCString().replace(/UTC$/i, "GMT");
   const boundary = "saysukii-letter";
+  const recipients = input.tos?.length ? input.tos : [input.to];
+  const copies = (input.cc ?? []).map((email) => email.replace(/[\r\n]/g, "").trim()).filter(Boolean);
   const headers = [
     `From: ${formatMailbox(input.fromName, input.from)}`,
-    `To: ${formatMailbox(input.toName, input.to)}`,
+    `To: ${mailboxList(recipients, input.to, input.toName)}`,
+    ...(copies.length ? [`Cc: ${copies.join(", ")}`] : []),
     `Subject: ${encodeHeader(input.subject)}`,
     `Date: ${date}`,
     "MIME-Version: 1.0",

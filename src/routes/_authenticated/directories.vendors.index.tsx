@@ -163,7 +163,7 @@ function VendorDirectoryPage() {
     <DirectoryHome
       title="vendors"
       back={{ to: "/library", label: "library" }}
-      lede={isPending ? "gathering…" : `${vendors.length} ${vendors.length === 1 ? "vendor" : "vendors"}`}
+      lede={isPending ? undefined : `${vendors.length} ${vendors.length === 1 ? "vendor" : "vendors"}`}
       action={
         <>
           <DirectoryImport
@@ -177,7 +177,6 @@ function VendorDirectoryPage() {
       }
     >
       <DirectorySearch label="find a vendor" value={search} placeholder="find a vendor" onChange={setSearch} />
-      {isPending ? <p className="studio-empty">gathering…</p> : null}
       {!isPending && visible.length === 0 ? <p className="studio-empty">no vendors yet.</p> : null}
       {visible.length > 0 ? (
         <div className="studio-directory">

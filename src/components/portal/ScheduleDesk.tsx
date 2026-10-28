@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { CalendarHours } from "@/components/portal/CalendarHours";
+import { BloomWait } from "@/components/portal/StudioLoader";
 import { PersonName } from "@/components/studio/PersonName";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { readLocalCalendar } from "@/lib/calendar-settings";
@@ -209,19 +210,33 @@ export function ScheduleDesk({
                     >
                       <span className="studio-agenda-num">{date.getDate()}</span>
                     </button>
-                    {shown.map((booking) => (
-                      <button
-                        key={booking.id}
-                        type="button"
-                        className={cn("studio-agenda-mark", booking.id === openId && "is-on")}
-                        onClick={() => openMeeting(booking)}
-                      >
-                        <em>{booking.allDay ? "all day" : studioClock(booking.startsAt)}</em>
-                        <span>
-                          <PersonName name={booking.name} />
-                        </span>
-                      </button>
-                    ))}
+                    {shown.map((booking) =>
+                      booking.inquirySlug ? (
+                        <Link
+                          key={booking.id}
+                          to="/pipeline/$id"
+                          params={{ id: booking.inquirySlug }}
+                          className="studio-agenda-mark"
+                        >
+                          <em>accepted</em>
+                          <span>
+                            <PersonName name={booking.name} />
+                          </span>
+                        </Link>
+                      ) : (
+                        <button
+                          key={booking.id}
+                          type="button"
+                          className={cn("studio-agenda-mark", booking.id === openId && "is-on")}
+                          onClick={() => openMeeting(booking)}
+                        >
+                          <em>{booking.allDay ? "all day" : studioClock(booking.startsAt)}</em>
+                          <span>
+                            <PersonName name={booking.name} />
+                          </span>
+                        </button>
+                      ),
+                    )}
                     {items.length > shown.length ? (
                       <button type="button" className="studio-agenda-more" onClick={() => chooseDay(key)}>
                         +{items.length - shown.length}
@@ -306,17 +321,29 @@ function DayList({
       <p className="studio-home-label">{label}</p>
       {bookings.length === 0 ? <p className="studio-empty">nothing booked.</p> : null}
       <div className="studio-directory">
-        {bookings.map((booking) => (
-          <button key={booking.id} type="button" className="studio-book-row" onClick={() => onOpen(booking)}>
-            <span>
-              <b>
-                <PersonName name={booking.name} />
-              </b>
-              <em>{booking.note || booking.email}</em>
-            </span>
-            <small>{booking.allDay ? "all day" : studioClock(booking.startsAt)}</small>
-          </button>
-        ))}
+        {bookings.map((booking) =>
+          booking.inquirySlug ? (
+            <Link key={booking.id} to="/pipeline/$id" params={{ id: booking.inquirySlug }} className="studio-book-row">
+              <span>
+                <b>
+                  <PersonName name={booking.name} />
+                </b>
+                <em>accepted inquiry</em>
+              </span>
+              <small>all day</small>
+            </Link>
+          ) : (
+            <button key={booking.id} type="button" className="studio-book-row" onClick={() => onOpen(booking)}>
+              <span>
+                <b>
+                  <PersonName name={booking.name} />
+                </b>
+                <em>{booking.note || booking.email}</em>
+              </span>
+              <small>{booking.allDay ? "all day" : studioClock(booking.startsAt)}</small>
+            </button>
+          ),
+        )}
       </div>
     </section>
   );

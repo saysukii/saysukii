@@ -40,8 +40,8 @@ function VendorPage() {
 
   if (isPending) {
     return (
-      <DirectoryHome title="vendor" back={{ to: "/directories/vendors", label: "vendors" }} lede="gathering…">
-        <p className="studio-empty">gathering…</p>
+      <DirectoryHome title="vendor" back={{ to: "/directories/vendors", label: "vendors" }}>
+        null
       </DirectoryHome>
     );
   }

@@ -12,14 +12,17 @@ import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Wordmark } from "@/components/portal/bits";
+import { BloomWait } from "@/components/portal/StudioLoader";
 import { PersonName, isPersonType } from "@/components/studio/PersonName";
+import { fileContentType, inquiryHoldDates, isVenueTbd, studioFileKey } from "@/lib/os/inquiry-holds";
+import { mailRecord, uniqueMails } from "@/lib/os/mail-people";
 import { isStudioOwner, noteAuthor, noteWriter, SIGNATURE_COPYRIGHT, SIGNATURE_LINKS, signatureName, wroteNote } from "@/lib/os/mail-signature";
 import { clientReplyText, mailPieces } from "@/lib/os/mail-reply";
 import { applyTemplate, BUILT_IN_TEMPLATES, loadTemplates, saveTemplates, type MailTemplate } from "@/lib/os/mail-templates";
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 import type { InquiryMessageRow, InquiryStatus } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import { getDevPreviewInquiryWorkspace, previewArchiveInquiry, previewReviewDecision } from "@/lib/dev-preview";
+import { getDevPreviewInquiryWorkspace, previewArchiveInquiry, previewReviewDecision, previewSetInquiryStatus } from "@/lib/dev-preview";
 import {
   markPreviewProposalSent,
   previewProposalForInquiry,
@@ -485,9 +488,15 @@ function ThreadComposer({
   facts,
   messages,
   blockedNote,
+  clientEmail,
+  moreTo,
+  copyTo,
+  onMoreTo,
+  onCopyTo,
   onSend,
   onUseSubject,
   onOpenable,
+  onKeep,
 }: {
   sendAs: "email" | "note";
   draft: string;
@@ -498,9 +507,15 @@ function ThreadComposer({
   facts: { eventDate?: string | null; dateTbd?: boolean | null; place?: string | null; job?: string | null };
   messages: InquiryMessageRow[];
   blockedNote?: string | null;
+  clientEmail?: string | null;
+  moreTo: string[];
+  copyTo: string[];
+  onMoreTo: (next: string[]) => void;
+  onCopyTo: (next: string[]) => void;
   onSend: (body: string, sendAt?: string) => void;
   onUseSubject?: (subject: string) => void;
   onOpenable?: (files: Record<string, string>) => void;
+  onKeep?: (files: File[]) => void;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const editor = useRef<HTMLDivElement>(null);
@@ -573,6 +588,7 @@ function ThreadComposer({
     const openable: Record<string, string> = {};
     for (const file of picked) openable[file.name] = URL.createObjectURL(file);
     onOpenable?.(openable);
+    onKeep?.(picked);
     setFiles((current) => [
       ...current,
       ...picked.map((file) => ({ id: crypto.randomUUID(), name: file.name, size: file.size })),
@@ -749,9 +765,14 @@ function ThreadComposer({
   }
 
   const ready = Boolean(draft.trim() || files.length);
+  const people = email ? mailRecord(uniqueMails([clientEmail, ...moreTo]), copyTo) : null;
+  const who = people && (people.to.length > 1 || people.cc.length) ? people.line : "";
 
   return (
     <form className="studio-composer" onSubmit={submit}>
+      {email ? (
+        <MailPeople clientEmail={clientEmail} more={moreTo} copy={copyTo} onMore={onMoreTo} onCopy={onCopyTo} />
+      ) : null}
       {email ? (
         <div
           ref={editor}
@@ -974,6 +995,7 @@ function ThreadComposer({
               </DialogDescription>
               <div className="studio-task-form">
                 <ContextPreview name={clientName || "this letter"} body={confirm?.body || ""} />
+                {who ? <p className="studio-composer-when">{who}</p> : null}
                 {confirm?.sendAt ? <p className="studio-composer-when">sends {formatSendAt(confirm.sendAt)}</p> : null}
                 <div className="studio-ask-foot">
                   <button type="button" className="studio-today-go" onClick={commitSend}>
@@ -1426,6 +1448,9 @@ function MailFace({
                     </div>
                   ) : null}
                   {studio ? <MailSignature name={mail.name} /> : null}
+                  {studio && /[,·]/.test(messages[index]?.to_address ?? "") ? (
+                    <p className="studio-mail-cc">{messages[index]?.to_address}</p>
+                  ) : null}
                   {mail.files.length ? (
                     <div className="studio-mail-files">
                       {mail.files.map((name) => (
@@ -1445,6 +1470,94 @@ function MailFace({
   );
 }
 
+function MailPeople({
+  clientEmail,
+  more,
+  copy,
+  onMore,
+  onCopy,
+}: {
+  clientEmail?: string | null;
+  more: string[];
+  copy: string[];
+  onMore: (next: string[]) => void;
+  onCopy: (next: string[]) => void;
+}) {
+  const locked = uniqueMails([clientEmail]);
+  const extras = more.filter((email) => !locked.some((item) => item.toLowerCase() === email.toLowerCase()));
+  return (
+    <div className="studio-mail-people">
+      <MailLine label="to" locked={locked} emails={extras} onChange={onMore} placeholder="add an email" />
+      <MailLine label="cc" emails={copy} onChange={onCopy} placeholder="add a cc" />
+    </div>
+  );
+}
+
+function MailLine({
+  label,
+  locked = [],
+  emails,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  locked?: string[];
+  emails: string[];
+  onChange: (next: string[]) => void;
+  placeholder: string;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function commit(raw: string) {
+    const parts = raw.split(/[,;]+/).map((part) => part.trim()).filter(Boolean);
+    const good = uniqueMails(parts).filter((email) => !locked.some((item) => item.toLowerCase() === email.toLowerCase()));
+    if (!good.length) return false;
+    onChange(uniqueMails([...emails, ...good]));
+    setDraft("");
+    return true;
+  }
+
+  return (
+    <label className="studio-mail-line">
+      <span>{label}</span>
+      <span className="studio-mail-line-body">
+        {locked.map((email) => (
+          <em key={email}>{email}</em>
+        ))}
+        {emails.map((email) => (
+          <em key={email}>
+            {email}
+            <button type="button" aria-label={`remove ${email}`} onClick={() => onChange(emails.filter((item) => item !== email))}>
+              <X aria-hidden="true" strokeWidth={1.5} />
+            </button>
+          </em>
+        ))}
+        <input
+          value={draft}
+          placeholder={locked.length || emails.length ? "" : placeholder}
+          aria-label={placeholder}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (/[,;]$/.test(value)) commit(value);
+            else setDraft(value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              commit(draft);
+            } else if (event.key === "Backspace" && !draft && emails.length) {
+              onChange(emails.slice(0, -1));
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) commit(draft);
+          }}
+        />
+      </span>
+    </label>
+  );
+}
+
 function InvoicePreview({
   clientName,
   number,
@@ -1458,6 +1571,7 @@ function InvoicePreview({
   clientEmail = "",
   onSend,
   sending = false,
+  people,
 }: {
   clientName: string;
   clientEmail?: string;
@@ -1471,6 +1585,7 @@ function InvoicePreview({
   issuedOn: string;
   onSend?: () => void;
   sending?: boolean;
+  people?: ReactNode;
 }) {
   const dueLabel = depositCents >= totalCents && totalCents > 0 ? "due in full" : "deposit due";
   const list = formatMoneyExact(listCents);
@@ -1552,6 +1667,7 @@ function InvoicePreview({
       </article>
       {onSend ? (
         <div className="studio-invoice-send">
+          {people}
           <button type="button" className="studio-today-go" disabled={sending} onClick={onSend}>
             {sending ? "sending" : "send invoice"}
           </button>
@@ -1567,6 +1683,7 @@ function PacketPreview({
   clientEmail = "",
   onSend,
   sending = false,
+  people,
   work,
   totalCents,
   courtesyCents,
@@ -1580,6 +1697,7 @@ function PacketPreview({
   clientEmail?: string;
   onSend?: () => void;
   sending?: boolean;
+  people?: ReactNode;
   work: StatementOfWork;
   totalCents: number;
   courtesyCents: number;
@@ -1594,20 +1712,26 @@ function PacketPreview({
   const [pdfCount, setPdfCount] = useState(0);
   const count = pages.length || pdfCount || (frame ? 1 : 0);
   const safePage = Math.min(page, Math.max(count - 1, 0));
+  function jump(index: number) {
+    setPage(index);
+  }
+  function step(direction: -1 | 1) {
+    setPage(Math.min(Math.max(safePage + direction, 0), Math.max(count - 1, 0)));
+  }
   return (
     <div className="client-packet is-preview">
       {kind === "proposal" ? (
         count ? (
           <>
             <div className="client-packet-nav">
-              <button type="button" className="client-packet-arrow" aria-label="Previous page" disabled={safePage <= 0} onClick={() => setPage(safePage - 1)}>
+              <button type="button" className="client-packet-arrow" aria-label="Previous page" disabled={safePage <= 0} onClick={() => step(-1)}>
                 <ChevronLeft size={18} strokeWidth={1.4} />
               </button>
               <div className="client-packet-count">
                 proposal
                 <span> · {safePage + 1} / {count}</span>
               </div>
-              <button type="button" className="client-packet-arrow" aria-label="Next page" disabled={safePage >= count - 1} onClick={() => setPage(safePage + 1)}>
+              <button type="button" className="client-packet-arrow" aria-label="Next page" disabled={safePage >= count - 1} onClick={() => step(1)}>
                 <ChevronRight size={18} strokeWidth={1.4} />
               </button>
             </div>
@@ -1625,8 +1749,8 @@ function PacketPreview({
                   key={index}
                   type="button"
                   className={index === safePage ? "client-packet-dot is-on" : "client-packet-dot"}
-                  aria-label={`Go to proposal ${index + 1}`}
-                  onClick={() => setPage(index)}
+                  aria-label={`Go to page ${index + 1}`}
+                  onClick={() => jump(index)}
                 />
               ))}
             </div>
@@ -1656,7 +1780,7 @@ function PacketPreview({
         <InvoicePreview
           clientName={clientName || "Client"}
           clientEmail={clientEmail}
-          {...(onSend ? { onSend, sending } : {})}
+          {...(onSend ? { onSend, sending, ...(people ? { people } : {}) } : {})}
           number={invoiceNumber || stored?.number || "preview"}
           service={floralPackageName(work.occasion || work.flowers)}
           bookingLine={invoiceBookingLine(work.occasion || work.flowers, invoiceDateLabel(work.eventWhen))}
@@ -1701,10 +1825,14 @@ export function InquiryLeadPane({
   const [draft, setDraft] = useState("");
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [localMessages, setLocalMessages] = useState<InquiryMessageRow[]>([]);
+  const [moreTo, setMoreTo] = useState<string[]>([]);
+  const [copyTo, setCopyTo] = useState<string[]>([]);
   const [noteBodies, setNoteBodies] = useState<Record<string, string>>({});
   const [removedNotes, setRemovedNotes] = useState<string[]>([]);
   const [threadKey, setThreadKey] = useState<string | null>(null);
   const [placeDraft, setPlaceDraft] = useState<string | null>(null);
+  const [dateOpen, setDateOpen] = useState(false);
+  const [dateDraft, setDateDraft] = useState<{ event_date: string | null; event_date_tbd: boolean } | null>(null);
   const [startingThread, setStartingThread] = useState(false);
   const [namingThread, setNamingThread] = useState(false);
   const [newSubject, setNewSubject] = useState("");
@@ -1764,6 +1892,8 @@ export function InquiryLeadPane({
     setProposalCourtesy("");
     setProposalPay("deposit");
     setProposalError("");
+    setMoreTo([]);
+    setCopyTo([]);
   }, [data?.inquiry.id]);
 
   useEffect(() => {
@@ -1861,9 +1991,20 @@ export function InquiryLeadPane({
   }, [data]);
 
   const saveMoment = useMutation({
-    mutationFn: async (patch: { venue_text?: string; budget_range?: string }) => {
+    mutationFn: async (patch: {
+      venue_text?: string;
+      budget_range?: string;
+      event_date?: string | null;
+      event_date_tbd?: boolean;
+    }) => {
       const inquiryId = data?.inquiry.id;
       if (!inquiryId) return;
+      if (patch.event_date !== undefined || patch.event_date_tbd !== undefined) {
+        setDateDraft({
+          event_date: patch.event_date_tbd ? null : (patch.event_date ?? null),
+          event_date_tbd: Boolean(patch.event_date_tbd),
+        });
+      }
       if (devPreview) return;
       await saveMomentFields({ data: { id: inquiryId, ...patch } });
     },
@@ -1880,7 +2021,7 @@ export function InquiryLeadPane({
           previewArchiveInquiry(inquiryId);
           return Promise.resolve({ ok: true as const });
         }
-        toast.message("preview mode — status not saved");
+        previewSetInquiryStatus(inquiryId, args.status);
         return Promise.resolve({ ok: true as const });
       }
       return updateStatus({
@@ -1965,9 +2106,11 @@ export function InquiryLeadPane({
         surface === "full" ? (focus === "note" && !fresh ? "note" : "email") : outgoingChannel(surface, activityTab, channel);
       const when = sendAt ? new Date(sendAt) : new Date();
       if (sendAt && Number.isNaN(when.getTime())) throw new Error("pick a time to send");
+      const people = mailRecord(uniqueMails([data?.client?.email, ...moreTo]), copyTo);
       const thread = fresh
         ? { fresh: true, subject: subject?.trim() ?? "", threadId: null as string | null, base: "" }
         : threadRef.current;
+      if (asChannel === "email" && !people.to.length) throw new Error("add an email.");
       if (devPreview) {
         for (const card of proposalCards(text).cards) markPreviewProposalSent(card.token);
         if (asChannel === "email" && thread.fresh && !thread.subject) {
@@ -1991,7 +2134,8 @@ export function InquiryLeadPane({
             subject,
             body: text,
             from_address: asChannel === "email" ? "info@saysukii.com" : null,
-            to_address: data?.client?.email ?? null,
+            to_address:
+              people.cc.length || people.to.length > 1 ? people.line : data?.client?.email ?? people.to[0] ?? null,
             gmail_message_id: asChannel === "email" ? `preview-out-${Date.now()}` : null,
             gmail_thread_id: asChannel === "email" ? (thread.fresh ? `thread-${crypto.randomUUID()}` : thread.threadId ?? "preview-thread") : null,
             author: asChannel === "email" ? signatureName(profile.full_name) : noteWriter(profile),
@@ -2015,6 +2159,7 @@ export function InquiryLeadPane({
           subject: thread.fresh ? thread.subject : "",
           fresh: thread.fresh,
           thread_id: thread.fresh ? null : thread.threadId,
+          ...(asChannel === "email" ? { to: people.to, cc: people.cc } : {}),
         },
       });
       return { ...sent, channel: asChannel, scheduled: false, when: "", held: false as const, opened: thread.fresh ? thread.subject : "" };
@@ -2191,15 +2336,18 @@ export function InquiryLeadPane({
       toast.message("file kept on this lead in preview.");
       return;
     }
-    const path = `inquiries/${inquiryId}/${Date.now()}-${file.name}`;
-    const upload = await supabase.storage.from("project-files").upload(path, file);
+    const path = studioFileKey(`inquiries/${inquiryId}`, file.name);
+    const upload = await supabase.storage.from("project-files").upload(path, file, {
+      contentType: fileContentType(file),
+      upsert: false,
+    });
     if (upload.error) {
       toast.error(upload.error.message);
       return;
     }
     try {
       await saveFile({
-        data: { inquiry_id: inquiryId, file_path: path, file_type: file.type || "" },
+        data: { inquiry_id: inquiryId, file_path: path, file_type: fileContentType(file) },
       });
       toast.success("file added");
       void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
@@ -2211,9 +2359,17 @@ export function InquiryLeadPane({
   const peek = sourceExcerpt(source_message?.subject, source_message?.body ?? inquiry.message, 280);
   const confidence = confidenceLabel(inquiry.detection_confidence);
   const stage = boardStageId(inquiry);
-  const eventWhen = inquiry.event_date_tbd
-    ? "tbd"
-    : [formatDateNumeric(inquiry.event_date), time].filter(Boolean).join(" · ");
+  const dateTbd = dateDraft?.event_date_tbd ?? inquiry.event_date_tbd;
+  const dateValue = dateDraft ? dateDraft.event_date : inquiry.event_date;
+  const eventWhen = dateDraft
+    ? dateTbd
+      ? "tbd"
+      : formatDateNumeric(dateValue)
+    : inquiry.event_date_tbd
+      ? "tbd"
+      : [inquiryHoldDates(inquiry).map((date) => formatDateNumeric(date)).filter(Boolean).join(" · "), inquiryHoldDates(inquiry).length > 1 ? "" : time]
+          .filter(Boolean)
+          .join(" · ");
   const formBlob = [
     inquiry.message,
     ...messages
@@ -2234,7 +2390,9 @@ export function InquiryLeadPane({
     source: inquiry.source,
     eventWhen,
   });
-  const place = placeText.split(",")[0]?.trim() ?? "";
+  const place = isVenueTbd(placeText) ? "venue tbd" : placeText.split(",")[0]?.trim() ?? "";
+  const holdDates = inquiryHoldDates(inquiry);
+  const holdLabel = holdDates.map((date) => formatDateNumeric(date)).filter(Boolean).join(" · ");
 
   function keepPlace(next: string) {
     setPlaceDraft(next);
@@ -2377,9 +2535,9 @@ export function InquiryLeadPane({
   }
 
   function proposalProblem() {
+    if (!proposalFile && !proposalHref) return "drop the proposal.";
     const list = dollarsToCents(proposalAmount);
     const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
-    if (!proposalFile && !proposalHref) return "drop the proposal.";
     if (!list) return "add the amount.";
     if (courtesy >= list) return "the courtesy discount has to stay under the amount.";
     return null;
@@ -2554,6 +2712,11 @@ export function InquiryLeadPane({
       facts={replyFacts}
       messages={visibleMessages}
       blockedNote={sendAs === "email" && !gmailConnected && !devPreview ? "connect gmail in settings to send." : null}
+      clientEmail={client?.email}
+      moreTo={moreTo}
+      copyTo={copyTo}
+      onMoreTo={setMoreTo}
+      onCopyTo={setCopyTo}
       onSend={(body, sendAt) =>
         queueLetter(() => post.mutate(sendAt ? { body, sendAt } : { body }), () => setDraft(body), client?.name ?? null)
       }
@@ -2564,6 +2727,9 @@ export function InquiryLeadPane({
         setThreadKey(subject.toLowerCase());
       }}
       onOpenable={(files) => setOpenable((current) => ({ ...current, ...files }))}
+      onKeep={(files) => {
+        for (const file of files) void keepStudioFile(file);
+      }}
     />
   );
 
@@ -2576,8 +2742,8 @@ export function InquiryLeadPane({
         title={
           isPersonType(client?.type) && client?.name ? <PersonName name={client.name} /> : (client?.name ?? "client")
         }
-        date={inquiry.event_date_tbd ? "date tbd" : formatDateNumeric(inquiry.event_date)}
-        time={inquiry.event_date_tbd ? "" : time}
+        date={dateTbd ? "date tbd" : dateDraft ? formatDateNumeric(dateValue) : holdLabel || formatDateNumeric(inquiry.event_date)}
+        time={dateTbd ? "" : time}
         place={place}
       />
 
@@ -2588,6 +2754,7 @@ export function InquiryLeadPane({
       </div>
 
       {candidate ? null : (
+      <div className="studio-lead-path">
       <ol className="studio-steps" aria-label="job path">
         {PIPELINE_PATH.map((step) => {
           const on = step.statuses.includes(inquiry.status);
@@ -2606,6 +2773,15 @@ export function InquiryLeadPane({
           );
         })}
       </ol>
+      <button
+        type="button"
+        className={cn("studio-today-go", inquiry.status === "booked" && "is-pearl")}
+        disabled={move.isPending || inquiry.status === "booked" || inquiry.status === "closed"}
+        onClick={() => chooseStatus("booked")}
+      >
+        {inquiry.status === "booked" ? "accepted" : "accept"}
+      </button>
+      </div>
       )}
       </div>
 
@@ -2691,7 +2867,32 @@ export function InquiryLeadPane({
           <dl className="studio-facts">
             <div>
               <dt>date</dt>
-              <dd>{eventWhen || "—"}</dd>
+              <dd className="studio-fact-date">
+                <button type="button" onClick={() => setDateOpen((open) => !open)}>
+                  {eventWhen || "add a date"}
+                </button>
+                {dateOpen ? (
+                  <span>
+                    <input
+                      type="date"
+                      value={dateValue ?? ""}
+                      aria-label="date"
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        saveMoment.mutate(next ? { event_date: next, event_date_tbd: false } : { event_date: null, event_date_tbd: true });
+                      }}
+                    />
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={dateTbd}
+                        onChange={(event) => saveMoment.mutate({ event_date: null, event_date_tbd: event.target.checked })}
+                      />
+                      tbd
+                    </label>
+                  </span>
+                ) : null}
+              </dd>
             </div>
             {space ? (
               <div>
@@ -3056,12 +3257,10 @@ export function InquiryLeadPane({
               }}
               onDrop={(event) => {
                 event.preventDefault();
-                setProposalOver(false);
                 takeProposal(event.dataTransfer.files[0]);
               }}
             >
               <Upload aria-hidden="true" strokeWidth={1.5} />
-              <b>{proposalOver ? "drop it here" : proposalName || "drop the proposal"}</b>
               <small>{proposalName ? "replace" : "or browse"}</small>
               <input
                 type="file"
@@ -3083,7 +3282,6 @@ export function InquiryLeadPane({
                   className="studio-textarea"
                   value={proposalAmount}
                   onChange={(event) => {
-                    proposalDirty.current = true;
                     setProposalAmount(formatDollarInput(event.target.value));
                   }}
                   placeholder="12,000"
@@ -3099,7 +3297,6 @@ export function InquiryLeadPane({
                     className="studio-textarea"
                     value={proposalCourtesy}
                     onChange={(event) => {
-                      proposalDirty.current = true;
                       setProposalCourtesy(formatDollarInput(event.target.value));
                     }}
                     placeholder="0"
@@ -3270,6 +3467,7 @@ export function InquiryLeadPane({
                 clientEmail={client?.email ?? ""}
                 onSend={() => void emailInvoice()}
                 sending={proposalBusy || post.isPending}
+                people={<MailPeople clientEmail={client?.email} more={moreTo} copy={copyTo} onMore={setMoreTo} onCopy={setCopyTo} />}
                 work={work}
                 totalCents={proposalCents ?? 0}
                 courtesyCents={courtesyCents}
@@ -3380,6 +3578,7 @@ export function InquiryLeadPane({
             issuedOn={new Date().toISOString()}
             onSend={() => void emailInvoice()}
             sending={proposalBusy || post.isPending}
+            people={<MailPeople clientEmail={client?.email} more={moreTo} copy={copyTo} onMore={setMoreTo} onCopy={setCopyTo} />}
           />
         </section>
       ) : null}

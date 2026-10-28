@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import type { EmailOtpType } from "@supabase/supabase-js";
 
 import { Wordmark } from "@/components/portal/bits";
+import { markLoginBloom } from "@/components/portal/StudioLoader";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/auth/callback")({
@@ -63,6 +64,7 @@ function AuthCallbackPage() {
 
         window.history.replaceState({}, "", "/auth/callback");
         setMessage("Opening the studio…");
+        markLoginBloom();
         await router.navigate({ to: "/dashboard" });
       } catch {
         if (cancelled) return;

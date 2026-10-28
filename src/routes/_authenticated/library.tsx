@@ -5,9 +5,11 @@ import { useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { BloomWait } from "@/components/portal/StudioLoader";
 import { getDevPreviewClients, getDevPreviewDirectories, PREVIEW_IDS } from "@/lib/dev-preview";
 import { listClients, listDirectories } from "@/lib/os/clients.functions";
 import { addLibraryFile, listStudioFiles, type FileRelation, type StudioFile } from "@/lib/os/files.functions";
+import { fileContentType } from "@/lib/os/inquiry-holds";
 import { clientSlugs } from "@/lib/os/inquiry-desk";
 import { mergePreviewClients } from "@/lib/preview-clients";
 import { useDevPreview } from "@/lib/use-dev-preview";
@@ -142,10 +144,13 @@ function LibraryPage() {
           continue;
         }
         const path = libraryPath(file.name);
-        const upload = await supabase.storage.from("project-files").upload(path, file);
+        const upload = await supabase.storage.from("project-files").upload(path, file, {
+          contentType: fileContentType(file),
+          upsert: false,
+        });
         if (upload.error) throw new Error(upload.error.message);
         await saveFile({
-          data: { file_path: path, file_type: file.type || "" },
+          data: { file_path: path, file_type: fileContentType(file) },
         });
       }
       if (!devPreview) {

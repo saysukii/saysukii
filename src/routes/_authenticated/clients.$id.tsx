@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import type { ClientType } from "@/integrations/supabase/types";
 import { shownName, isPersonType } from "@/components/studio/PersonName";
+import { BloomWait } from "@/components/portal/StudioLoader";
 import { formatDate } from "@/lib/money";
 import { archiveClient, getClient, saveClient } from "@/lib/os/clients.functions";
 import { getDevPreviewClient } from "@/lib/dev-preview";
@@ -136,117 +136,74 @@ function ClientDetailPage() {
   }
 
   const { client, inquiries, files } = data;
-  const openJob = inquiries.find((inquiry) => inquiry.status !== "closed") ?? inquiries[0];
+  const jobs = [...inquiries].sort((left, right) => {
+    const rank = (status: string) => (status === "closed" ? 1 : 0);
+    const byOpen = rank(left.status) - rank(right.status);
+    if (byOpen !== 0) return byOpen;
+    return right.received_at.localeCompare(left.received_at);
+  });
+  const openJobs = jobs.filter((inquiry) => inquiry.status !== "closed");
+  const focus = openJobs[0] ?? jobs[0];
+  const line = openJobs[0]
+    ? [openJobs.length === 1 ? "1 open" : `${openJobs.length} open`, jobWhen(openJobs[0]), jobPlace(openJobs[0].venue_text, true)]
+        .filter(Boolean)
+        .join(" · ")
+    : jobs.length
+      ? "nothing open"
+      : "";
+  const phone = client.phone?.trim() ?? "";
+  const source = client.source?.trim() ?? "";
+  const notes = client.notes?.trim() ?? "";
+  const organization =
+    client.organization && !sameLabel(client.organization, client.name) ? client.organization : "";
 
   return (
     <div className="studio-home is-book is-record">
-      <div className="studio-lead">
-      <header className="studio-home-hello is-beside">
-        <div>
-          <Link to="/directories/clients" className="studio-record-back" aria-label="back to clients">
-            <ArrowLeft aria-hidden="true" strokeWidth={1.5} />
+      <div className="studio-lead studio-ledger">
+        <header className="studio-ledger-head">
+          <Link to="/directories/clients" className="studio-ledger-crumb">
+            clients
           </Link>
-          <h1>{shownName(client.name, isPersonType(client.type))}</h1>
-        </div>
-        <p className="studio-hello-meta">
-          {client.organization ? <span>{client.organization}</span> : null}
-          <span>{client.email}</span>
-        </p>
-      </header>
+          <div className="studio-ledger-name">
+            <h1>{shownName(client.name, isPersonType(client.type))}</h1>
+            {focus ? (
+              <Link to="/pipeline/$id" params={{ id: focus.slug }} className="studio-today-go">
+                open conversation
+              </Link>
+            ) : null}
+          </div>
+          <p className="studio-ledger-kind">{client.type.replaceAll("_", " ")}</p>
+        </header>
 
-      <section className="studio-module is-rows studio-person">
-        <p className="studio-home-label">the person</p>
-        <dl className="studio-facts">
-          <div>
-            <dt>email</dt>
-            <dd>{client.email}</dd>
-          </div>
-          <div>
-            <dt>phone</dt>
-            <dd>{client.phone || "—"}</dd>
-          </div>
-          <div>
-            <dt>organization</dt>
-            <dd>{client.organization || "—"}</dd>
-          </div>
-          <div>
-            <dt>kind</dt>
-            <dd>{client.type.replaceAll("_", " ")}</dd>
-          </div>
-          <div>
-            <dt>found us</dt>
-            <dd>{client.source || "—"}</dd>
-          </div>
-        </dl>
-        <div className="studio-row-action">
-          {openJob ? (
-            <Link to="/pipeline/$id" params={{ id: openJob.slug }} className="studio-today-go">
-              open conversation
-            </Link>
-          ) : null}
-          <button type="button" className="studio-ghost" onClick={() => setEditing((open) => !open)}>
-            {editing ? "close" : "edit"}
-          </button>
-          <button
-            type="button"
-            className="studio-ghost"
-            disabled={archive.isPending}
-            onClick={() => {
-              if (window.confirm("archive this client?")) archive.mutate();
+        {line ? <p className="studio-ledger-line">{line}</p> : null}
+
+        {editing ? (
+          <form
+            className="studio-client-edit"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save.mutate();
             }}
           >
-            archive
-          </button>
-        </div>
-      </section>
-
-      {editing ? (
-        <form
-          className="studio-module"
-          onSubmit={(event) => {
-            event.preventDefault();
-            save.mutate();
-          }}
-        >
-          <div className="studio-stack">
             <label className="studio-field">
               <span>name</span>
-              <input
-                required
-                value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
-              />
+              <input className="studio-input" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
             </label>
             <label className="studio-field">
               <span>email</span>
-              <input
-                required
-                type="email"
-                value={form.email}
-                onChange={(event) => setForm({ ...form, email: event.target.value })}
-              />
+              <input className="studio-input" required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
             </label>
             <label className="studio-field">
               <span>phone</span>
-              <input
-                value={form.phone}
-                onChange={(event) => setForm({ ...form, phone: event.target.value })}
-              />
+              <input className="studio-input" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
             </label>
             <label className="studio-field">
               <span>organization</span>
-              <input
-                value={form.organization}
-                onChange={(event) => setForm({ ...form, organization: event.target.value })}
-              />
+              <input className="studio-input" value={form.organization} onChange={(event) => setForm({ ...form, organization: event.target.value })} />
             </label>
             <label className="studio-field">
               <span>client type</span>
-              <select
-                className="studio-select"
-                value={form.type}
-                onChange={(event) => setForm({ ...form, type: event.target.value as ClientType })}
-              >
+              <select className="studio-select" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as ClientType })}>
                 <option value="individual">individual</option>
                 <option value="brand">brand</option>
                 <option value="corporate">corporate</option>
@@ -255,73 +212,126 @@ function ClientDetailPage() {
             </label>
             <label className="studio-field">
               <span>found us</span>
-              <input
-                value={form.source}
-                onChange={(event) => setForm({ ...form, source: event.target.value })}
-              />
+              <input className="studio-input" value={form.source} onChange={(event) => setForm({ ...form, source: event.target.value })} />
             </label>
-            <label className="studio-field">
+            <label className="studio-field is-wide">
               <span>studio notes</span>
-              <textarea
-                className="studio-textarea"
-                value={form.notes}
-                onChange={(event) => setForm({ ...form, notes: event.target.value })}
-              />
+              <textarea className="studio-textarea" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
             </label>
             <button type="submit" className="studio-today-go" disabled={save.isPending}>
               {save.isPending ? "saving…" : "save client"}
             </button>
+          </form>
+        ) : null}
+
+        <div className="studio-ledger-body">
+          <div className="studio-ledger-work">
+            <p className="studio-home-label">inquiries</p>
+            {jobs.length === 0 ? <p className="studio-empty">no jobs yet.</p> : null}
+            {jobs.length > 0 ? (
+              <div className="studio-book-review-rows">
+                {jobs.map((inquiry) => (
+                  <Link
+                    key={inquiry.id}
+                    to="/pipeline/$id"
+                    params={{ id: inquiry.slug }}
+                    className={inquiry.status === "closed" ? "studio-book-row is-quiet" : "studio-book-row"}
+                  >
+                    <span>
+                      <b>{EVENT_LABEL[inquiry.event_type]}</b>
+                      <em>
+                        {[jobWhen(inquiry), jobPlace(inquiry.venue_text)].filter(Boolean).join(" · ")}
+                      </em>
+                    </span>
+                    <small>{STATUS_LABEL[inquiry.status]}</small>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+            {files.length > 0 ? (
+              <>
+                <p className="studio-home-label">files</p>
+                <div className="studio-book-review-rows">
+                  {files.map((file) => (
+                    <a
+                      key={file.id}
+                      href={file.signed_url ?? undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="studio-book-row"
+                    >
+                      <span>
+                        <b>{file.file_path.split("/").at(-1)}</b>
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </>
+            ) : null}
           </div>
-        </form>
-      ) : null}
 
-      <section className="studio-module">
-        <p className="studio-home-label">inquiries</p>
-        {inquiries.length === 0 ? <p className="studio-empty">no jobs yet.</p> : null}
-        <div className="studio-book-review-rows">
-          {inquiries.map((inquiry) => (
-            <Link key={inquiry.id} to="/pipeline/$id" params={{ id: inquiry.slug }} className="studio-book-row">
-              <span>
-                <b>{EVENT_LABEL[inquiry.event_type]}</b>
-                <em>
-                  {inquiry.event_date_tbd ? "date tbd" : formatDate(inquiry.event_date)}
-                  {inquiry.venue_text ? ` · ${inquiry.venue_text}` : ""}
-                </em>
-              </span>
-              <small>{STATUS_LABEL[inquiry.status]}</small>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {files.length > 0 ? (
-        <section className="studio-module">
-          <p className="studio-home-label">files</p>
-          <div className="studio-book-review-rows">
-            {files.map((file) => (
-              <a
-                key={file.id}
-                href={file.signed_url ?? undefined}
-                target="_blank"
-                rel="noreferrer"
-                className="studio-book-row"
+          <aside className="studio-ledger-rail">
+            <p className="studio-home-label">contact</p>
+            <p>{client.email}</p>
+            {phone ? <p>{phone}</p> : null}
+            {organization ? (
+              <>
+                <p className="studio-home-label">organization</p>
+                <p>{organization}</p>
+              </>
+            ) : null}
+            {source ? (
+              <>
+                <hr className="studio-ledger-split" />
+                <p className="studio-home-label">found us</p>
+                <p>{source.toLowerCase()}</p>
+              </>
+            ) : null}
+            {notes ? (
+              <>
+                <hr className="studio-ledger-split" />
+                <p className="studio-home-label">notes</p>
+                <p className="studio-client-note">{notes}</p>
+              </>
+            ) : null}
+            <hr className="studio-ledger-split" />
+            <div className="studio-ledger-actions">
+              <button type="button" className="studio-ghost" onClick={() => setEditing((open) => !open)}>
+                {editing ? "close" : "edit"}
+              </button>
+              <button
+                type="button"
+                className="studio-ghost is-quiet"
+                disabled={archive.isPending}
+                onClick={() => {
+                  if (window.confirm("archive this client?")) archive.mutate();
+                }}
               >
-                <span>
-                  <b>{file.file_path.split("/").at(-1)}</b>
-                </span>
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {client.notes ? (
-        <section className="studio-module">
-          <p className="studio-home-label">notes</p>
-          <p className="studio-client-note">{client.notes}</p>
-        </section>
-      ) : null}
+                archive
+              </button>
+            </div>
+          </aside>
+        </div>
       </div>
     </div>
   );
+}
+
+function sameLabel(left: string, right: string) {
+  const normalize = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
+  return normalize(left) === normalize(right);
+}
+
+function jobWhen(inquiry: { event_date: string | null; event_date_tbd: boolean }) {
+  if (inquiry.event_date_tbd || !inquiry.event_date) return "date still open";
+  return formatDate(inquiry.event_date).toLowerCase();
+}
+
+function jobPlace(venue: string | null | undefined, brief = false) {
+  const text = venue?.trim();
+  if (!text) return "";
+  const parts = text.split(",").map((part) => part.trim()).filter(Boolean);
+  const state = parts.at(-1) ?? "";
+  const shown = brief && parts.length > 1 && /^[a-z]{2}$/i.test(state) ? parts.slice(0, -1) : parts;
+  return shown.join(", ").toLowerCase();
 }
