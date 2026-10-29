@@ -16200,3 +16200,12 @@ a.studio-kicker:hover {
   line-height: 1.6;
 }
 
+/* links in the letter and its signature read hot pink, as the client sees them */
+.studio-send-preview-letter a,
+.studio-send-preview-letter .studio-mail-sign a {
+  color: #ff4d94;
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
