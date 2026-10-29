@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Ref } from "react";
 import { ChevronLeft, ChevronRight, Globe, Instagram, X } from "lucide-react";
 
 import {
@@ -80,12 +80,23 @@ export function BookMeeting({
     .toLocaleDateString("en-US", { month: "long", year: "numeric" })
     .toLowerCase();
 
+  const timesRef = useRef<HTMLDivElement>(null);
+
   function chooseDay(next: Date) {
     setDay(next);
     setSlot(null);
+    // on a phone the times sit below the month; bring them up once a day is picked
+    window.requestAnimationFrame(() => {
+      const list = timesRef.current;
+      if (!list) return;
+      const box = list.getBoundingClientRect();
+      if (box.top >= 0 && box.bottom <= window.innerHeight) return;
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      list.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+    });
   }
 
-  const times = <Times day={day} slots={slots} slot={slot} onSlot={setSlot} />;
+  const times = <Times listRef={timesRef} day={day} slots={slots} slot={slot} onSlot={setSlot} />;
 
   return (
     <div className="book-stage">
@@ -136,7 +147,7 @@ export function BookMeeting({
       >
         <DialogContent
           overlayClassName="studio-task-veil"
-          className={cn("studio-task-modal is-ask is-soft", booked && "is-booked")}
+          className={cn("studio-task-modal is-ask is-soft book-meet-dialog", booked && "is-booked")}
           hideClose
         >
           <div className="studio-task-head">
@@ -294,14 +305,16 @@ function Times({
   slots,
   slot,
   onSlot,
+  listRef,
 }: {
   day: Date | null;
   slots: Array<{ startsAt: string; label: string }>;
   slot: string | null;
   onSlot: (value: string) => void;
+  listRef?: Ref<HTMLDivElement>;
 }) {
   return (
-    <div className="book-meet-times">
+    <div ref={listRef} className="book-meet-times">
       {!day ? <p>pick a day</p> : null}
       {day && slots.length === 0 ? <p>nothing open that day</p> : null}
       {slots.map((item) => (

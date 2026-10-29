@@ -15052,6 +15052,8 @@ a.studio-kicker:hover {
 @media (hover: none) and (pointer: coarse) {
   .book-meet-confirm input,
   .book-meet-confirm textarea,
+  .book-meet-dialog input,
+  .book-meet-dialog textarea,
   .auth-scene input,
   .auth-scene textarea,
   .auth-scene select {
