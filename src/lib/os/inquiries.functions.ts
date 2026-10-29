@@ -193,15 +193,20 @@ export type InquirySourcePeek = {
   from_addr: string | null;
 };
 
+// Archiving closes an inquiry and flags it. A closed one still belongs in the archived group,
+// so it stays readable and can be reopened; anything else that's flagged stays out of sight.
+const OPEN_OR_CLOSED = "archived.eq.false,status.eq.closed";
+
 async function listInquiriesWithClients(
   client: StudioClient,
   detectionStatuses = BOOK_DETECTION_STATUSES,
+  { withClosed = false }: { withClosed?: boolean } = {},
 ) {
   const [inquiryResult, clientResult] = await Promise.all([
     client
       .from("inquiries")
       .select("*")
-      .eq("archived", false)
+      .or(OPEN_OR_CLOSED)
       .in("detection_status", detectionStatuses)
       .order("received_at", { ascending: true }),
     client.from("clients").select("*"),
@@ -215,12 +220,14 @@ async function listInquiriesWithClients(
     client: clientsById.get(inquiry.client_id) ?? null,
     source_peek: null as InquirySourcePeek | null,
   }));
+  // slugs come from every inquiry, closed ones too, so a link means the same thing on every page
   const slugs = inquirySlugs(rows);
+  const listed = withClosed ? rows : rows.filter((row) => row.status !== "closed");
   return dropNonInquiries(
     client,
     await attachSourcePeeks(
       client,
-      rows.map((row) => ({ ...row, slug: slugs.get(row.id) ?? row.id })),
+      listed.map((row) => ({ ...row, slug: slugs.get(row.id) ?? row.id })),
     ),
   );
 }
@@ -359,7 +366,7 @@ export const createAdminInquiry = createServerFn({ method: "POST" })
 export const listInquiryPipeline = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async ({ context }) =>
-    listInquiriesWithClients(context.supabase, DESK_DETECTION_STATUSES),
+    listInquiriesWithClients(context.supabase, DESK_DETECTION_STATUSES, { withClosed: true }),
   );
 
 export const getInquiryDashboard = createServerFn({ method: "GET" })
@@ -466,7 +473,7 @@ export const setInquiryStatus = createServerFn({ method: "POST" })
       .from("inquiries")
       .select("contacted_at, proposal_sent_at, booked_at, detection_status")
       .eq("id", data.id)
-      .eq("archived", false)
+      .or(OPEN_OR_CLOSED)
       .single();
     if (findError) throw new Error(findError.message);
     if (isReviewCandidate(current)) {
@@ -507,7 +514,7 @@ export const setInquiryStatus = createServerFn({ method: "POST" })
         ...timestamps,
       })
       .eq("id", data.id)
-      .eq("archived", false);
+      .or(OPEN_OR_CLOSED);
     if (error) throw new Error(error.message);
     await syncInquiryAutoTaskFor(context.supabase, data.id);
     await refreshInquirySummarySafe(context.supabase, data.id);
@@ -692,7 +699,9 @@ export const searchFloridaAddresses = createServerFn({ method: "GET" })
 
 async function resolveInquiryId(client: StudioClient, key: string) {
   if (isRecordUuid(key)) return key;
-  const rows = await listInquiriesWithClients(client);
+  const rows = await listInquiriesWithClients(client, BOOK_DETECTION_STATUSES, {
+    withClosed: true,
+  });
   const match = rows.find((row) => row.slug === key);
   if (!match) throw new Error("Inquiry not found");
   return match.id;
@@ -707,7 +716,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
       .from("inquiries")
       .select("*")
       .eq("id", inquiryId)
-      .eq("archived", false)
+      .or(OPEN_OR_CLOSED)
       .maybeSingle();
     if (inquiryResult.error) throw new Error(inquiryResult.error.message);
     if (!inquiryResult.data) throw new Error("Inquiry not found");
@@ -852,7 +861,9 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
       );
     }
 
-    const listed = await listInquiriesWithClients(context.supabase);
+    const listed = await listInquiriesWithClients(context.supabase, BOOK_DETECTION_STATUSES, {
+      withClosed: true,
+    });
     return {
       inquiry: {
         ...inquiryResult.data,

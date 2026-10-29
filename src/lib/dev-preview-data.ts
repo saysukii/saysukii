@@ -845,7 +845,6 @@ const reviewDecisions = new Map<
   string,
   { detection_status: InquiryRow["detection_status"]; status: InquiryStatus }
 >();
-const archivedInquiryIds = new Set<string>();
 const PREVIEW_STATUS_KEY = "say-sukii-preview-inquiry-status";
 
 function storedPreviewStatuses(): Array<[string, InquiryStatus]> {
@@ -872,8 +871,9 @@ export function previewSetInquiryStatus(id: string, status: InquiryStatus) {
   );
 }
 
+// archiving closes it, like the studio does, so it lands in the archived group
 export function previewArchiveInquiry(id: string) {
-  archivedInquiryIds.add(id);
+  previewSetInquiryStatus(id, "closed");
 }
 
 export function previewReviewDecision(id: string, decision: "approve" | "dismiss") {
@@ -948,7 +948,7 @@ function previewReviewMail(id: string) {
 function autoInquiryTasks(): TaskRow[] {
   return inquiries
     .map(withReview)
-    .filter((inquiry) => !archivedInquiryIds.has(inquiry.id))
+    .filter((inquiry) => inquiry.status !== "closed")
     .filter(isBookInquiry)
     .flatMap((inquiry) => {
       const draft = desiredInquiryAutoTask({
@@ -1030,7 +1030,6 @@ export function getDevPreviewPipeline() {
   hydratePreviewArrivals();
   const rows = inquiries
     .map(withReview)
-    .filter((inquiry) => !archivedInquiryIds.has(inquiry.id))
     .filter((inquiry) => inquiry.detection_status !== "dismissed")
     .map((inquiry) => withClient(inquiry));
   const slugs = inquirySlugs(rows);
