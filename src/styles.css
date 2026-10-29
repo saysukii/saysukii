@@ -12664,6 +12664,106 @@ button.studio-metric:hover {
   margin-top: 28px;
 }
 
+/* authorization: the client signs, then say sukii */
+.client-packet-auth {
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 1px solid color-mix(in srgb, var(--packet-ink) 12%, transparent);
+}
+
+.client-packet-agreement .client-packet-auth h4 {
+  margin: 22px 0 8px;
+  color: var(--packet-ink);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.client-packet-auth-names {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin: 14px 0 18px;
+}
+
+.client-packet-auth-names span {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  border-bottom: 1px solid color-mix(in srgb, var(--packet-ink) 28%, transparent);
+  color: var(--packet-ink);
+  font-size: 13px;
+}
+
+.client-packet-auth-names span.is-empty,
+.client-packet-auth-names input::placeholder {
+  color: color-mix(in srgb, var(--packet-ink) 45%, transparent);
+  font-size: 13px;
+  text-transform: none;
+}
+
+.client-packet-auth-names label {
+  display: grid;
+  gap: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--packet-ink) 28%, transparent);
+}
+
+.client-packet-auth-names input {
+  width: 100%;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--packet-ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.client-packet-auth-names label:focus-within {
+  border-bottom-color: var(--packet-pink);
+}
+
+.client-packet-agreement .client-packet-auth-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.client-packet-auth-box {
+  display: grid;
+  min-height: 96px;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--packet-ink) 3%, #fff);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--packet-ink) 14%, transparent);
+}
+
+.client-packet-auth-box em {
+  color: color-mix(in srgb, var(--packet-ink) 40%, transparent);
+  font-size: 15px;
+  font-style: italic;
+}
+
+.client-packet-auth-box .client-packet-stamp {
+  margin: 0;
+}
+
+.client-packet-agreement .client-packet-auth-when {
+  margin: 8px 0 0;
+  color: color-mix(in srgb, var(--packet-ink) 55%, transparent);
+  font-size: 12px;
+  font-style: italic;
+}
+
+@media (max-width: 520px) {
+  .client-packet-auth-names {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .client-packet-pad-stage {
   position: relative;
   border-bottom: 1px solid color-mix(in srgb, var(--packet-ink) 28%, transparent);
@@ -15054,6 +15154,7 @@ a.studio-kicker:hover {
   .book-meet-confirm textarea,
   .book-meet-dialog input,
   .book-meet-dialog textarea,
+  .client-packet-auth-names input,
   .auth-scene input,
   .auth-scene textarea,
   .auth-scene select {

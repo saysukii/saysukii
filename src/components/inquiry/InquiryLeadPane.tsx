@@ -2611,6 +2611,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 kind={packetKind}
                 clientName={client?.name ?? ""}
                 clientEmail={client?.email ?? ""}
+                clientPhone={client?.phone ?? ""}
                 work={work}
                 totalCents={proposalCents ?? 0}
                 courtesyCents={courtesyCents}

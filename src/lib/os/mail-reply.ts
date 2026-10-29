@@ -11,10 +11,14 @@ export function clientReplyText(body: string) {
   const quoted = lines.findIndex((line, index) => index > 0 && line.startsWith(">"));
   if (quoted >= 0) marks.push(lines.slice(0, quoted).join("\n").length);
   const cut = marks.length ? Math.min(...marks) : text.length;
-  return text
-    .slice(0, cut)
-    .replace(/\n--\s*$/, "")
-    .trim();
+  return (
+    text
+      .slice(0, cut)
+      // plain-text mail puts each link's address after its words, like "reacted via Gmail <https://…>"
+      .replace(/[ \t]*<https?:\/\/[^>\s]+>/g, "")
+      .replace(/\n--\s*$/, "")
+      .trim()
+  );
 }
 
 export type MailPiece = { kind: "text" | "em" | "strong"; text: string };

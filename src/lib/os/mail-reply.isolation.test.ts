@@ -93,4 +93,16 @@ describe("reply all", () => {
     );
     assert.deepEqual(people, { to: ["maya@saysukii.com"], cc: [] });
   });
+  it("shows a gmail reaction without its link address", () => {
+    assert.equal(
+      clientReplyText(
+        "💖\n\nTaī ✦ reacted via Gmail <https://www.google.com/gmail/about/?utm_source=gmail-in-product&utm_medium=et&utm_campaign=emojireactionemail#app>",
+      ),
+      "💖\n\nTaī ✦ reacted via Gmail",
+    );
+    assert.equal(
+      clientReplyText("the gallery is here https://example.com/gallery"),
+      "the gallery is here https://example.com/gallery",
+    );
+  });
 });

@@ -134,6 +134,8 @@ export function statementFromNotes(notes: string | null | undefined): StatementO
 
 export type FloralAgreementFields = StatementOfWork & {
   clientName: string;
+  clientPhone?: string | null | undefined;
+  clientEmail?: string | null | undefined;
   total: string;
   deposit: string;
   balance: string;
@@ -153,11 +155,9 @@ export function floralAgreementBlocks(fields: FloralAgreementFields): FloralBloc
       text: `This Agreement is between Say Sukii, LLC (hereafter "Say Sukii" or "we"), and ${client} (hereafter "Client"), for the purpose of Say Sukii providing Statement of Work for Client. This Agreement shall become effective upon the date of both Parties' signatures below.`,
     },
     { kind: "heading", text: "Client details" },
-    { kind: "line", text: client },
-    {
-      kind: "note",
-      text: "This is a copy. Your personal service agreement will be sent upon booking.",
-    },
+    ...[agreementName(client), fields.clientPhone?.trim(), fields.clientEmail?.trim()]
+      .filter((line): line is string => Boolean(line))
+      .map((text) => ({ kind: "line" as const, text })),
     { kind: "heading", text: "Payment & fees" },
     {
       kind: "body",
@@ -283,12 +283,32 @@ export function floralAgreementBlocks(fields: FloralAgreementFields): FloralBloc
     { kind: "line", text: `Grand total: ${fields.total}` },
     { kind: "line", text: `Booking deposit: ${fields.deposit}` },
     { kind: "line", text: `Final payment: ${fields.balance}, due 30 days before the event` },
-    {
-      kind: "note",
-      text: "This is a copy. Your personal service agreement will be sent upon booking.",
-    },
   ];
 }
+
+/** The client's name as it reads on the agreement: each word starts with a capital, person or company. */
+export function agreementName(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((word) => (word ? word[0]!.toUpperCase() + word.slice(1) : word))
+    .join(" ");
+}
+
+/** The signer's typed name, as it's written into the signed agreement's text. */
+export function signedByLine(first: string, last: string, signedAt: string) {
+  return `Signed by ${[first.trim(), last.trim()].filter(Boolean).join(" ")} on ${signedAt.slice(0, 10)}`;
+}
+
+export function signerFromAgreement(content: string | null | undefined) {
+  const match = /Signed by (.+?) on \d{4}-\d{2}-\d{2}/.exec(content ?? "");
+  if (!match?.[1]) return null;
+  const [first = "", ...rest] = match[1].trim().split(/\s+/);
+  return { first, last: rest.join(" ") };
+}
+
+export const AGREEMENT_CONSENT =
+  "“I, the Client, agree to the terms set in this agreement and agree that I, the Client, am responsible for all payments and decisions regarding this order.”";
 
 export function floralAgreementPlain(fields: FloralAgreementFields): string {
   return floralAgreementBlocks(fields)

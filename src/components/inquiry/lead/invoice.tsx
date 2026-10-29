@@ -405,6 +405,7 @@ export function PacketPreview({
   kind,
   clientName,
   clientEmail = "",
+  clientPhone = "",
   onSend,
   sending = false,
   people,
@@ -419,6 +420,7 @@ export function PacketPreview({
   kind: "proposal" | "agreement" | "invoice";
   clientName: string;
   clientEmail?: string;
+  clientPhone?: string;
   onSend?: () => void;
   sending?: boolean;
   people?: ReactNode;
@@ -512,6 +514,8 @@ export function PacketPreview({
             fields={{
               ...work,
               clientName: clientName || "Client",
+              clientPhone,
+              clientEmail,
               total: formatMoneyExact(totalCents),
               deposit: formatMoneyExact(depositCents),
               balance: formatMoneyExact(Math.max(0, totalCents - depositCents)),

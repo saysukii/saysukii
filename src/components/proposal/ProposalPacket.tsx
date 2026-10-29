@@ -96,6 +96,8 @@ export function ProposalPacket({ token }: { token: string }) {
   const [checked, setChecked] = useState(false);
   const [changeNote, setChangeNote] = useState("");
   const [signature, setSignature] = useState<string | null>(null);
+  const [signerFirst, setSignerFirst] = useState("");
+  const [signerLast, setSignerLast] = useState("");
   const [keptSignature, setKeptSignature] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pdfCount, setPdfCount] = useState(0);
@@ -194,8 +196,11 @@ export function ProposalPacket({ token }: { token: string }) {
   const sign = useMutation({
     mutationFn: async () => {
       if (!isSignatureDataUrl(signature)) throw new Error("Sign with your finger or cursor.");
-      if (preview) return signPreviewProposal(token, signature);
-      return signAgreement({ data: { token, signature } });
+      const first = signerFirst.trim();
+      const last = signerLast.trim();
+      if (!first || !last) throw new Error("Add your first and last name.");
+      if (preview) return signPreviewProposal(token, signature, { first, last });
+      return signAgreement({ data: { token, signature, first_name: first, last_name: last } });
     },
     onSuccess: (result) => {
       if (preview && "token" in result) setPreview(result);
@@ -204,7 +209,14 @@ export function ProposalPacket({ token }: { token: string }) {
         if (signature) setKeptSignature(signature);
         void queryClient.invalidateQueries({ queryKey: ["public-proposal", token] });
       }
-      window.scrollTo(0, 0);
+      // stay with the signature, then glide down to continue
+      window.requestAnimationFrame(() => {
+        const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: still ? "auto" : "smooth",
+        });
+      });
     },
   });
 
@@ -230,12 +242,18 @@ export function ProposalPacket({ token }: { token: string }) {
   }, [checked, preview, data, isPending, isError]);
 
   const { isPending: signing, mutate: signNow } = sign;
+  const named = Boolean(signerFirst.trim() && signerLast.trim());
   useEffect(() => {
-    if (isSignatureDataUrl(preview?.signedName) || !isSignatureDataUrl(signature) || signing)
+    if (
+      isSignatureDataUrl(preview?.signedName) ||
+      !isSignatureDataUrl(signature) ||
+      !named ||
+      signing
+    )
       return;
     const timer = window.setTimeout(() => signNow(), 700);
     return () => window.clearTimeout(timer);
-  }, [signature, preview?.signedName, signing, signNow]);
+  }, [signature, preview?.signedName, signing, signNow, named]);
 
   if (!checked || (!preview && isPending)) {
     return (
@@ -265,7 +283,9 @@ export function ProposalPacket({ token }: { token: string }) {
 
   const status = preview?.status ?? data?.proposal.status ?? "sent";
   const clientName = preview?.clientName ?? data?.client.name ?? "";
-  const clientEmail = data?.client.email ?? "";
+  const clientEmail = preview?.clientEmail ?? data?.client.email ?? "";
+  const clientPhone = preview?.clientPhone ?? data?.client.phone ?? "";
+  const savedSigner = preview?.signer ?? data?.agreement?.signer ?? null;
   const payPercent =
     preview?.depositPercent ??
     ((data?.proposal.total_cents ?? 0) > 0 &&
@@ -344,10 +364,25 @@ export function ProposalPacket({ token }: { token: string }) {
             fields={{
               ...work,
               clientName,
+              clientPhone: clientPhone || null,
+              clientEmail: clientEmail || null,
               total: formatMoneyExact(totalCents),
               deposit: formatMoneyExact(depositCents),
               balance: formatMoneyExact(Math.max(0, totalCents - depositCents)),
             }}
+            signedAt={preview?.signedAt ?? data?.agreement?.signedAt ?? null}
+            signer={
+              drawn
+                ? { first: savedSigner?.first ?? "", last: savedSigner?.last ?? "" }
+                : accepted
+                  ? {
+                      first: signerFirst,
+                      last: signerLast,
+                      onFirst: setSignerFirst,
+                      onLast: setSignerLast,
+                    }
+                  : { first: "", last: "" }
+            }
             signature={
               drawn ? (
                 <img src={signedName ?? ""} alt="Signature" className="client-packet-ink" />
@@ -358,6 +393,11 @@ export function ProposalPacket({ token }: { token: string }) {
                     onChange={setSignature}
                     disabled={sign.isPending}
                   />
+                  {isSignatureDataUrl(signature) && !named ? (
+                    <p className="client-packet-stamp">
+                      Add your first and last name above to finish signing.
+                    </p>
+                  ) : null}
                   {sign.isError ? (
                     <p role="alert" className="client-packet-stamp">
                       {sign.error.message}

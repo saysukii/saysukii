@@ -22,6 +22,9 @@ export type PreviewProposal = {
   agreement: string | null;
   signedName: string | null;
   signedAt: string | null;
+  signer?: { first: string; last: string } | null;
+  clientEmail?: string | null;
+  clientPhone?: string | null;
   paymentLink: string | null;
   paid: boolean;
   changeNote: string | null;
@@ -173,7 +176,7 @@ export function markPreviewProposalSent(token: string) {
 }
 
 const FENTY_DEMO = "preview_fentybeauty091726";
-const FENTY_FRESH = "courtesy-250";
+const FENTY_FRESH = "client-details";
 
 function fentyDemo(): PreviewProposal {
   return {
@@ -181,6 +184,9 @@ function fentyDemo(): PreviewProposal {
     inquiryId: "fenty-beauty",
     clientName: "Fenty Beauty",
     contactName: null,
+    // sample details, so the agreement's client section reads the way a real one does
+    clientPhone: "(305) 555-0142",
+    clientEmail: "events@fentybeauty.com",
     number: "SS-0917",
     eventDate: "2026-09-17",
     venueText: "The Shelbourne by Proper, 1801 Collins Ave, Miami Beach",
@@ -281,13 +287,18 @@ export function acceptPreviewProposal(token: string) {
   return current;
 }
 
-export function signPreviewProposal(token: string, name: string) {
+export function signPreviewProposal(
+  token: string,
+  name: string,
+  signer?: { first: string; last: string },
+) {
   const map = readMap();
   const current = map[token];
   if (!current?.agreement) throw new Error("Accept the proposal before signing.");
   const signedAt = new Date().toISOString();
   current.signedName = name;
   current.signedAt = signedAt;
+  current.signer = signer ?? null;
   current.paymentLink = null;
   map[token] = current;
   writeMap(map);

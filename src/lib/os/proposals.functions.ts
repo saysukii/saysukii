@@ -29,6 +29,8 @@ import {
   statementFromNotes,
   statementNotes,
   statementOfWork,
+  signedByLine,
+  signerFromAgreement,
 } from "@/lib/floral-agreement";
 import { renderAgreementPdf, renderInvoicePdf } from "@/lib/pdf.server";
 import { createPublicToken, hashToken } from "./crypto.server";
@@ -553,7 +555,7 @@ export const getPublicProposal = createServerFn({ method: "GET" })
     ]);
     return {
       proposal: publicProposal(bundle.proposal),
-      client: { name: bundle.client.name, email: bundle.client.email },
+      client: { name: bundle.client.name, email: bundle.client.email, phone: bundle.client.phone },
       venue: bundle.venue ? { name: bundle.venue.name, address: bundle.venue.address } : null,
       items: bundle.items.map(
         ({ label, description, quantity, unit_price_cents, line_total_cents }) => ({
@@ -570,6 +572,7 @@ export const getPublicProposal = createServerFn({ method: "GET" })
             content: agreement.content,
             signedName: agreement.signed_name,
             signedAt: agreement.signed_at,
+            signer: signerFromAgreement(agreement.content),
           }
         : null,
       invoice: invoice
@@ -657,6 +660,8 @@ export const signPublicAgreement = createServerFn({ method: "POST" })
       .object({
         token: z.string().min(32),
         signature: z.string().startsWith("data:image/png;base64,").max(600_000),
+        first_name: z.string().trim().min(1).max(80),
+        last_name: z.string().trim().min(1).max(80),
       })
       .parse(input),
   )
@@ -675,7 +680,7 @@ export const signPublicAgreement = createServerFn({ method: "POST" })
     const signedAt = new Date().toISOString();
     const content = agreement.signed_name
       ? agreement.content
-      : `${agreement.content}\n\nSigned on ${signedAt.slice(0, 10)}`;
+      : `${agreement.content}\n\n${signedByLine(data.first_name, data.last_name, signedAt)}`;
     const agreementPdf = await renderAgreementPdf({
       meta: documentMeta(bundle, "Agreement", bundle.proposal.number),
       typeLabel: "Standard Service Agreement",
