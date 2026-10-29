@@ -113,6 +113,21 @@ describe("Gmail inbound capture", () => {
     assert.equal(parsed?.to_addr, "info@saysukii.com · cc: camila@example.com, maya@saysukii.com");
   });
 
+  it("is not held up by archived mail at the front of the queue", async () => {
+    const store = createMemoryInboundStore();
+    await store.writeCursor({ historyId: "hist-start", lastSyncedAt: null });
+    const archived = Array.from({ length: 60 }, (_, index) => {
+      const old = message(`old${index}`);
+      old.labelIds = ["CATEGORY_UPDATES"];
+      return old;
+    });
+    const mailbox = fakeMailbox([...archived, message("reply", { subject: "re: let's connect!" })]);
+
+    const result = await syncInboundMail({ mailbox, store });
+    assert.equal(result.inserted, 1);
+    assert.equal(result.historyId, "hist-61");
+  });
+
   it("skips a message gmail no longer has and keeps reading the rest", async () => {
     const store = createMemoryInboundStore();
     await store.writeCursor({ historyId: "hist-0", lastSyncedAt: null });
@@ -132,17 +147,17 @@ describe("Gmail inbound capture", () => {
   it("reads a long backlog over several runs without dropping any", async () => {
     const store = createMemoryInboundStore();
     await store.writeCursor({ historyId: "hist-start", lastSyncedAt: null });
-    const backlog = Array.from({ length: 60 }, (_, index) => message(`m${index}`));
+    const backlog = Array.from({ length: 410 }, (_, index) => message(`m${index}`));
     const mailbox = fakeMailbox(backlog);
     const now = () => new Date("2026-10-29T16:00:00.000Z");
 
     const first = await syncInboundMail({ mailbox, store, now });
-    assert.equal(first.inserted, 50);
+    assert.equal(first.inserted, 400);
     assert.equal(first.historyId, "hist-start");
 
     const second = await syncInboundMail({ mailbox, store, now });
     assert.equal(second.inserted, 10);
-    assert.equal(second.historyId, "hist-60");
+    assert.equal(second.historyId, "hist-410");
   });
 
   it("captures new inbox mail and de-duplicates by gmail_message_id", async () => {

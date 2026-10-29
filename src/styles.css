@@ -16028,11 +16028,44 @@ a.studio-kicker:hover {
   box-shadow: 0 0 0 3px rgba(255, 77, 148, 0.16);
 }
 
-/* preview and clear sit together on the proposal's left */
-.studio-proposal-tools {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* the proposal box shows the file it holds, with a small clear in its corner */
+.studio-proposal-drop {
+  position: relative;
+}
+
+.studio-proposal-file {
+  max-width: min(100%, 22rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-proposal-clear {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+  color: rgba(36, 34, 31, 0.52);
+  cursor: pointer;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.studio-proposal-clear:hover {
+  background: #fff;
+  color: #ff4d94;
+}
+
+.studio-proposal-clear svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* the ten seconds after send: the ribbon drains under the letter */

@@ -479,18 +479,25 @@ export function ThreadComposer({
       onSend(body);
       return;
     }
-    setConfirm({
+    const letter = {
       body,
       sendAt,
       attachments: files.flatMap((file) =>
         file.path ? [{ path: file.path, name: file.name }] : [],
       ),
-    });
+    };
+    // a letter going now goes straight to the ribbon, where undo is the check;
+    // a scheduled one is confirmed first so the time can be read back
+    if (!sendAt) {
+      commitSend(letter);
+      return;
+    }
+    setConfirm(letter);
   }
 
-  function commitSend() {
-    if (!confirm) return;
-    const { body, sendAt: when, attachments } = confirm;
+  function commitSend(letter = confirm) {
+    if (!letter) return;
+    const { body, sendAt: when, attachments } = letter;
     setConfirm(null);
     setDraft("");
     setFiles([]);
@@ -806,7 +813,7 @@ export function ThreadComposer({
                   <p className="studio-composer-when">sends {formatSendAt(confirm.sendAt)}</p>
                 ) : null}
                 <div className="studio-ask-foot">
-                  <button type="button" className="studio-today-go" onClick={commitSend}>
+                  <button type="button" className="studio-today-go" onClick={() => commitSend()}>
                     {confirm?.sendAt ? "schedule" : "send"}
                   </button>
                 </div>

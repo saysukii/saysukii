@@ -8,7 +8,9 @@ import { mailRecord } from "./mail-people";
 const LOOKBACK_DAYS = 7;
 const PAGE_SIZE = 50;
 const MAX_PAGES = 8;
-const MAX_NEW_FETCH = 50;
+// generous, so archived or deleted mail at the front of the queue can't hold up what came after it
+const MAX_NEW_FETCH = 400;
+const FETCH_AT_ONCE = 8;
 const CURSOR_PATH = join(process.cwd(), ".data", "gmail-inbound-cursor.json");
 const MESSAGES_PATH = join(process.cwd(), ".data", "inbound-messages.json");
 
@@ -226,12 +228,16 @@ export async function syncInboundMail(deps: {
   const unseen = uniqueIds.filter((id) => !already.has(id));
   const freshIds = unseen.slice(0, MAX_NEW_FETCH);
   const captured: CapturedInbound[] = [];
-  for (const id of freshIds) {
-    const raw = await deps.mailbox.getMessage(id);
-    if (!raw) continue;
-    if (raw.labelIds && !CAPTURED_LABELS.some((label) => raw.labelIds?.includes(label))) continue;
-    const parsed = parseGmailMessage(raw);
-    if (parsed) captured.push(parsed);
+  for (let i = 0; i < freshIds.length; i += FETCH_AT_ONCE) {
+    const batch = await Promise.all(
+      freshIds.slice(i, i + FETCH_AT_ONCE).map((id) => deps.mailbox.getMessage(id)),
+    );
+    for (const raw of batch) {
+      if (!raw) continue;
+      if (raw.labelIds && !CAPTURED_LABELS.some((label) => raw.labelIds?.includes(label))) continue;
+      const parsed = parseGmailMessage(raw);
+      if (parsed) captured.push(parsed);
+    }
   }
 
   const inserted = captured.length ? await deps.store.insert(captured) : 0;

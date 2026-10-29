@@ -2273,38 +2273,53 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             proposal
           </p>
           <div className="studio-proposal-desk">
-            <label
-              className={cn(
-                "studio-file-drop",
-                proposalOver && "is-over",
-                (proposalFile || proposalName) && "is-set",
-              )}
-              onDragEnter={(event) => {
-                event.preventDefault();
-                setProposalOver(true);
-              }}
-              onDragOver={(event) => event.preventDefault()}
-              onDragLeave={(event) => {
-                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-                setProposalOver(false);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                takeProposal(event.dataTransfer.files[0]);
-              }}
-            >
-              <Upload aria-hidden="true" strokeWidth={1.5} />
-              <small>{proposalName ? "replace" : "or browse"}</small>
-              <input
-                type="file"
-                accept="application/pdf,.pdf"
-                className="sr-only"
-                onChange={(event) => {
-                  takeProposal(event.target.files?.[0]);
-                  event.target.value = "";
+            <div className="studio-proposal-drop">
+              <label
+                className={cn(
+                  "studio-file-drop",
+                  proposalOver && "is-over",
+                  (proposalFile || proposalName) && "is-set",
+                )}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setProposalOver(true);
                 }}
-              />
-            </label>
+                onDragOver={(event) => event.preventDefault()}
+                onDragLeave={(event) => {
+                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                  setProposalOver(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  takeProposal(event.dataTransfer.files[0]);
+                }}
+              >
+                <Upload aria-hidden="true" strokeWidth={1.5} />
+                {proposalName ? <b className="studio-proposal-file">{proposalName}</b> : null}
+                <small>{proposalName ? "replace" : "or browse"}</small>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  onChange={(event) => {
+                    takeProposal(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+              {profile.role === "admin" && (proposalName || proposalHref) ? (
+                <button
+                  type="button"
+                  className="studio-proposal-clear"
+                  aria-label="clear this proposal"
+                  title="clear this proposal"
+                  disabled={clearOffer.isPending}
+                  onClick={() => setConfirmClear(true)}
+                >
+                  <X aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
             <div className="studio-proposal-terms is-cards">
               <div className="studio-proposal-money">
                 <label className="studio-ask-field">
@@ -2414,25 +2429,13 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             ) : null}
             <div className={cn("studio-ask-foot", profile.role === "admin" && "is-spread")}>
               {profile.role === "admin" ? (
-                <span className="studio-proposal-tools">
-                  <button
-                    type="button"
-                    className="studio-proposal-preview"
-                    onClick={() => setPacketOpen(true)}
-                  >
-                    preview
-                  </button>
-                  {proposalName || proposalHref ? (
-                    <button
-                      type="button"
-                      className="studio-proposal-preview"
-                      disabled={clearOffer.isPending}
-                      onClick={() => setConfirmClear(true)}
-                    >
-                      clear
-                    </button>
-                  ) : null}
-                </span>
+                <button
+                  type="button"
+                  className="studio-proposal-preview"
+                  onClick={() => setPacketOpen(true)}
+                >
+                  preview
+                </button>
               ) : null}
               <Popover open={shareMenu} onOpenChange={setShareMenu}>
                 <PopoverTrigger asChild>
