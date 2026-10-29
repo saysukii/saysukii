@@ -10,7 +10,16 @@ import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { isSignatureDataUrl, SignaturePad } from "@/components/proposal/SignaturePad";
 import { Wordmark } from "@/components/portal/bits";
 import { BloomWait } from "@/components/portal/StudioLoader";
-import { statementFromNotes, courtesyFromNotes, floralPackageName, invoiceBookingLine, invoiceDateLabel, invoiceSharedDate, statementOfWork, INVOICE_THANKS } from "@/lib/floral-agreement";
+import {
+  statementFromNotes,
+  courtesyFromNotes,
+  floralPackageName,
+  invoiceBookingLine,
+  invoiceDateLabel,
+  invoiceSharedDate,
+  statementOfWork,
+  INVOICE_THANKS,
+} from "@/lib/floral-agreement";
 import { invoiceTitle } from "@/lib/invoice-title";
 import { formatMoneyExact } from "@/lib/money";
 import { clientHash } from "@/lib/proposal-link";
@@ -46,7 +55,11 @@ export const Route = createFileRoute("/proposal/$token")({
 });
 
 function proposalSlides(pageUrls: string[] | undefined, frameUrl: string | null) {
-  const slides: Array<{ kind: "proposal" | "agreement" | "invoice"; src?: string; frame?: string }> = [];
+  const slides: Array<{
+    kind: "proposal" | "agreement" | "invoice";
+    src?: string;
+    frame?: string;
+  }> = [];
   if (pageUrls?.length) {
     for (const src of pageUrls) slides.push({ kind: "proposal", src });
   } else if (frameUrl) {
@@ -63,7 +76,12 @@ function formatEventWhen(value: string | null) {
   if (!match) return value;
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function optionDeposit(total: number, percent: number) {
@@ -147,7 +165,11 @@ function PublicProposalPage() {
     if (!name) return;
     const hash = clientHash(name);
     if (window.location.hash === `#${hash}`) return;
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${hash}`);
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}#${hash}`,
+    );
   }, [preview?.clientName, data?.client.name]);
 
   const accept = useMutation({
@@ -235,11 +257,13 @@ function PublicProposalPage() {
     }
   }, [checked, preview, data, isPending, isError]);
 
+  const { isPending: signing, mutate: signNow } = sign;
   useEffect(() => {
-    if (isSignatureDataUrl(preview?.signedName) || !isSignatureDataUrl(signature) || sign.isPending) return;
-    const timer = window.setTimeout(() => sign.mutate(), 700);
+    if (isSignatureDataUrl(preview?.signedName) || !isSignatureDataUrl(signature) || signing)
+      return;
+    const timer = window.setTimeout(() => signNow(), 700);
     return () => window.clearTimeout(timer);
-  }, [signature, preview?.signedName, sign.isPending, sign.mutate]);
+  }, [signature, preview?.signedName, signing, signNow]);
 
   if (!checked || (!preview && isPending)) {
     return (
@@ -272,7 +296,10 @@ function PublicProposalPage() {
   const clientEmail = data?.client.email ?? "";
   const payPercent =
     preview?.depositPercent ??
-    ((data?.proposal.total_cents ?? 0) > 0 && (data?.proposal.deposit_amount_cents ?? 0) >= (data?.proposal.total_cents ?? 0) ? 100 : 50);
+    ((data?.proposal.total_cents ?? 0) > 0 &&
+    (data?.proposal.deposit_amount_cents ?? 0) >= (data?.proposal.total_cents ?? 0)
+      ? 100
+      : 50);
   const number = preview?.number ?? data?.proposal.number ?? "";
   const signedName = preview?.signedName ?? data?.agreement?.signedName ?? keptSignature;
   const paid = preview?.paid ?? data?.invoice?.status === "paid";
@@ -295,10 +322,16 @@ function PublicProposalPage() {
   });
   const totalCents = preview?.totalCents ?? data?.proposal.total_cents ?? 0;
   const courtesyCents = preview?.courtesyCents ?? courtesyFromNotes(data?.proposal.notes);
-  const depositCents = preview?.depositCents ?? data?.proposal.deposit_amount_cents ?? optionDeposit(totalCents, payPercent);
+  const depositCents =
+    preview?.depositCents ??
+    data?.proposal.deposit_amount_cents ??
+    optionDeposit(totalCents, payPercent);
   const listCents = totalCents + courtesyCents;
   const packageName = floralPackageName(work.occasion || occasion);
-  const bookingLine = invoiceBookingLine(work.occasion || occasion, invoiceDateLabel(preview?.eventDate ?? data?.proposal.event_date ?? work.eventWhen));
+  const bookingLine = invoiceBookingLine(
+    work.occasion || occasion,
+    invoiceDateLabel(preview?.eventDate ?? data?.proposal.event_date ?? work.eventWhen),
+  );
   const sharedOn = invoiceSharedDate(preview?.sentAt ?? data?.proposal.sent_at);
   const imageCount = preview?.pageUrls?.length ?? 0;
   const proposalCount = imageCount > 0 ? imageCount : Math.max(pdfCount, frameUrl ? 1 : 1);
@@ -348,8 +381,16 @@ function PublicProposalPage() {
                 <img src={signedName ?? ""} alt="Signature" className="client-packet-ink" />
               ) : accepted ? (
                 <>
-                  <SignaturePad value={signature} onChange={setSignature} disabled={sign.isPending} />
-                  {sign.isError ? <p role="alert" className="client-packet-stamp">{sign.error.message}</p> : null}
+                  <SignaturePad
+                    value={signature}
+                    onChange={setSignature}
+                    disabled={sign.isPending}
+                  />
+                  {sign.isError ? (
+                    <p role="alert" className="client-packet-stamp">
+                      {sign.error.message}
+                    </p>
+                  ) : null}
                 </>
               ) : (
                 <p className="client-packet-stamp">Accept the proposal to sign.</p>
@@ -421,7 +462,9 @@ function PublicProposalPage() {
           <span>{formatMoneyExact(totalCents)}</span>
         </div>
         <div className="client-packet-row client-packet-total">
-          <span>{paid ? "Balance due" : depositCents >= totalCents ? "Due in full" : "Deposit due"}</span>
+          <span>
+            {paid ? "Balance due" : depositCents >= totalCents ? "Due in full" : "Deposit due"}
+          </span>
           <span>
             {formatMoneyExact(paid ? 0 : depositCents)}
             {paid ? <span className="client-packet-paid">Paid</span> : null}
@@ -440,13 +483,25 @@ function PublicProposalPage() {
         </header>
 
         <div className="client-packet-steps" aria-label="packet">
-          <button type="button" className={step === "proposal" ? "is-on" : undefined} onClick={() => setView("proposal")}>
+          <button
+            type="button"
+            className={step === "proposal" ? "is-on" : undefined}
+            onClick={() => setView("proposal")}
+          >
             proposal
           </button>
-          <button type="button" className={step === "agreement" ? "is-on" : undefined} onClick={() => setView("agreement")}>
+          <button
+            type="button"
+            className={step === "agreement" ? "is-on" : undefined}
+            onClick={() => setView("agreement")}
+          >
             agreement
           </button>
-          <button type="button" className={step === "invoice" ? "is-on" : undefined} onClick={() => setView("invoice")}>
+          <button
+            type="button"
+            className={step === "invoice" ? "is-on" : undefined}
+            onClick={() => setView("invoice")}
+          >
             invoice
           </button>
         </div>
@@ -464,7 +519,10 @@ function PublicProposalPage() {
             </button>
             <div className="client-packet-count">
               proposal
-              <span> · {safePage + 1} / {proposalCount}</span>
+              <span>
+                {" "}
+                · {safePage + 1} / {proposalCount}
+              </span>
             </div>
             <button
               type="button"
@@ -480,8 +538,12 @@ function PublicProposalPage() {
 
         <div className="client-packet-card">
           {step === "proposal" && imageCount > 0 && current ? renderSlide(current, safePage) : null}
-          {step === "proposal" && imageCount === 0 && frameUrl ? <ProposalPages src={frameUrl} page={safePage} onPages={setPdfCount} /> : null}
-          {step === "proposal" && imageCount === 0 && !frameUrl ? renderSlide({ kind: "proposal" }, 0) : null}
+          {step === "proposal" && imageCount === 0 && frameUrl ? (
+            <ProposalPages src={frameUrl} page={safePage} onPages={setPdfCount} />
+          ) : null}
+          {step === "proposal" && imageCount === 0 && !frameUrl
+            ? renderSlide({ kind: "proposal" }, 0)
+            : null}
           {step === "agreement" ? renderSlide({ kind: "agreement" }, 0) : null}
           {step === "invoice" ? renderSlide({ kind: "invoice" }, 0) : null}
         </div>
@@ -512,16 +574,38 @@ function PublicProposalPage() {
               />
             </label>
             <div className="client-packet-buttons">
-              <button type="button" className="client-packet-accept" disabled={accept.isPending || changes.isPending} onClick={() => accept.mutate()}>
+              <button
+                type="button"
+                className="client-packet-accept"
+                disabled={accept.isPending || changes.isPending}
+                onClick={() => accept.mutate()}
+              >
                 {accept.isPending ? "Accepting…" : "Accept proposal"}
               </button>
-              <button type="button" className="client-packet-quiet" disabled={changes.isPending || !changeNote.trim()} onClick={() => changes.mutate()}>
+              <button
+                type="button"
+                className="client-packet-quiet"
+                disabled={changes.isPending || !changeNote.trim()}
+                onClick={() => changes.mutate()}
+              >
                 {changes.isPending ? "Sending…" : "Request changes"}
               </button>
             </div>
-            {accept.isError ? <p role="alert" className="client-packet-stamp">{accept.error.message}</p> : null}
-            {changes.isError ? <p role="alert" className="client-packet-stamp">{changes.error.message}</p> : null}
-            {noted ? <p className="client-packet-stamp">Changes requested. You can still accept this proposal.</p> : null}
+            {accept.isError ? (
+              <p role="alert" className="client-packet-stamp">
+                {accept.error.message}
+              </p>
+            ) : null}
+            {changes.isError ? (
+              <p role="alert" className="client-packet-stamp">
+                {changes.error.message}
+              </p>
+            ) : null}
+            {noted ? (
+              <p className="client-packet-stamp">
+                Changes requested. You can still accept this proposal.
+              </p>
+            ) : null}
           </section>
         ) : null}
 
@@ -538,19 +622,30 @@ function PublicProposalPage() {
         {step === "invoice" ? (
           <div className="client-packet-buttons">
             {!signed ? (
-              <p className="client-packet-stamp" style={{ marginTop: 0 }}>Sign the agreement to pay.</p>
+              <p className="client-packet-stamp" style={{ marginTop: 0 }}>
+                Sign the agreement to pay.
+              </p>
             ) : paid ? (
-              <p className="client-packet-stamp" style={{ marginTop: 0 }}>{depositCents >= totalCents ? "Paid in full." : "Deposit received."}</p>
+              <p className="client-packet-stamp" style={{ marginTop: 0 }}>
+                {depositCents >= totalCents ? "Paid in full." : "Deposit received."}
+              </p>
             ) : link ? (
               <a href={link} target="_blank" rel="noreferrer" className="client-packet-accept">
                 Pay {formatMoneyExact(depositCents)}
               </a>
             ) : preview ? (
-              <button type="button" className="client-packet-accept" disabled={pay.isPending} onClick={() => pay.mutate()}>
+              <button
+                type="button"
+                className="client-packet-accept"
+                disabled={pay.isPending}
+                onClick={() => pay.mutate()}
+              >
                 {pay.isPending ? "Paying…" : `Pay ${formatMoneyExact(depositCents)}`}
               </button>
             ) : (
-              <p className="client-packet-client">The studio will send payment instructions if the deposit link is not ready.</p>
+              <p className="client-packet-client">
+                The studio will send payment instructions if the deposit link is not ready.
+              </p>
             )}
           </div>
         ) : null}

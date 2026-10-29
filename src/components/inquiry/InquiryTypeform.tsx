@@ -147,7 +147,10 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
         kind: "choice",
         field: "event_setting",
         label: "Is this a private or corporate event?",
-        options: EVENT_SETTING_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+        options: EVENT_SETTING_OPTIONS.map((option) => ({
+          value: option.value,
+          label: option.label,
+        })),
         required: true,
       },
       eventDate,
@@ -319,7 +322,9 @@ export function InquiryTypeform({
 
   useEffect(() => {
     if (!steps.some((item) => item.id === stepId)) {
-      setStepId(steps.some((item) => item.id === "interest") ? "interest" : (steps[0]?.id ?? "name"));
+      setStepId(
+        steps.some((item) => item.id === "interest") ? "interest" : (steps[0]?.id ?? "name"),
+      );
     }
   }, [stepId, steps]);
 
@@ -341,14 +346,19 @@ export function InquiryTypeform({
     setValues((current) => ({ ...current, [field]: value }));
   }
 
-  function selectChoice(field: "interest" | "event_setting" | "arrangement_size" | "budget_range", value: string) {
+  function selectChoice(
+    field: "interest" | "event_setting" | "arrangement_size" | "budget_range",
+    value: string,
+  ) {
     updateField(field, value as never);
     setAnsweredSteps((current) => new Set(current).add(step.id));
   }
 
   function toggleSource(value: string) {
     const current = values.sources ?? [];
-    const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+    const next = current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value];
     updateField("sources", next);
     setAnsweredSteps((answered) => {
       const copy = new Set(answered);
@@ -430,7 +440,9 @@ export function InquiryTypeform({
         <div className="auth-form inquire-form" onKeyDown={onEnter}>
           <div className="auth-panel-heading inquire-heading">
             <h2>{step.label}</h2>
-            {step.kind !== "review" && step.hint ? <p className="inquire-step-note">{step.hint}</p> : null}
+            {step.kind !== "review" && step.hint ? (
+              <p className="inquire-step-note">{step.hint}</p>
+            ) : null}
           </div>
 
           {step.kind === "text" || step.kind === "email" || step.kind === "tel" ? (
@@ -500,7 +512,8 @@ export function InquiryTypeform({
           {step.kind === "choice" ? (
             <div className="inquire-choices">
               {step.options.map((option) => {
-                const active = answeredSteps.has(step.id) && String(values[step.field] ?? "") === option.value;
+                const active =
+                  answeredSteps.has(step.id) && String(values[step.field] ?? "") === option.value;
                 return (
                   <button
                     key={option.value}

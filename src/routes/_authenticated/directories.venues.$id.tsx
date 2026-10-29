@@ -57,7 +57,11 @@ function VenuePage() {
   const rest = [venue.contact_email, venue.contact_phone].filter(Boolean).join(" · ");
 
   return (
-    <DirectoryHome title={venue.name} back={{ to: "/directories/venues", label: "venues" }} lede={venue.address}>
+    <DirectoryHome
+      title={venue.name}
+      back={{ to: "/directories/venues", label: "venues" }}
+      lede={venue.address}
+    >
       <section className="studio-directory studio-directory-record">
         <dl>
           <div>

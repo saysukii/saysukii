@@ -368,7 +368,13 @@ export async function renderInvoicePdf(args: {
 
   for (const item of args.items) {
     if (y < 200) break;
-    page.drawText(item.name.slice(0, 42), { x: MARGIN, y, size: 10.5, font: fonts.body, color: INK });
+    page.drawText(item.name.slice(0, 42), {
+      x: MARGIN,
+      y,
+      size: 10.5,
+      font: fonts.body,
+      color: INK,
+    });
     const cells: Array<[string, number]> = [
       [String(item.qty), qtyX],
       [money(item.unitPriceCents), priceX],

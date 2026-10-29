@@ -16,7 +16,6 @@ import type {
   VenueRow,
 } from "@/integrations/supabase/types";
 import { assembleStudioToday } from "@/lib/os/studio-today";
-import { CONNECT_SUBJECT, connectLetterBody } from "@/lib/os/connect-letter";
 import { readPreviewArrivals } from "@/lib/preview-arrivals";
 import { clientSlugs, inquirySlugs } from "@/lib/os/inquiry-desk";
 import { isBookInquiry } from "@/lib/os/inquiry-detection";
@@ -757,14 +756,20 @@ function previewAutoTaskId(inquiryId: string, kind: string) {
   return `b0000000-0000-4000-8000-${suffix}${code}`;
 }
 
-const reviewDecisions = new Map<string, { detection_status: InquiryRow["detection_status"]; status: InquiryStatus }>();
+const reviewDecisions = new Map<
+  string,
+  { detection_status: InquiryRow["detection_status"]; status: InquiryStatus }
+>();
 const archivedInquiryIds = new Set<string>();
 const PREVIEW_STATUS_KEY = "say-sukii-preview-inquiry-status";
 
 function storedPreviewStatuses(): Array<[string, InquiryStatus]> {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(window.sessionStorage.getItem(PREVIEW_STATUS_KEY) || "{}") as Record<string, InquiryStatus>;
+    const parsed = JSON.parse(window.sessionStorage.getItem(PREVIEW_STATUS_KEY) || "{}") as Record<
+      string,
+      InquiryStatus
+    >;
     return Object.entries(parsed);
   } catch {
     return [];
@@ -776,7 +781,10 @@ const previewStatuses = new Map<string, InquiryStatus>(storedPreviewStatuses());
 export function previewSetInquiryStatus(id: string, status: InquiryStatus) {
   previewStatuses.set(id, status);
   if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(PREVIEW_STATUS_KEY, JSON.stringify(Object.fromEntries(previewStatuses)));
+  window.sessionStorage.setItem(
+    PREVIEW_STATUS_KEY,
+    JSON.stringify(Object.fromEntries(previewStatuses)),
+  );
 }
 
 export function previewArchiveInquiry(id: string) {
@@ -799,7 +807,7 @@ function withReview(inquiry: InquiryRow): InquiryRow {
   return {
     ...next,
     status,
-    booked_at: status === "booked" ? next.booked_at ?? new Date().toISOString() : next.booked_at,
+    booked_at: status === "booked" ? (next.booked_at ?? new Date().toISOString()) : next.booked_at,
   };
 }
 
@@ -858,38 +866,35 @@ function autoInquiryTasks(): TaskRow[] {
     .filter((inquiry) => !archivedInquiryIds.has(inquiry.id))
     .filter(isBookInquiry)
     .flatMap((inquiry) => {
-    const draft = desiredInquiryAutoTask({
-      inquiry,
-      clientName: clients[inquiry.client_id]?.name ?? null,
-      lastInboundAt: inquiry.received_at,
+      const draft = desiredInquiryAutoTask({
+        inquiry,
+        clientName: clients[inquiry.client_id]?.name ?? null,
+        lastInboundAt: inquiry.received_at,
+      });
+      if (!draft) return [];
+      return [
+        {
+          id: previewAutoTaskId(inquiry.id, draft.kind),
+          title: draft.title,
+          linked_type: draft.linked_type,
+          linked_id: draft.linked_id,
+          source: draft.source,
+          trigger_stage: draft.trigger_stage,
+          due_at: draft.due_at,
+          created_at: inquiry.received_at,
+          status: "open" as const,
+        },
+      ];
     });
-    if (!draft) return [];
-    return [
-      {
-        id: previewAutoTaskId(inquiry.id, draft.kind),
-        title: draft.title,
-        linked_type: draft.linked_type,
-        linked_id: draft.linked_id,
-        source: draft.source,
-        trigger_stage: draft.trigger_stage,
-        due_at: draft.due_at,
-        created_at: inquiry.received_at,
-        status: "open" as const,
-      },
-    ];
-  });
 }
 
 function withClient<T extends { client_id: string }>(row: T) {
   return { ...row, client: clients[row.client_id] ?? null };
 }
 
-const previewArrivalIds = new Set<string>();
-
 function hydratePreviewArrivals() {
   if (typeof window === "undefined") return;
   for (const arrival of readPreviewArrivals()) {
-    previewArrivalIds.add(arrival.id);
     if (inquiries.some((item) => item.id === arrival.id)) continue;
     const clientId = `preview-client-${arrival.id}`;
     clients[clientId] = {
@@ -961,7 +966,7 @@ function spokenDate(value: string) {
 }
 
 function openingLetter(inquiry: InquiryRow) {
-  const client = clients[inquiry.client_id];
+  const client = clients[inquiry.client_id]!;
   const first = client?.name?.split(/\s+/)[0] ?? "there";
   const time = inquiry.message?.match(/^Time:\s*(.+)$/m)?.[1]?.trim();
   const vision = (inquiry.message ?? "")
@@ -982,7 +987,13 @@ function openingLetter(inquiry: InquiryRow) {
     ? `${vision.charAt(0).toUpperCase()}${vision.slice(1).replace(/\.$/, "")}.`
     : "I'd love your help with the flowers.";
   const where = place ? `It would be at ${place}.` : "";
-  const body = [`Hi Say Sukii —`, "", [feeling, where, when, figure].filter(Boolean).join(" "), "", first].join("\n");
+  const body = [
+    `Hi Say Sukii —`,
+    "",
+    [feeling, where, when, figure].filter(Boolean).join(" "),
+    "",
+    first,
+  ].join("\n");
   const subject = place ? `flowers for ${place}` : "a note about flowers";
   return { subject, body };
 }
@@ -1012,7 +1023,9 @@ function formMessage(inquiry: InquiryRow): InquiryMessageRow {
 
 export function getDevPreviewInquiryWorkspace(id: string) {
   hydratePreviewArrivals();
-  const slugs = inquirySlugs(inquiries.map((item) => ({ ...item, client: clients[item.client_id] ?? null })));
+  const slugs = inquirySlugs(
+    inquiries.map((item) => ({ ...item, client: clients[item.client_id] ?? null })),
+  );
   const found =
     inquiries.find((item) => item.id === id) ??
     inquiries.find((item) => slugs.get(item.id) === id) ??
@@ -1030,7 +1043,10 @@ export function getDevPreviewInquiryWorkspace(id: string) {
             channel: "email",
             subject: previewReviewMail(inquiry.id)?.subject ?? CANDIDATE_SOURCE.subject,
             body: previewReviewMail(inquiry.id)?.body ?? inquiry.message ?? CANDIDATE_SOURCE.body,
-            from_address: client?.email ?? previewReviewMail(inquiry.id)?.from_addr ?? CANDIDATE_SOURCE.from_addr,
+            from_address:
+              client?.email ??
+              previewReviewMail(inquiry.id)?.from_addr ??
+              CANDIDATE_SOURCE.from_addr,
             to_address: "info@saysukii.com",
             gmail_message_id: "gmail-preview-candidate",
             gmail_thread_id: "thread-preview-candidate",
@@ -1168,27 +1184,6 @@ export function getDevPreviewInquiryWorkspace(id: string) {
     );
   }
 
-  if ((inquiry.id === PREVIEW_IDS.inquiryArrived || previewArrivalIds.has(inquiry.id)) && client) {
-    const sentAt = new Date(new Date(inquiry.received_at).getTime() + 60_000).toISOString();
-    messages.push({
-      id: `msg-connect-${inquiry.id}`,
-      inquiry_id: inquiry.id,
-      direction: "outbound",
-      channel: "email",
-      subject: CONNECT_SUBJECT,
-      body: connectLetterBody(client.name),
-      from_address: "info@saysukii.com",
-      to_address: client.email,
-      gmail_message_id: inquiry.id === PREVIEW_IDS.inquiryArrived ? "gmail-connect-camila" : null,
-      gmail_thread_id: inquiry.id === PREVIEW_IDS.inquiryArrived ? "thread-camila" : null,
-      author: "say sukii",
-      sent_at: sentAt,
-      status: inquiry.id === PREVIEW_IDS.inquiryArrived ? "sent" : "queued",
-      created_by: null,
-      created_at: sentAt,
-    });
-  }
-
   if (inquiry.id === PREVIEW_IDS.inquiryProposalOut) {
     messages.push({
       id: "msg-out-amelia-proposal",
@@ -1266,8 +1261,22 @@ export function getDevPreviewInquiryWorkspace(id: string) {
       status: inquiry.status,
       contacted_at: inquiry.contacted_at,
       messages,
-      proposals: proposalRows,
+      proposals: proposals.filter((item) => item.inquiry_id === inquiry.id),
       meetings: [],
+      details: {
+        clientName: client?.name ?? null,
+        clientEmail: client?.email ?? null,
+        eventType: inquiry.event_type,
+        eventDate: inquiry.event_date,
+        eventDateTbd: inquiry.event_date_tbd,
+        venue: inquiry.venue_text,
+        guestCount: inquiry.guest_count,
+        budget: inquiry.budget_range,
+        receivedAt: inquiry.received_at,
+        closedAt: inquiry.closed_at,
+        closedReason: inquiry.closed_reason,
+        detectionStatus: inquiry.detection_status,
+      },
     }),
   );
 
@@ -1294,9 +1303,23 @@ export function getDevPreviewInquiryWorkspace(id: string) {
           ]
         : [],
     gmailConnected: false,
+    invoices: [] as Array<{
+      id: string;
+      number: string;
+      total_cents: number;
+      due_now_cents: number;
+      pay_in_full: boolean;
+      status: "sent" | "deposit_paid" | "paid" | "canceled";
+      public_url: string | null;
+      sent_at: string;
+      paid_cents: number;
+    }>,
     source_message:
       inquiry.origin === "detected"
-        ? { ...(previewReviewMail(inquiry.id) ?? CANDIDATE_SOURCE), received_at: inquiry.received_at }
+        ? {
+            ...(previewReviewMail(inquiry.id) ?? CANDIDATE_SOURCE),
+            received_at: inquiry.received_at,
+          }
         : null,
   };
 }
@@ -1384,17 +1407,18 @@ export function getDevPreviewTasks() {
 export function getDevPreviewProposals() {
   return proposals.map((proposal) => ({
     ...proposal,
-    clients: { name: clients[proposal.client_id].name, email: clients[proposal.client_id].email },
+    clients: { name: clients[proposal.client_id]!.name, email: clients[proposal.client_id]!.email },
     inquiries: {
-      event_type: inquiries.find((item) => item.id === proposal.inquiry_id)?.event_type ?? "wedding",
+      event_type:
+        inquiries.find((item) => item.id === proposal.inquiry_id)?.event_type ?? "wedding",
     },
   }));
 }
 
 export function getDevPreviewProposal(id: string) {
-  const proposal = proposals.find((item) => item.id === id) ?? proposals[0];
-  const client = clients[proposal.client_id];
-  const inquiryRow = inquiries.find((item) => item.id === proposal.inquiry_id) ?? inquiries[0];
+  const proposal = proposals.find((item) => item.id === id) ?? proposals[0]!;
+  const client = clients[proposal.client_id]!;
+  const inquiryRow = inquiries.find((item) => item.id === proposal.inquiry_id) ?? inquiries[0]!;
   const venue = venues.find((item) => item.id === proposal.venue_id) ?? null;
   return {
     ...proposal,
@@ -1434,7 +1458,11 @@ export function getDevPreviewProposalBuilderData() {
   return {
     clients: studioClients(),
     inquiries: inquiries
-      .filter((item) => item.detection_status !== "candidate" && ["new", "contacted", "in_conversation"].includes(item.status))
+      .filter(
+        (item) =>
+          item.detection_status !== "candidate" &&
+          ["new", "contacted", "in_conversation"].includes(item.status),
+      )
       .map((item) => ({ ...item, clients: clients[item.client_id] })),
     arrangements,
     venues,
@@ -1459,11 +1487,11 @@ export function getDevPreviewProjects() {
       venue: project.venue_id ? (venueById.get(project.venue_id) ?? null) : null,
       client: clients[project.client_id]
         ? {
-            id: clients[project.client_id].id,
-            name: clients[project.client_id].name,
-            email: clients[project.client_id].email,
-            organization: clients[project.client_id].organization,
-            phone: clients[project.client_id].phone,
+            id: clients[project.client_id]!.id,
+            name: clients[project.client_id]!.name,
+            email: clients[project.client_id]!.email,
+            organization: clients[project.client_id]!.organization,
+            phone: clients[project.client_id]!.phone,
           }
         : null,
       proposal: proposals.find((item) => item.id === project.proposal_id)
@@ -1481,8 +1509,8 @@ export function getDevPreviewProjects() {
 }
 
 export function getDevPreviewProject(id: string) {
-  const project = projects.find((item) => item.id === id) ?? projects[0];
-  const client = clients[project.client_id];
+  const project = projects.find((item) => item.id === id) ?? projects[0]!;
+  const client = clients[project.client_id]!;
   const proposal = proposals.find((item) => item.id === project.proposal_id)!;
   const venue = venues.find((item) => item.id === project.venue_id) ?? null;
   return {
@@ -1587,7 +1615,7 @@ export function getDevPreviewClient(id: string) {
   const client =
     clients[id] ??
     Object.values(clients).find((item) => slugs.get(item.id) === id) ??
-    Object.values(clients)[0];
+    Object.values(clients)[0]!;
   return {
     client,
     slug: slugs.get(client.id) ?? client.id,
@@ -1596,7 +1624,10 @@ export function getDevPreviewClient(id: string) {
       .filter((item) => item.client_id === client.id)
       .map((item) => ({
         ...item,
-        slug: inquirySlugs(inquiries.map((row) => ({ ...row, client: clients[row.client_id] ?? null }))).get(item.id),
+        slug:
+          inquirySlugs(
+            inquiries.map((row) => ({ ...row, client: clients[row.client_id] ?? null })),
+          ).get(item.id) ?? item.id,
       })),
     proposals: proposals
       .filter((item) => item.client_id === client.id)
@@ -1623,7 +1654,7 @@ export function getDevPreviewClient(id: string) {
 export function getDevPreviewLibrary(): LibraryData {
   const stemById = new Map(stems.map((stem) => [stem.id, stem]));
   const vendorById = new Map(vendors.map((vendor) => [vendor.id, vendor]));
-  const recipe = recipes[0];
+  const recipe = recipes[0]!;
   const libraryRecipe = {
     ...recipe,
     recipe_stems: recipeStems.map((line) => ({
@@ -1767,8 +1798,8 @@ export function getDevPreviewDirectories() {
 }
 
 export function getDevPreviewShoppingList(projectId: string) {
-  const project = projects.find((item) => item.id === projectId) ?? projects[0];
-  const client = clients[project.client_id];
+  const project = projects.find((item) => item.id === projectId) ?? projects[0]!;
+  const client = clients[project.client_id]!;
   const lines = [
     {
       key: "preview-1",

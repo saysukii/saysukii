@@ -9,7 +9,7 @@ export function AskField({
 }: {
   label: string;
   children: ReactNode;
-  className?: string;
+  className?: string | undefined;
 }) {
   return (
     <label className={cn("studio-ask-field", className)}>

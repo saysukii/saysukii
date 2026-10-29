@@ -186,13 +186,17 @@ function fentyDemo(): PreviewProposal {
 
 export function openPreviewProposal(token: string) {
   const map = readMap();
-  if (typeof window !== "undefined" && token === FENTY_DEMO && sessionStorage.getItem("say-sukii-fenty-fresh") !== FENTY_FRESH) {
+  if (
+    typeof window !== "undefined" &&
+    token === FENTY_DEMO &&
+    sessionStorage.getItem("say-sukii-fenty-fresh") !== FENTY_FRESH
+  ) {
     delete map[token];
     sessionStorage.setItem("say-sukii-fenty-fresh", FENTY_FRESH);
   }
   const current = map[token] ?? (token === FENTY_DEMO ? fentyDemo() : null);
   if (!current) return null;
-  if (token === FENTY_DEMO) current.pageUrls = fentyDemo().pageUrls;
+  if (token === FENTY_DEMO) current.pageUrls = fentyDemo().pageUrls ?? [];
   current.viewedAt = new Date().toISOString();
   if (current.status === "sent") current.status = "viewed";
   map[token] = current;

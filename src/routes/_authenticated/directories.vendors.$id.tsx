@@ -57,7 +57,11 @@ function VendorPage() {
   const rest = [vendor.contact_email, vendor.contact_phone].filter(Boolean).join(" · ");
 
   return (
-    <DirectoryHome title={vendor.name} back={{ to: "/directories/vendors", label: "vendors" }} lede={vendor.type}>
+    <DirectoryHome
+      title={vendor.name}
+      back={{ to: "/directories/vendors", label: "vendors" }}
+      lede={vendor.type}
+    >
       <section className="studio-directory studio-directory-record">
         <dl>
           <div>
@@ -75,7 +79,9 @@ function VendorPage() {
             </dd>
           </div>
         </dl>
-        <p className="studio-directory-note">{vendor.ordering_method || "no ordering notes yet."}</p>
+        <p className="studio-directory-note">
+          {vendor.ordering_method || "no ordering notes yet."}
+        </p>
         <Link to="/directories/vendors" className="auth-text-action">
           all vendors
         </Link>

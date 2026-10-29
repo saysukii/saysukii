@@ -42,7 +42,11 @@ export function invoiceDateLabel(value: string) {
   const date = iso
     ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
     : slash
-      ? new Date(slash[3].length === 2 ? 2000 + Number(slash[3]) : Number(slash[3]), Number(slash[1]) - 1, Number(slash[2]))
+      ? new Date(
+          (slash[3] ?? "").length === 2 ? 2000 + Number(slash[3]) : Number(slash[3]),
+          Number(slash[1]) - 1,
+          Number(slash[2]),
+        )
       : null;
   if (date && !Number.isNaN(date.getTime())) {
     return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
@@ -73,7 +77,9 @@ export function invoiceBookingLine(occasion: string, when: string) {
   return `Booked for ${service} on ${when.trim()}.`;
 }
 
-export function statementOfWork(partial?: Partial<StatementOfWork> | null): StatementOfWork {
+export function statementOfWork(
+  partial?: { [K in keyof StatementOfWork]?: StatementOfWork[K] | undefined } | null,
+): StatementOfWork {
   return {
     flowers: partial?.flowers ?? "",
     delivery: partial?.delivery ?? "as detailed in the proposal",
@@ -148,7 +154,10 @@ export function floralAgreementBlocks(fields: FloralAgreementFields): FloralBloc
     },
     { kind: "heading", text: "Client details" },
     { kind: "line", text: client },
-    { kind: "note", text: "This is a copy. Your personal service agreement will be sent upon booking." },
+    {
+      kind: "note",
+      text: "This is a copy. Your personal service agreement will be sent upon booking.",
+    },
     { kind: "heading", text: "Payment & fees" },
     {
       kind: "body",
@@ -172,7 +181,7 @@ export function floralAgreementBlocks(fields: FloralAgreementFields): FloralBloc
     },
     {
       kind: "body",
-      text: 'Payments must be made by cash, check (payable to Say Sukii, LLC), wire transfer, bank transfer via Zelle, or online via credit/debit card. If using a check or credit/debit card, an additional 4% will be applied to the total. Payment due dates and account information will be indicated on your invoices and personal service agreement.',
+      text: "Payments must be made by cash, check (payable to Say Sukii, LLC), wire transfer, bank transfer via Zelle, or online via credit/debit card. If using a check or credit/debit card, an additional 4% will be applied to the total. Payment due dates and account information will be indicated on your invoices and personal service agreement.",
     },
     {
       kind: "body",
@@ -262,7 +271,10 @@ export function floralAgreementBlocks(fields: FloralAgreementFields): FloralBloc
     { kind: "line", text: `Delivery: ${fields.delivery || "as detailed in the proposal"}` },
     { kind: "line", text: `Taxes + service: ${fields.taxes || "as detailed in the proposal"}` },
     { kind: "line", text: `Rentals fee: ${fields.rentals || "as detailed in the proposal"}` },
-    { kind: "line", text: `Rental security deposit: ${fields.rentalDeposit || "refundable, see agreement"}` },
+    {
+      kind: "line",
+      text: `Rental security deposit: ${fields.rentalDeposit || "refundable, see agreement"}`,
+    },
     { kind: "subhead", text: "B. Location" },
     { kind: "line", text: `Event day / date / time: ${fields.eventWhen || "—"}` },
     { kind: "line", text: `Occasion: ${fields.occasion || "—"}` },
@@ -271,7 +283,10 @@ export function floralAgreementBlocks(fields: FloralAgreementFields): FloralBloc
     { kind: "line", text: `Grand total: ${fields.total}` },
     { kind: "line", text: `Booking deposit: ${fields.deposit}` },
     { kind: "line", text: `Final payment: ${fields.balance}, due 30 days before the event` },
-    { kind: "note", text: "This is a copy. Your personal service agreement will be sent upon booking." },
+    {
+      kind: "note",
+      text: "This is a copy. Your personal service agreement will be sent upon booking.",
+    },
   ];
 }
 

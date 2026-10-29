@@ -4,7 +4,7 @@ export type MailTemplate = {
   id: string;
   name: string;
   body: string;
-  subject?: string;
+  subject?: string | undefined;
 };
 
 const STORAGE_KEY = "say-sukii-mail-templates";
@@ -73,7 +73,8 @@ const PREVIOUS_TEMPLATE_BODIES: Record<string, string> = {
     "",
     "<3",
   ].join("\n"),
-  proposal: "{name} —\n\nYour proposal is ready. It holds the flowers, the scale, and the investment for the day.",
+  proposal:
+    "{name} —\n\nYour proposal is ready. It holds the flowers, the scale, and the investment for the day.",
 };
 
 function readStored(): MailTemplate[] | null {
@@ -94,7 +95,9 @@ export function loadTemplates(): MailTemplate[] {
   if (!saved?.length) return BUILT_IN_TEMPLATES.map((item) => ({ ...item }));
   const builtIn = new Map(BUILT_IN_TEMPLATES.map((item) => [item.id, item]));
   const known = new Set(saved.map((item) => item.id));
-  const added = BUILT_IN_TEMPLATES.filter((item) => !known.has(item.id)).map((item) => ({ ...item }));
+  const added = BUILT_IN_TEMPLATES.filter((item) => !known.has(item.id)).map((item) => ({
+    ...item,
+  }));
   const current = saved.map((item) => {
     const fresh = builtIn.get(item.id);
     if (!fresh) return item;

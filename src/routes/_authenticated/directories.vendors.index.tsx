@@ -6,14 +6,33 @@ import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { AskChips, AskField } from "@/components/portal/ask-form";
-import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
+import {
+  DirectoryHome,
+  DirectoryImport,
+  DirectoryPick,
+  DirectorySearch,
+  DirectorySelectBar,
+  DirectorySelectToggle,
+} from "@/components/portal/DirectoryHome";
 import { PersonName } from "@/components/studio/PersonName";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { VendorRow } from "@/integrations/supabase/types";
 import { getDevPreviewDirectories } from "@/lib/dev-preview";
-import { importVendors, listDirectories, saveVendor } from "@/lib/os/clients.functions";
+import {
+  archiveVendor,
+  importVendors,
+  listDirectories,
+  saveVendor,
+} from "@/lib/os/clients.functions";
 import { csvImportNote, readVendorCsv } from "@/lib/os/directory-csv";
 import { useDevPreview } from "@/lib/use-dev-preview";
+import { useDirectorySelection } from "@/lib/use-directory-selection";
 
 export const Route = createFileRoute("/_authenticated/directories/vendors/")({
   head: () => ({
@@ -46,8 +65,11 @@ function VendorDirectoryPage() {
   const fetchDirectories = useServerFn(listDirectories);
   const submitVendor = useServerFn(saveVendor);
   const bringIn = useServerFn(importVendors);
+  const removeVendors = useServerFn(archiveVendor);
   const [search, setSearch] = useState("");
   const [broughtIn, setBroughtIn] = useState<VendorRow[]>([]);
+  const [gone, setGone] = useState<Set<string>>(() => new Set());
+  const selection = useDirectorySelection();
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
@@ -57,16 +79,25 @@ function VendorDirectoryPage() {
     enabled: isAdmin,
   });
 
-  const saved = data?.vendors ?? [];
+  const saved = useMemo(() => data?.vendors ?? [], [data]);
   const vendors = useMemo(() => {
     const seen = new Set(saved.map((vendor) => vendor.name.trim().toLowerCase()));
-    return [...broughtIn.filter((vendor) => !seen.has(vendor.name.trim().toLowerCase())), ...saved];
-  }, [broughtIn, saved]);
+    return [
+      ...broughtIn.filter((vendor) => !seen.has(vendor.name.trim().toLowerCase())),
+      ...saved,
+    ].filter((vendor) => !gone.has(vendor.id));
+  }, [broughtIn, gone, saved]);
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     const rows = term
       ? vendors.filter((vendor) =>
-          [vendor.name, vendor.contact_name, vendor.contact_email, vendor.ordering_method, vendor.type]
+          [
+            vendor.name,
+            vendor.contact_name,
+            vendor.contact_email,
+            vendor.ordering_method,
+            vendor.type,
+          ]
             .filter(Boolean)
             .some((value) => String(value).toLowerCase().includes(term)),
         )
@@ -105,7 +136,12 @@ function VendorDirectoryPage() {
         await queryClient.invalidateQueries({ queryKey: ["os", "directories"] });
       }
       const note = [
-        csvImportNote(fresh.length, parsed.rows.length - fresh.length, parsed.rejected.length, devPreview),
+        csvImportNote(
+          fresh.length,
+          parsed.rows.length - fresh.length,
+          parsed.rejected.length,
+          devPreview,
+        ),
         parsed.rejected[0]?.reason,
       ]
         .filter(Boolean)
@@ -151,6 +187,20 @@ function VendorDirectoryPage() {
     createVendor.mutate();
   }
 
+  const remove = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!devPreview) await removeVendors({ data: { ids } });
+      return ids;
+    },
+    onSuccess: async (ids) => {
+      setGone((current) => new Set([...current, ...ids]));
+      selection.stop();
+      toast.success(ids.length === 1 ? "vendor deleted" : `${ids.length} vendors deleted`);
+      if (!devPreview) await queryClient.invalidateQueries({ queryKey: ["os", "directories"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   if (!isAdmin) {
     return (
       <div className="studio-home is-book">
@@ -163,7 +213,9 @@ function VendorDirectoryPage() {
     <DirectoryHome
       title="vendors"
       back={{ to: "/library", label: "library" }}
-      lede={isPending ? undefined : `${vendors.length} ${vendors.length === 1 ? "vendor" : "vendors"}`}
+      lede={
+        isPending ? undefined : `${vendors.length} ${vendors.length === 1 ? "vendor" : "vendors"}`
+      }
       action={
         <>
           <DirectoryImport
@@ -173,26 +225,59 @@ function VendorDirectoryPage() {
           <button type="button" className="studio-today-go" onClick={() => setAdding(true)}>
             add
           </button>
+          {vendors.length > 0 ? <DirectorySelectToggle selection={selection} /> : null}
         </>
       }
     >
-      <DirectorySearch label="find a vendor" value={search} placeholder="find a vendor" onChange={setSearch} />
+      <DirectorySearch
+        label="find a vendor"
+        value={search}
+        placeholder="find a vendor"
+        onChange={setSearch}
+      />
       {!isPending && visible.length === 0 ? <p className="studio-empty">no vendors yet.</p> : null}
       {visible.length > 0 ? (
         <div className="studio-directory">
-          {visible.map((vendor) => (
-            <Link key={vendor.id} to="/directories/vendors/$id" params={{ id: vendor.id }} className="studio-book-row">
-              <span>
-                <b>{vendor.name}</b>
-                <em>
-                  {vendor.ordering_method ||
-                    vendor.contact_email ||
-                    (vendor.contact_name ? <PersonName name={vendor.contact_name} /> : "no ordering notes")}
-                </em>
-              </span>
-              <small>{vendor.type}</small>
-            </Link>
-          ))}
+          <DirectorySelectBar
+            selection={selection}
+            visibleIds={visible.map((vendor) => vendor.id)}
+            noun={["vendor", "vendors"]}
+            busy={remove.isPending}
+            onDelete={(ids) => remove.mutate(ids)}
+          />
+          {visible.map((vendor) => {
+            const row = (
+              <>
+                <span>
+                  <b>{vendor.name}</b>
+                  <em>
+                    {vendor.ordering_method ||
+                      vendor.contact_email ||
+                      (vendor.contact_name ? (
+                        <PersonName name={vendor.contact_name} />
+                      ) : (
+                        "no ordering notes"
+                      ))}
+                  </em>
+                </span>
+                <small>{vendor.type}</small>
+              </>
+            );
+            return selection.on ? (
+              <DirectoryPick key={vendor.id} selection={selection} id={vendor.id}>
+                {row}
+              </DirectoryPick>
+            ) : (
+              <Link
+                key={vendor.id}
+                to="/directories/vendors/$id"
+                params={{ id: vendor.id }}
+                className="studio-book-row"
+              >
+                {row}
+              </Link>
+            );
+          })}
         </div>
       ) : null}
 
@@ -203,14 +288,20 @@ function VendorDirectoryPage() {
           if (!open) setForm(emptyForm);
         }}
       >
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+        <DialogContent
+          overlayClassName="studio-task-veil"
+          className="studio-task-modal is-ask"
+          hideClose
+        >
           <div className="studio-task-head">
             <DialogClose className="studio-task-close" aria-label="Close">
               <X aria-hidden="true" />
             </DialogClose>
           </div>
           <DialogTitle className="sr-only">add a vendor</DialogTitle>
-          <DialogDescription className="sr-only">a market, a wholesaler, or a rental.</DialogDescription>
+          <DialogDescription className="sr-only">
+            a market, a wholesaler, or a rental.
+          </DialogDescription>
           <form className="studio-task-form" onSubmit={submit}>
             <label className="studio-task-composer-title">
               <span className="sr-only">who is this</span>

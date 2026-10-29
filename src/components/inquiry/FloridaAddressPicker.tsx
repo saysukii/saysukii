@@ -27,7 +27,9 @@ export function FloridaAddressPicker({
   const searchRef = useRef(searchAddresses);
   searchRef.current = searchAddresses;
   const [query, setQuery] = useState(value);
-  const [results, setResults] = useState<Array<{ id: string; label: string; value: string; provider?: string }>>([]);
+  const [results, setResults] = useState<
+    Array<{ id: string; label: string; value: string; provider?: string }>
+  >([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -80,7 +82,9 @@ export function FloridaAddressPicker({
     <div className={cn("inquire-address", line && "is-line")}>
       <label className="auth-field inquire-address-field">
         <span className="sr-only">{label}</span>
-        <div className={cn("auth-input inquire-address-input", open && "inquire-address-input--open")}>
+        <div
+          className={cn("auth-input inquire-address-input", open && "inquire-address-input--open")}
+        >
           <MapPin className="size-4 shrink-0 opacity-55" aria-hidden="true" />
           <input
             type="text"
@@ -114,7 +118,9 @@ export function FloridaAddressPicker({
 
       {open ? (
         <ul id={listId} role="listbox" className="inquire-address-results">
-          {loading && results.length === 0 ? <li className="inquire-address-status">searching places…</li> : null}
+          {loading && results.length === 0 ? (
+            <li className="inquire-address-status">searching places…</li>
+          ) : null}
           {results.map((result) => (
             <li key={result.id}>
               <button
@@ -129,7 +135,9 @@ export function FloridaAddressPicker({
               </button>
             </li>
           ))}
-          {!loading && results.length === 0 ? <li className="inquire-address-status">no places found yet</li> : null}
+          {!loading && results.length === 0 ? (
+            <li className="inquire-address-status">no places found yet</li>
+          ) : null}
           {fromGoogle ? <li className="inquire-address-credit">powered by google</li> : null}
         </ul>
       ) : null}

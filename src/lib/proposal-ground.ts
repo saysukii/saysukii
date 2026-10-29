@@ -20,7 +20,12 @@ export function knockPageGround(image: PagePixels, tolerance = 36) {
   ];
   const corners = points.map(([x, y]) => {
     const index = ((y ?? 0) * width + (x ?? 0)) * 4;
-    return [at(data, index), at(data, index + 1), at(data, index + 2), at(data, index + 3)] as const;
+    return [
+      at(data, index),
+      at(data, index + 1),
+      at(data, index + 2),
+      at(data, index + 3),
+    ] as const;
   });
   if (corners.some((corner) => corner[3] < 20)) return;
   const base = [0, 1, 2].map((channel) =>
@@ -30,7 +35,9 @@ export function knockPageGround(image: PagePixels, tolerance = 36) {
   const green = base[1] ?? 0;
   const blue = base[2] ?? 0;
   const spread = Math.max(
-    ...corners.map((corner) => Math.max(Math.abs(corner[0] - red), Math.abs(corner[1] - green), Math.abs(corner[2] - blue))),
+    ...corners.map((corner) =>
+      Math.max(Math.abs(corner[0] - red), Math.abs(corner[1] - green), Math.abs(corner[2] - blue)),
+    ),
   );
   if (spread > 18) return;
   if (red + green + blue < 540) return;

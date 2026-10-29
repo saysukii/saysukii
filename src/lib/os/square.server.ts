@@ -27,6 +27,11 @@ export function squareAuthorizeUrl(state: string) {
       "ORDERS_WRITE",
       "ORDERS_READ",
       "MERCHANT_PROFILE_READ",
+      "ITEMS_READ",
+      "CUSTOMERS_READ",
+      "CUSTOMERS_WRITE",
+      "INVOICES_READ",
+      "INVOICES_WRITE",
     ].join(" "),
   );
   url.searchParams.set("session", squareEnvironment() === "production" ? "false" : "true");
@@ -120,6 +125,222 @@ export async function createSquarePaymentLink(input: {
   return { url: link.url, orderId: link.order_id ?? null, id: link.id };
 }
 
+export type SquareCatalogItem = {
+  id: string;
+  name: string;
+  variation: string | null;
+  description: string | null;
+  priceCents: number | null;
+};
+
+/** Every item variation in the studio's square catalog, priced or not, the way square's invoice picker lists them. */
+export async function listSquareCatalog(): Promise<SquareCatalogItem[]> {
+  const token = await squareAccessToken();
+  const items: SquareCatalogItem[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 10; page += 1) {
+    const query = new URLSearchParams({ types: "ITEM" });
+    if (cursor) query.set("cursor", cursor);
+    const response = await squareRequest<SquareCatalogResponse>(`/v2/catalog/list?${query}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    for (const object of response.objects ?? []) {
+      const item = object.item_data;
+      if (!item?.name || object.is_deleted || item.is_archived) continue;
+      const variations = item.variations ?? [];
+      for (const variation of variations) {
+        const data = variation.item_variation_data;
+        if (!variation.id || variation.is_deleted) continue;
+        const named = data?.name?.trim();
+        items.push({
+          id: variation.id,
+          name: item.name.trim(),
+          variation:
+            variations.length > 1 && named && named.toLowerCase() !== "regular" ? named : null,
+          description: item.description_plaintext?.trim() || item.description?.trim() || null,
+          priceCents:
+            data?.pricing_type === "VARIABLE_PRICING" ? null : (data?.price_money?.amount ?? null),
+        });
+      }
+    }
+    cursor = response.cursor;
+    if (!cursor) break;
+  }
+  return items.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export type SquareInvoiceLine = {
+  name: string;
+  note: string | null;
+  quantity: number;
+  unitCents: number;
+  catalogId: string | null;
+};
+
+/**
+ * A square invoice the client pays on square's own page, the same kind Sukii makes in her dashboard.
+ * Catalog items stay linked to the catalog; anything priced by hand goes as its own line.
+ */
+export async function createSquareInvoice(input: {
+  key: string;
+  number: string;
+  title: string;
+  customer: { name: string; email: string };
+  lines: SquareInvoiceLine[];
+  courtesyCents: number;
+  depositCents: number | null;
+  balanceDue: string;
+}) {
+  const locationId = process.env["SQUARE_LOCATION_ID"];
+  if (!locationId) throw new Error("SQUARE_LOCATION_ID is not configured");
+  const auth = { Authorization: `Bearer ${await squareAccessToken()}` };
+  const today = new Date().toISOString().slice(0, 10);
+
+  const found = await squareRequest<{ customers?: Array<{ id?: string }> }>(
+    "/v2/customers/search",
+    {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        query: { filter: { email_address: { exact: input.customer.email } } },
+        limit: 1,
+      }),
+    },
+  );
+  let customerId = found.customers?.[0]?.id;
+  if (!customerId) {
+    const [given, ...rest] = input.customer.name.trim().split(/\s+/);
+    const created = await squareRequest<{ customer?: { id?: string } }>("/v2/customers", {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        idempotency_key: `${input.key}-customer`,
+        given_name: given || input.customer.email,
+        family_name: rest.join(" ") || undefined,
+        email_address: input.customer.email,
+      }),
+    });
+    customerId = created.customer?.id;
+  }
+  if (!customerId) throw new Error("Square did not return a customer");
+
+  const order = await squareRequest<{ order?: { id?: string } }>("/v2/orders", {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({
+      idempotency_key: `${input.key}-order`,
+      order: {
+        location_id: locationId,
+        customer_id: customerId,
+        line_items: input.lines.map((line) =>
+          line.catalogId
+            ? {
+                catalog_object_id: line.catalogId,
+                quantity: String(line.quantity),
+                ...(line.note ? { note: line.note } : {}),
+              }
+            : {
+                name: line.name,
+                quantity: String(line.quantity),
+                base_price_money: { amount: line.unitCents, currency: "USD" },
+                ...(line.note ? { note: line.note } : {}),
+              },
+        ),
+        ...(input.courtesyCents > 0
+          ? {
+              discounts: [
+                {
+                  uid: "courtesy",
+                  name: "courtesy discount",
+                  amount_money: { amount: input.courtesyCents, currency: "USD" },
+                  scope: "ORDER",
+                },
+              ],
+            }
+          : {}),
+      },
+    }),
+  });
+  const orderId = order.order?.id;
+  if (!orderId) throw new Error("Square did not return an order");
+
+  const draft = await squareRequest<{ invoice?: { id?: string; version?: number } }>(
+    "/v2/invoices",
+    {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        idempotency_key: `${input.key}-invoice`,
+        invoice: {
+          location_id: locationId,
+          order_id: orderId,
+          primary_recipient: { customer_id: customerId },
+          payment_requests: input.depositCents
+            ? [
+                {
+                  request_type: "DEPOSIT",
+                  due_date: today,
+                  fixed_amount_requested_money: { amount: input.depositCents, currency: "USD" },
+                },
+                {
+                  request_type: "BALANCE",
+                  due_date: input.balanceDue < today ? today : input.balanceDue,
+                },
+              ]
+            : [{ request_type: "BALANCE", due_date: today }],
+          delivery_method: "SHARE_MANUALLY",
+          accepted_payment_methods: {
+            card: true,
+            square_gift_card: false,
+            bank_account: false,
+            buy_now_pay_later: false,
+            cash_app_pay: false,
+          },
+          invoice_number: input.number,
+          title: input.title,
+        },
+      }),
+    },
+  );
+  if (!draft.invoice?.id || draft.invoice.version == null)
+    throw new Error("Square did not return an invoice");
+
+  const published = await squareRequest<{ invoice?: { id?: string; public_url?: string } }>(
+    `/v2/invoices/${encodeURIComponent(draft.invoice.id)}/publish`,
+    {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({
+        version: draft.invoice.version,
+        idempotency_key: `${input.key}-publish`,
+      }),
+    },
+  );
+  const url = published.invoice?.public_url;
+  if (!url) throw new Error("Square did not return a link to pay the invoice");
+  return { invoiceId: draft.invoice.id, orderId, url };
+}
+
+/** Where a square invoice stands: what's been paid, and whether it's done. */
+export async function readSquareInvoice(invoiceId: string) {
+  const response = await squareRequest<{
+    invoice?: {
+      status?: string;
+      payment_requests?: Array<{ total_completed_amount_money?: { amount?: number } }>;
+    };
+  }>(`/v2/invoices/${encodeURIComponent(invoiceId)}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${await squareAccessToken()}` },
+  });
+  const invoice = response.invoice;
+  const paidCents = (invoice?.payment_requests ?? []).reduce(
+    (sum, request) => sum + Number(request.total_completed_amount_money?.amount ?? 0),
+    0,
+  );
+  return { status: invoice?.status ?? "UNKNOWN", paidCents };
+}
+
 export async function verifySquareWebhook(body: string, signature: string) {
   const signatureKey = process.env["SQUARE_WEBHOOK_SIGNATURE_KEY"];
   const notificationUrl = process.env["SQUARE_WEBHOOK_URL"];
@@ -175,6 +396,29 @@ type SquareTokenResponse = {
   refresh_token?: string;
   expires_at?: string;
   merchant_id?: string;
+};
+
+type SquareCatalogResponse = {
+  cursor?: string;
+  objects?: Array<{
+    id?: string;
+    is_deleted?: boolean;
+    item_data?: {
+      name?: string;
+      description?: string;
+      description_plaintext?: string;
+      is_archived?: boolean;
+      variations?: Array<{
+        id?: string;
+        is_deleted?: boolean;
+        item_variation_data?: {
+          name?: string;
+          pricing_type?: "FIXED_PRICING" | "VARIABLE_PRICING";
+          price_money?: { amount?: number; currency?: string };
+        };
+      }>;
+    };
+  }>;
 };
 
 type SquarePaymentLinkResponse = {

@@ -1,4 +1,5 @@
-const PROPOSAL_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]*\/proposal\/([A-Za-z0-9_-]+)(?:#[^)\s]*)?)\)/g;
+const PROPOSAL_LINK =
+  /\[([^\]\n]+)\]\((https?:\/\/[^)\s]*\/proposal\/([A-Za-z0-9_-]+)(?:#[^)\s]*)?)\)/g;
 
 export function clientHash(name: string) {
   const slug = name

@@ -87,25 +87,40 @@ type FormQuestion = {
 
 function questionsFor(tab: InquiryEditorTab, drafts: InquiryDrafts): FormQuestion[] {
   const steps =
-    tab === "shared" ? resolveSharedSteps(drafts) : visibleInquirySteps(resolveInquirySteps(tab, drafts));
-  return steps.filter((step) => step.kind !== "review").map((step) => ({
-    id: step.id,
-    label: step.label.toLowerCase(),
-    hint: (step.hint ?? "").toLowerCase(),
-    options:
-      step.kind === "choice" || step.kind === "multi"
-        ? step.options.map((option) => ({ value: option.value, label: option.label.toLowerCase() }))
-        : [],
-  }));
+    tab === "shared"
+      ? resolveSharedSteps(drafts)
+      : visibleInquirySteps(resolveInquirySteps(tab, drafts));
+  return steps
+    .filter((step) => step.kind !== "review")
+    .map((step) => ({
+      id: step.id,
+      label: step.label.toLowerCase(),
+      hint: (step.hint ?? "").toLowerCase(),
+      options:
+        step.kind === "choice" || step.kind === "multi"
+          ? step.options.map((option) => ({
+              value: option.value,
+              label: option.label.toLowerCase(),
+            }))
+          : [],
+    }));
 }
 
-function storeTab(drafts: InquiryDrafts, tab: InquiryEditorTab, questions: FormQuestion[]): InquiryDrafts {
+function storeTab(
+  drafts: InquiryDrafts,
+  tab: InquiryEditorTab,
+  questions: FormQuestion[],
+): InquiryDrafts {
   const path: InquiryPathDraft =
-    tab === "shared" ? (drafts.shared ?? snapshotSharedPath()) : (drafts[tab] ?? snapshotInquiryPath(tab));
+    tab === "shared"
+      ? (drafts.shared ?? snapshotSharedPath())
+      : (drafts[tab] ?? snapshotInquiryPath(tab));
   const copy = { ...path.copy };
   for (const question of questions) {
     const options = question.options.length
-      ? Object.fromEntries(question.options.map((option) => [option.value, option.label.trim().toLowerCase()]))
+      ? Object.fromEntries(
+          question.options.map((option) => [option.value, option.label.trim().toLowerCase()]),
+        )
       : copy[question.id]?.options;
     copy[question.id] = {
       label: question.label.trim().toLowerCase(),
@@ -148,7 +163,9 @@ function SettingsPage() {
   const [resetting, setResetting] = useState(false);
   const [formTab, setFormTab] = useState<InquiryEditorTab>("shared");
   const [drafts, setDrafts] = useState<InquiryDrafts>(() => readInquiryDrafts());
-  const [formQuestions, setFormQuestions] = useState<FormQuestion[]>(() => questionsFor("shared", readInquiryDrafts()));
+  const [formQuestions, setFormQuestions] = useState<FormQuestion[]>(() =>
+    questionsFor("shared", readInquiryDrafts()),
+  );
   const [savingForm, setSavingForm] = useState(false);
   const formTabRef = useRef(formTab);
   formTabRef.current = formTab;
@@ -201,8 +218,7 @@ function SettingsPage() {
 
   useEffect(() => {
     if (!integration || !status) return;
-    const provider =
-      integration === "square" ? "Square" : "Google";
+    const provider = integration === "square" ? "Square" : "Google";
     if (status === "connected") toast.success(`${provider} connected`);
     else toast.error(`${provider} could not be connected`);
     window.history.replaceState({}, "", "/settings");
@@ -389,7 +405,12 @@ function SettingsPage() {
             <p>a reset link goes to your email.</p>
           </div>
           <div className="studio-connect-go">
-            <button type="button" className="studio-ghost" disabled={resetting} onClick={() => void sendReset()}>
+            <button
+              type="button"
+              className="studio-ghost"
+              disabled={resetting}
+              onClick={() => void sendReset()}
+            >
               {resetting ? "sending…" : "reset password"}
             </button>
           </div>
@@ -414,13 +435,14 @@ function SettingsPage() {
           const connectionStatus = linked ? "connected" : (stored?.status ?? "disconnected");
           const accountEmail =
             provider.id === "google"
-              ? (gmail && "account_email" in gmail ? gmail.account_email : null) ??
+              ? ((gmail && "account_email" in gmail ? gmail.account_email : null) ??
                 (stored?.metadata &&
                 typeof stored.metadata === "object" &&
                 !Array.isArray(stored.metadata) &&
-                typeof stored.metadata.account_email === "string"
-                  ? stored.metadata.account_email
-                  : null)
+                "account_email" in stored.metadata &&
+                typeof stored.metadata["account_email"] === "string"
+                  ? stored.metadata["account_email"]
+                  : null))
               : null;
           const pending =
             provider.id === "square"
@@ -451,9 +473,12 @@ function SettingsPage() {
                   type="button"
                   className="studio-today-go"
                   disabled={pending}
-                  onClick={() => (provider.id === "square" ? squareOAuth.mutate() : googleOAuth.mutate())}
+                  onClick={() =>
+                    provider.id === "square" ? squareOAuth.mutate() : googleOAuth.mutate()
+                  }
                 >
-                  {pending && (provider.id === "square" ? squareOAuth.isPending : googleOAuth.isPending)
+                  {pending &&
+                  (provider.id === "square" ? squareOAuth.isPending : googleOAuth.isPending)
                     ? "redirecting…"
                     : connectionStatus === "connected"
                       ? "reconnect"
@@ -484,8 +509,8 @@ function SettingsPage() {
           <p className="studio-kicker">the studio</p>
           <h2>invite someone in</h2>
           <p>
-            an invitation emails a link that lasts 7 days. they set a password and join this studio. team can work the
-            book. an admin can also change settings and invite others.
+            an invitation emails a link that lasts 7 days. they set a password and join this studio.
+            team can work the book. an admin can also change settings and invite others.
           </p>
         </div>
       </div>
@@ -503,7 +528,11 @@ function SettingsPage() {
         </label>
         <label className="studio-field">
           <span>role</span>
-          <select className="studio-select" value={role} onChange={(event) => setRole(event.target.value as "admin" | "team")}>
+          <select
+            className="studio-select"
+            value={role}
+            onChange={(event) => setRole(event.target.value as "admin" | "team")}
+          >
             <option value="team">team — works the book</option>
             <option value="admin">admin — settings and invites too</option>
           </select>
@@ -532,9 +561,16 @@ function SettingsPage() {
               <p>last seen {formatSeen(member.last_seen_at)}</p>
             </div>
             <div className="studio-views">
-              <StudioChip tone={member.active ? "soft" : "due"}>{member.active ? member.role : "inactive"}</StudioChip>
+              <StudioChip tone={member.active ? "soft" : "due"}>
+                {member.active ? member.role : "inactive"}
+              </StudioChip>
               {member.active && member.id !== profile.id ? (
-                <button type="button" className="studio-ghost" disabled={removeMember.isPending} onClick={() => removeMember.mutate(member.id)}>
+                <button
+                  type="button"
+                  className="studio-ghost"
+                  disabled={removeMember.isPending}
+                  onClick={() => removeMember.mutate(member.id)}
+                >
                   deactivate
                 </button>
               ) : null}
@@ -573,7 +609,9 @@ function SettingsPage() {
                   onChange={(event) =>
                     setFormQuestions((current) =>
                       current.map((item) =>
-                        item.id === question.id ? { ...item, label: event.target.value.toLowerCase() } : item,
+                        item.id === question.id
+                          ? { ...item, label: event.target.value.toLowerCase() }
+                          : item,
                       ),
                     )
                   }
@@ -587,7 +625,9 @@ function SettingsPage() {
                   onChange={(event) =>
                     setFormQuestions((current) =>
                       current.map((item) =>
-                        item.id === question.id ? { ...item, hint: event.target.value.toLowerCase() } : item,
+                        item.id === question.id
+                          ? { ...item, hint: event.target.value.toLowerCase() }
+                          : item,
                       ),
                     )
                   }
@@ -682,7 +722,10 @@ function SettingsPage() {
         {(isAdmin ? sections : sections.filter((item) => item.id === "account")).map((item) => {
           const isOpen = open === item.id;
           return (
-            <section key={item.id} className={isOpen ? "studio-settings-fold is-open" : "studio-settings-fold"}>
+            <section
+              key={item.id}
+              className={isOpen ? "studio-settings-fold is-open" : "studio-settings-fold"}
+            >
               <h2>
                 <button
                   type="button"

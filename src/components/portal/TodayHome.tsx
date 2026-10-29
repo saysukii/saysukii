@@ -2,7 +2,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
-import { Fragment, useMemo, useState, useEffect, useLayoutEffect, useRef, type FormEvent, type ReactNode } from "react";
+import {
+  Fragment,
+  useMemo,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 
 import { TextShimmer } from "@/components/core/text-shimmer";
@@ -16,7 +25,14 @@ import {
 } from "@/components/ui/dialog";
 import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
 import { InquiryDatePicker, InquiryTimePicker } from "@/components/inquiry/InquiryDatePicker";
-import { EVENT_LABEL, inquiryAnswers, inquiryTime, initials, nextMove, recordSlug } from "@/lib/os/inquiry-desk";
+import {
+  EVENT_LABEL,
+  inquiryAnswers,
+  inquiryTime,
+  initials,
+  nextMove,
+  recordSlug,
+} from "@/lib/os/inquiry-desk";
 import { type InquiryFormValues } from "@/lib/os/inquiry-form";
 import {
   EMPTY_INQUIRY_DRAFT,
@@ -24,7 +40,12 @@ import {
   toInquirySubmitValues,
   type InquiryInterest,
 } from "@/lib/os/inquiry-schema";
-import { buildInquirySteps, formatInquiryPhone, isStepComplete, type InquiryStep } from "@/lib/os/inquiry-steps";
+import {
+  buildInquirySteps,
+  formatInquiryPhone,
+  isStepComplete,
+  type InquiryStep,
+} from "@/lib/os/inquiry-steps";
 import type { InquiryMessageRow, TaskRow } from "@/integrations/supabase/types";
 import {
   DESK_KIND_LABEL,
@@ -126,7 +147,9 @@ function MonthBoard({
   const startPad = first.getDay();
   const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
   const marked = new Set(marks);
-  const monthLabel = Number.isNaN(first.getTime()) ? "" : first.toLocaleString("en-US", { month: "long" });
+  const monthLabel = Number.isNaN(first.getTime())
+    ? ""
+    : first.toLocaleString("en-US", { month: "long" });
   const cells = Array.from({ length: startPad + daysInMonth }, (_, index) => {
     if (index < startPad) return null;
     const day = index - startPad + 1;
@@ -140,10 +163,12 @@ function MonthBoard({
           type="button"
           className="studio-cal-nav"
           aria-label="previous month"
-          onClick={() => setView((current) => {
-            const next = new Date(current.year, current.month - 1, 1);
-            return { year: next.getFullYear(), month: next.getMonth() };
-          })}
+          onClick={() =>
+            setView((current) => {
+              const next = new Date(current.year, current.month - 1, 1);
+              return { year: next.getFullYear(), month: next.getMonth() };
+            })
+          }
         >
           <ChevronLeft aria-hidden="true" />
         </button>
@@ -152,10 +177,12 @@ function MonthBoard({
           type="button"
           className="studio-cal-nav"
           aria-label="next month"
-          onClick={() => setView((current) => {
-            const next = new Date(current.year, current.month + 1, 1);
-            return { year: next.getFullYear(), month: next.getMonth() };
-          })}
+          onClick={() =>
+            setView((current) => {
+              const next = new Date(current.year, current.month + 1, 1);
+              return { year: next.getFullYear(), month: next.getMonth() };
+            })
+          }
         >
           <ChevronRight aria-hidden="true" />
         </button>
@@ -198,13 +225,7 @@ function MonthBoard({
   );
 }
 
-function FloorBeat({
-  item,
-  onPick,
-}: {
-  item: TodayFloorItem;
-  onPick: (id: string) => void;
-}) {
+function FloorBeat({ item, onPick }: { item: TodayFloorItem; onPick: (id: string) => void }) {
   const copy = (
     <div>
       <b>{item.titlePerson ? <PersonName name={item.title} /> : item.title}</b>
@@ -318,7 +339,12 @@ export function TodayHome({
     ];
   }, [data.appointments, localTalks]);
   const marks = useMemo(
-    () => [...new Set([...data.calendarMarks, ...talks.map((talk) => studioDay(talk.startsAt)).filter(Boolean)])],
+    () => [
+      ...new Set([
+        ...data.calendarMarks,
+        ...talks.map((talk) => studioDay(talk.startsAt)).filter(Boolean),
+      ]),
+    ],
     [data.calendarMarks, talks],
   );
 
@@ -331,7 +357,9 @@ export function TodayHome({
       live
         .filter((task) => isDeskTask(task, today) && !retired.includes(task.id))
         .sort((left, right) => {
-          const byDue = (left.due_at ?? left.created_at).localeCompare(right.due_at ?? right.created_at);
+          const byDue = (left.due_at ?? left.created_at).localeCompare(
+            right.due_at ?? right.created_at,
+          );
           if (byDue !== 0) return byDue;
           return left.created_at.localeCompare(right.created_at);
         })
@@ -348,15 +376,20 @@ export function TodayHome({
   const selected = desk.find((task) => task.id === pickedId) ?? desk[0] ?? null;
   const glance = selected ? deskGlance(selected) : null;
   const freshLeads = data.waiting
-    .filter((inquiry) => inquiry.origin === "form" && inquiry.status === "new" && !inquiry.studio_wrote)
+    .filter(
+      (inquiry) => inquiry.origin === "form" && inquiry.status === "new" && !inquiry.studio_wrote,
+    )
     .sort((left, right) => right.received_at.localeCompare(left.received_at));
-  const todayPlan = useMemo(() => {
-    const covered = new Set(data.projects.map((project) => `${project.client_id}:${project.event_date}`));
+  const todayPlan = useMemo((): TodayPlanItem[] => {
+    const covered = new Set(
+      data.projects.map((project) => `${project.client_id}:${project.event_date}`),
+    );
     const organizations = new Set(
-      [...data.waiting, ...data.projects]
-        .map((row) => row.client)
-        .filter((client) => client && client.type !== "individual")
-        .map((client) => client.name.trim().toLowerCase()),
+      [...data.waiting, ...data.projects].flatMap((row) =>
+        row.client && row.client.type !== "individual"
+          ? [row.client.name.trim().toLowerCase()]
+          : [],
+      ),
     );
     const meetings = talks
       .filter((talk) => studioDay(talk.startsAt) === today)
@@ -371,10 +404,7 @@ export function TodayHome({
           hello: clock || "today",
           nextTitle: "on the schedule",
           nextNote: talk.note.trim() || "today.",
-          bits: [
-            { text: talk.name, person },
-            ...(clock ? [{ text: ` · ${clock}` }] : []),
-          ],
+          bits: [{ text: talk.name, person }, ...(clock ? [{ text: ` · ${clock}` }] : [])],
         };
       });
     const events = [
@@ -397,9 +427,12 @@ export function TodayHome({
             !covered.has(`${inquiry.client_id}:${inquiry.event_date}`),
         )
         .map((inquiry) => {
-          const person = isPersonType(inquiry.client?.type) && Boolean(inquiry.client?.name?.trim());
-          const name = person ? inquiry.client!.name.trim() : inquiry.client?.name?.trim() || EVENT_LABEL[inquiry.event_type];
-          const next = nextMove(inquiry.status);
+          const person =
+            isPersonType(inquiry.client?.type) && Boolean(inquiry.client?.name?.trim());
+          const name = person
+            ? inquiry.client!.name.trim()
+            : inquiry.client?.name?.trim() || EVENT_LABEL[inquiry.event_type];
+          const next = leadNext(inquiry);
           return {
             id: inquiry.id,
             name,
@@ -416,7 +449,9 @@ export function TodayHome({
       .filter((task) => task.status === "open" && task.due_at?.slice(0, 10) === today)
       .map((task) => {
         const linked =
-          task.linked_type === "inquiry" ? data.waiting.find((inquiry) => inquiry.id === task.linked_id) : undefined;
+          task.linked_type === "inquiry"
+            ? data.waiting.find((inquiry) => inquiry.id === task.linked_id)
+            : undefined;
         return {
           id: task.id,
           name: task.title,
@@ -438,7 +473,9 @@ export function TodayHome({
       if (byKind !== 0) return byKind;
       return right.days_waiting - left.days_waiting;
     });
-  const booked = [...data.projects].sort((left, right) => left.event_date.localeCompare(right.event_date));
+  const booked = [...data.projects].sort((left, right) =>
+    left.event_date.localeCompare(right.event_date),
+  );
   const leadBits = freshLeads.map((lead) => ({
     id: lead.id,
     name: lead.client?.name?.trim() || "someone new",
@@ -495,8 +532,7 @@ export function TodayHome({
     const weekKey = weekBounds(weekOf).start;
     const signature = floorGroups.map((group) => `${group.date}:${group.items.length}`).join("|");
     const parked = parkedFloor.current;
-    const userMoved =
-      parked?.week === weekKey && Math.abs(floor.scrollTop - parked.top) > 12;
+    const userMoved = parked?.week === weekKey && Math.abs(floor.scrollTop - parked.top) > 12;
     if (parked?.week === weekKey && parked.signature === signature) return;
     if (userMoved) {
       parkedFloor.current = { week: weekKey, signature, top: floor.scrollTop };
@@ -509,9 +545,7 @@ export function TodayHome({
       return;
     }
     const anchor = floorGroups.find((group) => group.date >= today)?.date;
-    const target = anchor
-      ? floor.querySelector<HTMLElement>(`[data-floor-day="${anchor}"]`)
-      : null;
+    const target = anchor ? floor.querySelector<HTMLElement>(`[data-floor-day="${anchor}"]`) : null;
     if (!target) {
       floor.scrollTop = floor.scrollHeight;
       parkedFloor.current = { week: weekKey, signature, top: floor.scrollTop };
@@ -526,7 +560,8 @@ export function TodayHome({
     floor.scrollTop = top;
     parkedFloor.current = { week: weekKey, signature, top };
     requestAnimationFrame(() => {
-      if (parkedFloor.current?.week !== weekKey || parkedFloor.current.signature !== signature) return;
+      if (parkedFloor.current?.week !== weekKey || parkedFloor.current.signature !== signature)
+        return;
       if (Math.abs(floor.scrollTop - top) > 2) floor.scrollTop = top;
     });
   }, [floorGroups, today, viewingNow, weekOf]);
@@ -579,7 +614,9 @@ export function TodayHome({
         <button type="button" className="studio-metric is-mist" onClick={() => setTodayOpen(true)}>
           <p className="studio-kicker">today</p>
           <strong>{todayPlan.length || "—"}</strong>
-          <p className="is-clip">{todayPlan[0] ? <LineBits bits={todayPlan[0].bits} /> : "a quiet day"}</p>
+          <p className="is-clip">
+            {todayPlan[0] ? <LineBits bits={todayPlan[0].bits} /> : "a quiet day"}
+          </p>
         </button>
         <button type="button" className="studio-metric is-sage" onClick={() => setLeadsOpen(true)}>
           <p className="studio-kicker">new leads</p>
@@ -595,12 +632,20 @@ export function TodayHome({
                 ))}
           </p>
         </button>
-        <button type="button" className="studio-metric is-sand" onClick={() => setPendingOpen(true)}>
+        <button
+          type="button"
+          className="studio-metric is-sand"
+          onClick={() => setPendingOpen(true)}
+        >
           <p className="studio-kicker">pending</p>
           <strong>{pendingCount || "—"}</strong>
           <p>{pendingLine || "the path is clear"}</p>
         </button>
-        <button type="button" className="studio-metric is-blush" onClick={() => setBookedOpen(true)}>
+        <button
+          type="button"
+          className="studio-metric is-blush"
+          onClick={() => setBookedOpen(true)}
+        >
           <p className="studio-kicker">booked</p>
           <strong>{booked.length || "—"}</strong>
           <p className="is-clip">{bookedLine || "nothing on the books yet"}</p>
@@ -608,7 +653,11 @@ export function TodayHome({
       </div>
 
       <Dialog open={leadsOpen} onOpenChange={setLeadsOpen}>
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+        <DialogContent
+          overlayClassName="studio-task-veil"
+          className="studio-task-modal is-ask"
+          hideClose
+        >
           <div className="studio-task-head">
             <DialogClose className="studio-task-close" aria-label="Close">
               <X aria-hidden="true" />
@@ -628,7 +677,7 @@ export function TodayHome({
               ) : (
                 <div className="studio-lead-glance">
                   {freshLeads.map((lead) => {
-                    const next = nextMove(lead.status);
+                    const next = leadNext(lead);
                     return (
                       <GlanceListCard
                         key={lead.id}
@@ -660,7 +709,11 @@ export function TodayHome({
       </Dialog>
 
       <Dialog open={bookedOpen} onOpenChange={setBookedOpen}>
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+        <DialogContent
+          overlayClassName="studio-task-veil"
+          className="studio-task-modal is-ask"
+          hideClose
+        >
           <div className="studio-task-head">
             <DialogClose className="studio-task-close" aria-label="Close">
               <X aria-hidden="true" />
@@ -679,8 +732,12 @@ export function TodayHome({
                 <div className="studio-lead-glance">
                   {booked.map((project) => {
                     const place = project.venue_text?.split(",")[0]?.trim() ?? "";
-                    const hello = [formatDateNumeric(project.event_date), place].filter((part) => part && part !== "—").join(" · ");
-                    return <GlanceListCard key={project.id} name={project.event_name} hello={hello} />;
+                    const hello = [formatDateNumeric(project.event_date), place]
+                      .filter((part) => part && part !== "—")
+                      .join(" · ");
+                    return (
+                      <GlanceListCard key={project.id} name={project.event_name} hello={hello} />
+                    );
                   })}
                 </div>
               )}
@@ -691,108 +748,122 @@ export function TodayHome({
 
       <div className="studio-home-stage">
         <aside className="studio-home-day">
-      <Dialog open={todayOpen} onOpenChange={setTodayOpen}>
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
-          <div className="studio-task-head">
-            <DialogClose className="studio-task-close" aria-label="Close">
-              <X aria-hidden="true" />
-            </DialogClose>
-          </div>
-          <DialogTitle className="sr-only">today</DialogTitle>
-          <DialogDescription className="sr-only">what’s on the schedule today.</DialogDescription>
-          <div className="studio-task-form">
-            <div className="studio-task-composer-title">
-              <p>today</p>
-            </div>
-            <div className="studio-ask-grid studio-ask-stack-form">
-              {todayPlan.length === 0 ? (
-                <p className="studio-ask-label is-prompt">a quiet day.</p>
-              ) : (
-                <div className="studio-lead-glance">
-                  {todayPlan.map((item) => (
-                    <GlanceListCard
-                      key={item.id}
-                      name={item.name}
-                      {...(item.person ? { person: true } : {})}
-                      hello={item.hello}
-                      {...(item.slug
-                        ? {
-                            action: (
+          <Dialog open={todayOpen} onOpenChange={setTodayOpen}>
+            <DialogContent
+              overlayClassName="studio-task-veil"
+              className="studio-task-modal is-ask"
+              hideClose
+            >
+              <div className="studio-task-head">
+                <DialogClose className="studio-task-close" aria-label="Close">
+                  <X aria-hidden="true" />
+                </DialogClose>
+              </div>
+              <DialogTitle className="sr-only">today</DialogTitle>
+              <DialogDescription className="sr-only">
+                what’s on the schedule today.
+              </DialogDescription>
+              <div className="studio-task-form">
+                <div className="studio-task-composer-title">
+                  <p>today</p>
+                </div>
+                <div className="studio-ask-grid studio-ask-stack-form">
+                  {todayPlan.length === 0 ? (
+                    <p className="studio-ask-label is-prompt">a quiet day.</p>
+                  ) : (
+                    <div className="studio-lead-glance">
+                      {todayPlan.map((item) => (
+                        <GlanceListCard
+                          key={item.id}
+                          name={item.name}
+                          {...(item.person ? { person: true } : {})}
+                          hello={item.hello}
+                          {...(item.slug
+                            ? {
+                                action: (
+                                  <Link
+                                    to="/pipeline/$id"
+                                    params={{ id: item.slug }}
+                                    className="studio-ghost"
+                                    onClick={() => setTodayOpen(false)}
+                                  >
+                                    <TextShimmer duration={1.2} className={glanceShimmer}>
+                                      open inquiry
+                                    </TextShimmer>
+                                  </Link>
+                                ),
+                              }
+                            : {})}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={pendingOpen} onOpenChange={setPendingOpen}>
+            <DialogContent
+              overlayClassName="studio-task-veil"
+              className="studio-task-modal is-ask"
+              hideClose
+            >
+              <div className="studio-task-head">
+                <DialogClose className="studio-task-close" aria-label="Close">
+                  <X aria-hidden="true" />
+                </DialogClose>
+              </div>
+              <DialogTitle className="sr-only">pending</DialogTitle>
+              <DialogDescription className="sr-only">
+                what still needs a proposal, and what needs a follow up.
+              </DialogDescription>
+              <div className="studio-task-form">
+                <div className="studio-task-composer-title">
+                  <p>pending</p>
+                </div>
+                <div className="studio-ask-grid studio-ask-stack-form">
+                  {pendingInquiries.length === 0 ? (
+                    <p className="studio-ask-label is-prompt">the path is clear.</p>
+                  ) : (
+                    <div className="studio-lead-glance">
+                      {pendingInquiries.map((inquiry) => {
+                        const next = leadNext(inquiry);
+                        return (
+                          <GlanceListCard
+                            key={inquiry.id}
+                            name={inquiry.client?.name?.trim() || "someone new"}
+                            person={isPersonType(inquiry.client?.type)}
+                            hello={inquiryHello(inquiry).hello}
+                            nextTitle={next.title}
+                            nextNote={next.note}
+                            action={
                               <Link
                                 to="/pipeline/$id"
-                                params={{ id: item.slug }}
+                                params={{ id: inquiry.slug }}
                                 className="studio-ghost"
-                                onClick={() => setTodayOpen(false)}
+                                onClick={() => setPendingOpen(false)}
                               >
                                 <TextShimmer duration={1.2} className={glanceShimmer}>
                                   open inquiry
                                 </TextShimmer>
                               </Link>
-                            ),
-                          }
-                        : {})}
-                    />
-                  ))}
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={pendingOpen} onOpenChange={setPendingOpen}>
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
-          <div className="studio-task-head">
-            <DialogClose className="studio-task-close" aria-label="Close">
-              <X aria-hidden="true" />
-            </DialogClose>
-          </div>
-          <DialogTitle className="sr-only">pending</DialogTitle>
-          <DialogDescription className="sr-only">what still needs a proposal, and what needs a follow up.</DialogDescription>
-          <div className="studio-task-form">
-            <div className="studio-task-composer-title">
-              <p>pending</p>
-            </div>
-            <div className="studio-ask-grid studio-ask-stack-form">
-              {pendingInquiries.length === 0 ? (
-                <p className="studio-ask-label is-prompt">the path is clear.</p>
-              ) : (
-                <div className="studio-lead-glance">
-                  {pendingInquiries.map((inquiry) => {
-                    const next = nextMove(inquiry.status);
-                    return (
-                      <GlanceListCard
-                        key={inquiry.id}
-                        name={inquiry.client?.name?.trim() || "someone new"}
-                        person={isPersonType(inquiry.client?.type)}
-                        hello={inquiryHello(inquiry).hello}
-                        nextTitle={next.title}
-                        nextNote={next.note}
-                        action={
-                          <Link
-                            to="/pipeline/$id"
-                            params={{ id: inquiry.slug }}
-                            className="studio-ghost"
-                            onClick={() => setPendingOpen(false)}
-                          >
-                            <TextShimmer duration={1.2} className={glanceShimmer}>
-                              open inquiry
-                            </TextShimmer>
-                          </Link>
-                        }
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <p className="studio-home-label">{HOME_LABELS.calendar}</p>
           <MonthBoard marks={marks} selected={day} onSelect={chooseDay} />
-          {(dayMarks.inquiries.length > 0 || dayMarks.projects.length > 0 || dayMarks.talks.length > 0) && (
+          {(dayMarks.inquiries.length > 0 ||
+            dayMarks.projects.length > 0 ||
+            dayMarks.talks.length > 0) && (
             <div className="studio-home-daymarks">
               {dayMarks.projects.map((project) => (
                 <p key={project.id}>
@@ -897,7 +968,9 @@ export function TodayHome({
             </div>
           </div>
           <div className="studio-home-feed">
-            {desk.length === 0 ? <p className="studio-empty">nothing due today. the desk is clear.</p> : null}
+            {desk.length === 0 ? (
+              <p className="studio-empty">nothing due today. the desk is clear.</p>
+            ) : null}
             {desk.map((task) => (
               <TaskRow
                 key={task.id}
@@ -938,7 +1011,9 @@ export function TodayHome({
         onOpenChange={setTasking}
         onCreate={async (values) => {
           const task = await onCreateTask(values);
-          setAdded((current) => (current.some((item) => item.id === task.id) ? current : [task, ...current]));
+          setAdded((current) =>
+            current.some((item) => item.id === task.id) ? current : [task, ...current],
+          );
           setPickedId(task.id);
         }}
       />
@@ -950,13 +1025,7 @@ function dueStamp(date: string) {
   return new Date(`${date}T12:00:00`).toISOString();
 }
 
-function KindPicks({
-  kind,
-  onPick,
-}: {
-  kind: DeskKind;
-  onPick: (value: DeskKind) => void;
-}) {
+function KindPicks({ kind, onPick }: { kind: DeskKind; onPick: (value: DeskKind) => void }) {
   return (
     <div className="studio-task-kinds">
       {TASK_KINDS.map((value) => (
@@ -1002,13 +1071,20 @@ export function AddInquiry({
   onOpenChange: (open: boolean) => void;
   onCreate: (values: InquiryFormValues) => Promise<void>;
 }) {
-  const [values, setValues] = useState<InquiryFormValues>({ ...EMPTY_INQUIRY_DRAFT, interest: "weddings" });
+  const [values, setValues] = useState<InquiryFormValues>({
+    ...EMPTY_INQUIRY_DRAFT,
+    interest: "weddings",
+  });
   const [hint, setHint] = useState("");
   const interest = (values.interest || "weddings") as InquiryInterest;
   const steps = buildInquirySteps(interest);
-  const questions = steps.filter((step) => step.kind !== "review" && step.id !== "name" && step.id !== "interest");
+  const questions = steps.filter(
+    (step) => step.kind !== "review" && step.id !== "name" && step.id !== "interest",
+  );
   const activation = interest === "events";
-  const chosenDates = [values.event_date, ...(values.event_dates ?? [])].filter((date): date is string => Boolean(date));
+  const chosenDates = [values.event_date, ...(values.event_dates ?? [])].filter(
+    (date): date is string => Boolean(date),
+  );
   const ready = steps.every((step) => step.kind === "review" || isStepComplete(step, values));
 
   function reset() {
@@ -1040,7 +1116,11 @@ export function AddInquiry({
       }
       if (!current.event_date) return { ...current, event_date: date, event_date_tbd: false };
       if (current.event_date === date || current.event_dates?.includes(date)) return current;
-      return { ...current, event_date_tbd: false, event_dates: [...(current.event_dates ?? []), date] };
+      return {
+        ...current,
+        event_date_tbd: false,
+        event_dates: [...(current.event_dates ?? []), date],
+      };
     });
   }
 
@@ -1050,7 +1130,10 @@ export function AddInquiry({
         const [next, ...rest] = current.event_dates ?? [];
         return { ...current, event_date: next ?? null, event_dates: rest };
       }
-      return { ...current, event_dates: (current.event_dates ?? []).filter((item) => item !== date) };
+      return {
+        ...current,
+        event_dates: (current.event_dates ?? []).filter((item) => item !== date),
+      };
     });
   }
 
@@ -1083,7 +1166,11 @@ export function AddInquiry({
   function renderAskStep(step: InquiryStep, next?: InquiryStep) {
     if (step.kind === "text" || step.kind === "email" || step.kind === "tel") {
       return (
-        <AskField key={step.id} label={askLabel(step)} className={step.field === "recipient" ? "studio-ask-span" : undefined}>
+        <AskField
+          key={step.id}
+          label={askLabel(step)}
+          className={step.field === "recipient" ? "studio-ask-span" : undefined}
+        >
           <input
             type={step.kind === "text" ? "text" : step.kind}
             value={String(values[step.field] ?? "")}
@@ -1091,7 +1178,8 @@ export function AddInquiry({
             maxLength={step.kind === "email" ? 320 : step.field === "recipient" ? 160 : 40}
             autoComplete={step.kind === "email" ? "email" : step.kind === "tel" ? "tel" : "off"}
             onChange={(event) => {
-              const next = step.kind === "tel" ? formatInquiryPhone(event.target.value) : event.target.value;
+              const next =
+                step.kind === "tel" ? formatInquiryPhone(event.target.value) : event.target.value;
               setField(step.field, next);
             }}
           />
@@ -1121,7 +1209,11 @@ export function AddInquiry({
                 }}
               />
               <label className="studio-ask-check">
-                <input type="checkbox" checked={values.event_date_tbd} onChange={(event) => pickTbd(event.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={values.event_date_tbd}
+                  onChange={(event) => pickTbd(event.target.checked)}
+                />
                 tbd
               </label>
             </div>
@@ -1143,7 +1235,11 @@ export function AddInquiry({
               onChange={(next) => setField("venue_text", next)}
             />
             <label className="studio-ask-check">
-              <input type="checkbox" checked={Boolean(values.venue_tbd)} onChange={(event) => pickVenueTbd(event.target.checked)} />
+              <input
+                type="checkbox"
+                checked={Boolean(values.venue_tbd)}
+                onChange={(event) => pickVenueTbd(event.target.checked)}
+              />
               tbd
             </label>
           </div>
@@ -1152,9 +1248,13 @@ export function AddInquiry({
     }
 
     if (step.kind === "choice" || step.kind === "multi") {
-      const selected = step.kind === "multi" ? (values.sources ?? []) : [String(values[step.field] ?? "")];
+      const selected =
+        step.kind === "multi" ? (values.sources ?? []) : [String(values[step.field] ?? "")];
       return (
-        <div key={step.id} className={cn("studio-ask-field", !pairedAsk(step.id) && "studio-ask-span")}>
+        <div
+          key={step.id}
+          className={cn("studio-ask-field", !pairedAsk(step.id) && "studio-ask-span")}
+        >
           <span className="studio-ask-label is-prompt">{askLabel(step)}</span>
           <div className="studio-task-kinds" role="listbox" aria-label={askLabel(step)}>
             {step.options.map((option) => {
@@ -1218,7 +1318,11 @@ export function AddInquiry({
         if (!next) reset();
       }}
     >
-      <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+      <DialogContent
+        overlayClassName="studio-task-veil"
+        className="studio-task-modal is-ask"
+        hideClose
+      >
         <div className="studio-task-head">
           <DialogClose className="studio-task-close" aria-label="Close">
             <X aria-hidden="true" />
@@ -1313,7 +1417,8 @@ function askLabel(step: InquiryStep) {
   if (step.kind === "email") return "email";
   if (step.kind === "tel") return "phone";
   if (step.kind === "text") return "recipient";
-  if (step.kind === "date") return text.includes("arrive") ? "arrive" : text.includes("start") ? "start" : "date";
+  if (step.kind === "date")
+    return text.includes("arrive") ? "arrive" : text.includes("start") ? "start" : "date";
   if (step.kind === "address") return text.includes("address") ? "address" : "venue";
   if (step.id === "event_setting") return "setting";
   if (step.id === "budget_range") return "budget";
@@ -1321,7 +1426,8 @@ function askLabel(step: InquiryStep) {
   if (step.id === "space") return "space";
   if (step.id === "cadence") return "cadence";
   if (step.id === "source" || step.id === "sources") return "found us";
-  if (step.kind === "textarea") return text.includes("card") ? "card" : text.includes("else") ? "notes" : "vision";
+  if (step.kind === "textarea")
+    return text.includes("card") ? "card" : text.includes("else") ? "notes" : "vision";
   return step.label;
 }
 
@@ -1332,7 +1438,7 @@ function AskField({
 }: {
   label: string;
   children: ReactNode;
-  className?: string;
+  className?: string | undefined;
 }) {
   return (
     <label className={cn("studio-ask-field", className)}>
@@ -1445,21 +1551,20 @@ function AddDeskTask({
     onOpenChange(false);
   }
 
-  const linkField =
-    needsLink ? (
-      people.length === 0 ? (
-        <p className="studio-empty">nothing to attach yet.</p>
-      ) : (
-        <select value={linkedId} onChange={(event) => setLinkedId(event.target.value)}>
-          <option value="">{kind === "inquiry" ? "choose an inquiry" : "choose a project"}</option>
-          {people.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.label}
-            </option>
-          ))}
-        </select>
-      )
-    ) : null;
+  const linkField = needsLink ? (
+    people.length === 0 ? (
+      <p className="studio-empty">nothing to attach yet.</p>
+    ) : (
+      <select value={linkedId} onChange={(event) => setLinkedId(event.target.value)}>
+        <option value="">{kind === "inquiry" ? "choose an inquiry" : "choose a project"}</option>
+        {people.map((person) => (
+          <option key={person.id} value={person.id}>
+            {person.label}
+          </option>
+        ))}
+      </select>
+    )
+  ) : null;
 
   return (
     <Dialog
@@ -1548,12 +1653,15 @@ function TaskRow({
             {task.person
               ? shownName(
                   task.person,
-                  isPersonType(task.inquiry?.client?.type) || isPersonType(task.project?.client?.type),
+                  isPersonType(task.inquiry?.client?.type) ||
+                    isPersonType(task.project?.client?.type),
                 )
               : "studio"}
           </em>
           <small>
-            <span className={cn("studio-home-kind", `is-${task.kind}`)}>{DESK_KIND_LABEL[task.kind]}</span>
+            <span className={cn("studio-home-kind", `is-${task.kind}`)}>
+              {DESK_KIND_LABEL[task.kind]}
+            </span>
             {dueHint(task)}
           </small>
         </span>
@@ -1599,8 +1707,8 @@ function TaskGlance({
           <h3>
             {shownName(
               glance.name,
-              isPersonType(task.inquiry?.client?.type) ||
-                (isPersonType(task.project?.client?.type) && glance.name === task.project?.client?.name),
+              isPersonType(task.project?.client?.type) &&
+                glance.name === task.project?.client?.name,
             )}
           </h3>
           <p>{glance.kicker}</p>
@@ -1639,12 +1747,43 @@ function inquiryHello(inquiry: InquiryPipelineItem) {
   const time = inquiryTime(inquiry.message);
   const when = inquiry.event_date_tbd
     ? "date tbd"
-    : [formatDateNumeric(inquiry.event_date), time].filter((part) => part && part !== "—").join(" · ");
+    : [formatDateNumeric(inquiry.event_date), time]
+        .filter((part) => part && part !== "—")
+        .join(" · ");
   const place = inquiry.venue_text?.split(",")[0]?.trim() ?? "";
   return {
     hello: [when, place].filter(Boolean).join(" · "),
     eventWhen: inquiry.event_date_tbd ? "tbd" : when || "—",
   };
+}
+
+/** The saved summary is "what's happening" then "next: …". Today shows them as two cards. */
+type TodayPlanItem = {
+  id: string;
+  name: string;
+  person: boolean;
+  hello: string;
+  nextTitle: string;
+  nextNote: string;
+  slug?: string;
+  bits: Array<{ text: string; person?: boolean }>;
+};
+
+function summaryParts(text: string | null | undefined) {
+  const lines = (text ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const nextLine = lines.find((line) => /^next:/i.test(line)) ?? "";
+  return {
+    story: lines.filter((line) => line !== nextLine).join(" "),
+    next: nextLine.replace(/^next:\s*/i, "").replace(/\.$/, ""),
+  };
+}
+
+function leadNext(inquiry: InquiryPipelineItem) {
+  const parts = summaryParts(glanceSummary(inquiry));
+  return parts.next ? { title: parts.next, note: parts.story } : nextMove(inquiry.status);
 }
 
 function glanceSummary(inquiry: InquiryPipelineItem) {
@@ -1674,7 +1813,23 @@ function glanceSummary(inquiry: InquiryPipelineItem) {
       status: inquiry.status,
       contacted_at: inquiry.contacted_at,
       messages: inbound ? [inbound] : [],
-      proposals: inquiry.proposal_sent_at ? [{ status: "sent", created_at: inquiry.proposal_sent_at }] : [],
+      proposals: inquiry.proposal_sent_at
+        ? [{ status: "sent", created_at: inquiry.proposal_sent_at }]
+        : [],
+      details: {
+        clientName: inquiry.client?.name ?? null,
+        clientEmail: inquiry.client?.email ?? null,
+        eventType: inquiry.event_type,
+        eventDate: inquiry.event_date,
+        eventDateTbd: inquiry.event_date_tbd,
+        venue: inquiry.venue_text,
+        guestCount: inquiry.guest_count,
+        budget: inquiry.budget_range,
+        receivedAt: inquiry.received_at,
+        closedAt: inquiry.closed_at,
+        closedReason: inquiry.closed_reason,
+        detectionStatus: inquiry.detection_status,
+      },
     }),
   );
 }
@@ -1723,12 +1878,19 @@ function GlanceListCard({
   );
 }
 
-function InquiryRecordGlance({ inquiry, task }: { inquiry: InquiryPipelineItem; task: TodayDeskTask }) {
+function InquiryRecordGlance({
+  inquiry,
+  task,
+}: {
+  inquiry: InquiryPipelineItem;
+  task: TodayDeskTask;
+}) {
   const client = inquiry.client;
   const name = client?.name ?? "client";
   const { hello, eventWhen } = inquiryHello(inquiry);
-  const next = nextMove(inquiry.status);
   const summary = glanceSummary(inquiry);
+  const parts = summaryParts(summary);
+  const next = parts.next ? { title: parts.next, note: "" } : nextMove(inquiry.status);
 
   const place = inquiry.venue_text?.trim() || "—";
   const figure = inquiry.budget_range?.trim() || "—";
@@ -1736,14 +1898,14 @@ function InquiryRecordGlance({ inquiry, task }: { inquiry: InquiryPipelineItem; 
   return (
     <>
       <GlanceHead name={name} hello={hello} task={task} person={isPersonType(client?.type)} />
-      {summary ? <SummaryCard summary={summary} /> : null}
+      {summary ? <SummaryCard summary={parts.story || summary} /> : null}
       <article className="studio-glance-card is-next">
         <p className="studio-glance-label">
           <span className="studio-next-mark" aria-hidden="true" />
           up next
         </p>
         <b>{next.title}</b>
-        <p>{next.note}</p>
+        {next.note ? <p>{next.note}</p> : null}
       </article>
       <div className="studio-glance-split">
         <article className="studio-glance-card">
@@ -1836,7 +1998,7 @@ function SummaryCard({ summary }: { summary: string }) {
   );
 }
 
-function ClientFile({ clientName }: { clientName?: string | null }) {
+function ClientFile({ clientName }: { clientName?: string | null | undefined }) {
   if (!clientName) return null;
   return (
     <Link to="/clients/$id" params={{ id: recordSlug(clientName) }} className="studio-ghost">
@@ -1914,14 +2076,20 @@ function ClientForm({ inquiry, eventWhen }: { inquiry: InquiryPipelineItem; even
         </TextShimmer>
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+        <DialogContent
+          overlayClassName="studio-task-veil"
+          className="studio-task-modal is-ask"
+          hideClose
+        >
           <div className="studio-task-head">
             <DialogClose className="studio-task-close" aria-label="Close">
               <X aria-hidden="true" />
             </DialogClose>
           </div>
           <DialogTitle className="sr-only">client form</DialogTitle>
-          <DialogDescription className="sr-only">their details, and what they answered.</DialogDescription>
+          <DialogDescription className="sr-only">
+            their details, and what they answered.
+          </DialogDescription>
           <form
             className="studio-task-form"
             onSubmit={(event: FormEvent) => {
@@ -1997,8 +2165,8 @@ function ReadAnswer({
 }: {
   label: string;
   value: string;
-  wide?: boolean;
-  lines?: boolean;
+  wide?: boolean | undefined;
+  lines?: boolean | undefined;
 }) {
   return (
     <label className={cn("studio-ask-field", wide && "studio-ask-span")}>
@@ -2012,11 +2180,7 @@ function GlanceGo({ task }: { task: TodayDeskTask }) {
   if (task.inquiry) {
     return (
       <nav className="studio-home-glance-go" aria-label="open this record">
-        <Link
-          to="/pipeline/$id"
-          params={{ id: task.inquiry.slug }}
-          className="studio-ghost"
-        >
+        <Link to="/pipeline/$id" params={{ id: task.inquiry.slug }} className="studio-ghost">
           <TextShimmer duration={1.2} className={glanceShimmer}>
             open inquiry
           </TextShimmer>
@@ -2027,4 +2191,3 @@ function GlanceGo({ task }: { task: TodayDeskTask }) {
 
   return null;
 }
-

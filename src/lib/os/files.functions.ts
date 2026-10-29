@@ -31,8 +31,13 @@ function fileKind(name: string) {
   return ext || "file";
 }
 
-function idsFor(files: Array<Pick<FileRow, "owner_type" | "owner_id">>, ownerType: FileRow["owner_type"]) {
-  return [...new Set(files.filter((file) => file.owner_type === ownerType).map((file) => file.owner_id))];
+function idsFor(
+  files: Array<Pick<FileRow, "owner_type" | "owner_id">>,
+  ownerType: FileRow["owner_type"],
+) {
+  return [
+    ...new Set(files.filter((file) => file.owner_type === ownerType).map((file) => file.owner_id)),
+  ];
 }
 
 export const listStudioFiles = createServerFn({ method: "GET" })

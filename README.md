@@ -26,11 +26,11 @@ You decide who has access. Invite someone from **Settings**. They receive an ema
 
 Three ways back in, every time:
 
-| Method | How it works |
-|--------|----------------|
-| **Password** | Email and password. **Enter the studio.** |
-| **Magic link** | Enter email → open the link that arrives. |
-| **Google** | Continue with the Google account you use for the studio. |
+| Method         | How it works                                             |
+| -------------- | -------------------------------------------------------- |
+| **Password**   | Email and password. **Enter the studio.**                |
+| **Magic link** | Enter email → open the link that arrives.                |
+| **Google**     | Continue with the Google account you use for the studio. |
 
 Forgot a password, and the reset note comes from the same sign-in page.
 
@@ -62,11 +62,11 @@ The studio's papers in one place. Proposals, references, and the files that belo
 
 The book of people and places.
 
-| Book | What it holds |
-|------|----------------|
+| Book        | What it holds                                             |
+| ----------- | --------------------------------------------------------- |
 | **Clients** | Name, email, phone, organization, and how they found you. |
-| **Venues** | The room, the address, who to call, and load-in notes. |
-| **Vendors** | Who you order from, and how the order goes out. |
+| **Venues**  | The room, the address, who to call, and load-in notes.    |
+| **Vendors** | Who you order from, and how the order goes out.           |
 
 Each book can take a `.csv` when the columns match the fields already in that book. A row already there is left alone.
 
@@ -85,13 +85,13 @@ Flowers for the people.
 
 **Color**
 
-| Color | Hex | Role |
-|-------|-----|------|
-| Blush | `#F5E6E8` | The room |
-| Warm white | `#FFF8F9` | Cards and paper |
-| Field | `#FFF4F6` | Quiet fills |
-| Pink | `#FF4D94` | The accent — a date, a reply, a mark |
-| Ink | `#24221F` | Words |
+| Color      | Hex       | Role                                 |
+| ---------- | --------- | ------------------------------------ |
+| Blush      | `#F5E6E8` | The room                             |
+| Warm white | `#FFF8F9` | Cards and paper                      |
+| Field      | `#FFF4F6` | Quiet fills                          |
+| Pink       | `#FF4D94` | The accent — a date, a reply, a mark |
+| Ink        | `#24221F` | Words                                |
 
 **Tone**
 Soft, specific, and close. A letter, not a brochure. The client's name first. Dates and places written the way you would say them. Pink shows up where the eye should land. Everything else stays warm and quiet.
@@ -128,28 +128,27 @@ The studio is built around how Say Sukii already works.
 
 ## Where things live
 
-| Service | What it's for |
-|---------|----------------|
-| **[GitHub](https://github.com/taistu/say-sukii-studio)** | The code. History, pull requests, and deploys start here. |
-| **[Vercel](https://vercel.com)** | Hosts the studio — the private rooms and the public pages (`/inquire`, `/book`, `/proposal/…`). Environment variables for production are set here. |
-| **[Supabase](https://supabase.com)** | Auth and the database — sign-in, the book, files in storage, and the migrations under `supabase/migrations/`. |
-| **[Railway](https://railway.app)** | The clock. Every five minutes it asks the studio to read new mail in the Gmail inbox and file it onto the right inquiry. |
+| Service                                                  | What it's for                                                                                                                                                                                                           |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[GitHub](https://github.com/taistu/say-sukii-studio)** | The code. History, pull requests, and deploys start here.                                                                                                                                                               |
+| **[Vercel](https://vercel.com)**                         | Hosts the studio — the private rooms and the public pages (`/inquire`, `/book`, `/proposal/…`). Environment variables for production are set here.                                                                      |
+| **[Supabase](https://supabase.com)**                     | Auth and the database — sign-in, the book, files in storage, and the migrations under `supabase/migrations/`. Also the clock: every five minutes it sends scheduled letters and files new Gmail onto the right inquiry. |
 
 Related:
 
-| Service | What it's for |
-|---------|----------------|
-| **[saysukii.com](https://www.saysukii.com)** | The public site. The studio and the form stay with this app. |
-| **Resend** | The fixed notes: a new inquiry to the studio, a change request to `info@saysukii.com`, a booking confirmation, and a deposit receipt. |
-| **Gmail** | The living letters. Replies and proposals send as Sukii, from the connected studio inbox. |
-| **Google Calendar** | The meeting, and the job once a deposit is paid. |
-| **Square** | The deposit. A paid deposit opens the project. |
+| Service                                      | What it's for                                                                                                                         |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **[saysukii.com](https://www.saysukii.com)** | The public site. The studio and the form stay with this app.                                                                          |
+| **Resend**                                   | The fixed notes: a new inquiry to the studio, a change request to `info@saysukii.com`, a booking confirmation, and a deposit receipt. |
+| **Gmail**                                    | The living letters. Replies and proposals send as Sukii, from the connected studio inbox.                                             |
+| **Google Calendar**                          | The meeting, and the job once a deposit is paid.                                                                                      |
+| **Square**                                   | The deposit. A paid deposit opens the project.                                                                                        |
 
 ---
 
 ## For developers
 
-React, TanStack Start, Tailwind, **Supabase** for auth and data. The app is one server. **Vercel** runs it. **Railway** only calls the mail poll. **GitHub** holds the code.
+React, TanStack Start, Tailwind, **Supabase** for auth and data. The app is one server. **Vercel** runs it. **Supabase** also calls it every five minutes for scheduled letters and the mail poll. **GitHub** holds the code.
 
 ```bash
 npm install
@@ -176,20 +175,26 @@ Point these at that same origin:
 
 In Google Cloud, add those callbacks and enable Gmail send, Gmail read, Calendar, and Places. In Square, add the OAuth callback and a `payment.updated` webhook. Generate `INTEGRATION_ENCRYPTION_KEY` and `CRON_SECRET` as long random values. After deploy, connect Google and Square from **Settings**.
 
-### Railway
-
-A cron service, every five minutes:
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" \
-  https://inside.saysukii.com/api/cron/gmail-inbound
-```
-
-That is what files a client's reply onto the inquiry. The same secret lives on Vercel.
-
 ### Supabase
 
-Site URL is `https://inside.saysukii.com`. Allow redirects to `/auth/callback`, `/onboarding`, and `/onboarding?reset=1`.
+Site URL is `https://inside.saysukii.com`.
+
+**Every five minutes.** The `studio_cron` migration has Supabase call two routes on the app: `/api/cron/scheduled-letters` sends letters whose time has come, and `/api/cron/gmail-inbound` files a client's reply onto the inquiry. It reads the app's address and the cron secret from Vault, so add both once in the SQL editor, using the same `CRON_SECRET` that's on Vercel:
+
+```sql
+select vault.create_secret('https://inside.saysukii.com', 'studio_app_url');
+select vault.create_secret('<CRON_SECRET from Vercel>', 'studio_cron_secret');
+```
+
+To see it working:
+
+```sql
+select jobname, status, return_message, start_time from cron.job_run_details
+  join cron.job using (jobid) order by start_time desc limit 10;
+select status_code, content, created from net._http_response order by created desc limit 10;
+```
+
+To change the secret later, update it in both places: `select vault.update_secret((select id from vault.secrets where name = 'studio_cron_secret'), '<new secret>');` Allow redirects to `/auth/callback`, `/onboarding`, and `/onboarding?reset=1`.
 
 Google sign-in uses Supabase Auth. Enable the Google provider in the Supabase dashboard, and add `https://<project-ref>.supabase.co/auth/v1/callback` as an authorized redirect on that Google OAuth client.
 
@@ -199,14 +204,14 @@ Auth templates for the magic link, the password reset, and the team invite are e
 
 Fixed notes and living letters are different. Put a template in the file that already sends that moment.
 
-| Moment | Who receives it | Where the words live |
-|--------|-----------------|----------------------|
-| Someone finishes `/inquire` | The studio, at `INQUIRY_NOTIFICATION_EMAIL` | `src/emails/layout.html`, sent from `src/lib/os/inquiry-email.server.ts` |
-| A client asks for a change on a proposal | `info@saysukii.com` | `src/emails/layout.html`, sent from `src/lib/os/change-request-email.server.ts` |
-| A guest books a time | The guest | `src/emails/layout.html`, sent from `src/lib/os/booking-email.server.ts` |
-| Square confirms the deposit | The client | `src/emails/layout.html`, sent from `src/routes/api/square/webhook.ts` |
-| A reply or a proposal letter | The client, from studio Gmail | The composer on the inquiry. Starter letters are `MOCK_TEMPLATES` in `src/components/inquiry/InquiryLeadPane.tsx`. The sign-off is `src/lib/os/mail-signature.ts`. |
-| Magic link, password reset, team invite | The person signing in | Supabase → Authentication → Emails |
+| Moment                                   | Who receives it                             | Where the words live                                                                                                                                               |
+| ---------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Someone finishes `/inquire`              | The studio, at `INQUIRY_NOTIFICATION_EMAIL` | `src/emails/layout.html`, sent from `src/lib/os/inquiry-email.server.ts`                                                                                           |
+| A client asks for a change on a proposal | `info@saysukii.com`                         | `src/emails/layout.html`, sent from `src/lib/os/change-request-email.server.ts`                                                                                    |
+| A guest books a time                     | The guest                                   | `src/emails/layout.html`, sent from `src/lib/os/booking-email.server.ts`                                                                                           |
+| Square confirms the deposit              | The client                                  | `src/emails/layout.html`, sent from `src/routes/api/square/webhook.ts`                                                                                             |
+| A reply or a proposal letter             | The client, from studio Gmail               | The composer on the inquiry. Starter letters are `MOCK_TEMPLATES` in `src/components/inquiry/InquiryLeadPane.tsx`. The sign-off is `src/lib/os/mail-signature.ts`. |
+| Magic link, password reset, team invite  | The person signing in                       | Supabase → Authentication → Emails                                                                                                                                 |
 
 `RESEND_API_KEY` and `RESEND_FROM_EMAIL` send the fixed notes. Letters from an inquiry go through the connected Gmail account, as plain text, with the signature underneath. A new HTML file will not change those letters until that sender is updated.
 
@@ -218,4 +223,4 @@ Send a test inquiry, book a test time, send a test letter with a proposal link, 
 
 ---
 
-*The studio · Say Sukii × TAĪSTU · October 2026*
+_The studio · Say Sukii × TAĪSTU · October 2026_

@@ -73,7 +73,11 @@ function htmlMessage(input: ChangeRequestMail) {
     "Content-Type: text/html; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
   ];
-  const payload = Buffer.from(changeRequestHtml(input), "utf8").toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
+  const payload =
+    Buffer.from(changeRequestHtml(input), "utf8")
+      .toString("base64")
+      .match(/.{1,76}/g)
+      ?.join("\r\n") ?? "";
   return `${headers.join("\r\n")}\r\n\r\n${payload}`;
 }
 
@@ -92,7 +96,9 @@ async function sendChangeRequestThroughGmail(input: ChangeRequestMail) {
     body: JSON.stringify({ raw: encodeGmailRaw(htmlMessage(input)) }),
   });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+    const payload = (await response.json().catch(() => null)) as {
+      error?: { message?: string };
+    } | null;
     throw new Error(payload?.error?.message || `Gmail send failed (${response.status})`);
   }
   return { sent: true as const };

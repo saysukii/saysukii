@@ -18,7 +18,7 @@ type StepBase = {
   label: string;
   required?: boolean;
   optional?: boolean;
-  hint?: string;
+  hint?: string | undefined;
 };
 
 export type InquiryStep =
@@ -45,7 +45,8 @@ export type InquiryStep =
     })
   | (StepBase & {
       kind: "choice";
-      field: "interest" | "event_setting" | "arrangement_size" | "budget_range" | "space" | "cadence";
+      field:
+        "interest" | "event_setting" | "arrangement_size" | "budget_range" | "space" | "cadence";
       options: InquiryChoiceOption[];
       otherField?: "space_other" | "cadence_other";
       otherPlaceholder?: string;
@@ -93,7 +94,11 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
     },
   ];
 
-  const review: InquiryStep = { id: "review", kind: "review", label: "are you ready to move forward?" };
+  const review: InquiryStep = {
+    id: "review",
+    kind: "review",
+    label: "are you ready to move forward?",
+  };
 
   function sourceStep(label: string, hint: string): InquiryStep {
     return {
@@ -126,7 +131,8 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
     optional: true,
   };
 
-  const visionHint = "a feeling, a few floral varieties you love, or a link — whatever helps me see it with you!";
+  const visionHint =
+    "a feeling, a few floral varieties you love, or a link — whatever helps me see it with you!";
 
   if (!interest) return sharedStart;
 
@@ -138,7 +144,10 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
         kind: "choice",
         field: "event_setting",
         label: "Is this a private or corporate event?",
-        options: EVENT_SETTING_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+        options: EVENT_SETTING_OPTIONS.map((option) => ({
+          value: option.value,
+          label: option.label,
+        })),
         required: true,
         hint: "so we understand the tone — a dinner at home vs a brand in a room?",
       },
@@ -325,7 +334,11 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
     ];
   }
 
-  return [...sharedStart, sourceStep("How did you hear about us?", "pick any that are true."), review];
+  return [
+    ...sharedStart,
+    sourceStep("How did you hear about us?", "pick any that are true."),
+    review,
+  ];
 }
 
 export function inquiryFirstName(name: string) {
@@ -375,7 +388,9 @@ export function formatInquiryPhone(value: string) {
 
 export function formatInquiryDate(values: InquiryFormValues) {
   if (values.event_date_tbd) return "TBD";
-  const dates = [values.event_date, ...(values.event_dates ?? [])].filter((date): date is string => Boolean(date));
+  const dates = [values.event_date, ...(values.event_dates ?? [])].filter((date): date is string =>
+    Boolean(date),
+  );
   if (!dates.length) return "";
   const days = dates.map((date) =>
     new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(new Date(`${date}T12:00:00`)),
@@ -421,7 +436,8 @@ export function isStepComplete(step: InquiryStep, values: InquiryFormValues) {
   if (step.kind === "choice") {
     const value = String(values[step.field] ?? "").trim();
     if (!value) return false;
-    if (step.otherField && value === "other") return String(values[step.otherField] ?? "").trim().length > 0;
+    if (step.otherField && value === "other")
+      return String(values[step.otherField] ?? "").trim().length > 0;
     return true;
   }
   return String(values[step.field] ?? "").trim().length > 0;

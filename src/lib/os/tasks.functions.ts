@@ -61,7 +61,11 @@ async function retireAutoTasks(client: StudioClient, tasks: TaskRow[]) {
   if (error) throw new Error(error.message);
 }
 
-async function closeOpenTasks(client: StudioClient, linkedType: "inquiry" | "project", linkedIds: string[]) {
+async function closeOpenTasks(
+  client: StudioClient,
+  linkedType: "inquiry" | "project",
+  linkedIds: string[],
+) {
   if (linkedIds.length === 0) return;
   const { error } = await client
     .from("tasks")
@@ -135,7 +139,10 @@ export async function applyInquiryAutoTask(
     const keep = matching[0];
     await retireAutoTasks(client, matching.slice(1));
     if (keep && keep.title !== desired.title) {
-      const { error } = await client.from("tasks").update({ title: desired.title }).eq("id", keep.id);
+      const { error } = await client
+        .from("tasks")
+        .update({ title: desired.title })
+        .eq("id", keep.id);
       if (error) throw new Error(error.message);
     }
     return;
@@ -153,11 +160,12 @@ export async function syncInquiryAutoTaskFor(client: StudioClient, inquiryId: st
   if (inquiryError) throw new Error(inquiryError.message);
   if (!inquiry) return;
 
-  const [{ data: person, error: personError }, { data: tasks, error: taskError }, inboundAt] = await Promise.all([
-    client.from("clients").select("name").eq("id", inquiry.client_id).maybeSingle(),
-    client.from("tasks").select("*").eq("linked_type", "inquiry").eq("linked_id", inquiryId),
-    lastInboundAt(client, inquiryId),
-  ]);
+  const [{ data: person, error: personError }, { data: tasks, error: taskError }, inboundAt] =
+    await Promise.all([
+      client.from("clients").select("name").eq("id", inquiry.client_id).maybeSingle(),
+      client.from("tasks").select("*").eq("linked_type", "inquiry").eq("linked_id", inquiryId),
+      lastInboundAt(client, inquiryId),
+    ]);
   if (personError) throw new Error(personError.message);
   if (taskError) throw new Error(taskError.message);
 
@@ -244,7 +252,7 @@ export const createManualTask = createServerFn({ method: "POST" })
       .insert({
         title: data.title,
         linked_type: data.linked_type,
-        linked_id: data.linked_type === "none" ? null : data.linked_id,
+        linked_id: data.linked_type === "none" ? null : (data.linked_id ?? null),
         source: "manual",
         trigger_stage: null,
         due_at: data.due_at ?? null,

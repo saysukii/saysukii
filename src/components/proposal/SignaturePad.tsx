@@ -135,7 +135,12 @@ export function SignaturePad({
         {!hasInk && !disabled ? <p>Sign with your finger or cursor</p> : null}
       </div>
       <div className="client-packet-pad-row">
-        <button type="button" className="client-packet-pad-clear" disabled={disabled || !hasInk} onClick={clear}>
+        <button
+          type="button"
+          className="client-packet-pad-clear"
+          disabled={disabled || !hasInk}
+          onClick={clear}
+        >
           Clear
         </button>
       </div>

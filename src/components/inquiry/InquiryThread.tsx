@@ -100,7 +100,12 @@ export function InquiryThread({
 
   function sendText(event?: FormEvent) {
     event?.preventDefault();
-    if (step.kind === "text" || step.kind === "email" || step.kind === "tel" || step.kind === "textarea") {
+    if (
+      step.kind === "text" ||
+      step.kind === "email" ||
+      step.kind === "tel" ||
+      step.kind === "textarea"
+    ) {
       const next = { ...values, [step.field]: draft.trim() };
       setValues(next);
       commit(step, next);
@@ -175,7 +180,8 @@ export function InquiryThread({
           {step.kind === "choice" || step.kind === "multi" ? (
             <div className="imessage-suggest">
               {step.options.map((option) => {
-                const active = step.kind === "multi" && (values.sources ?? []).includes(option.value);
+                const active =
+                  step.kind === "multi" && (values.sources ?? []).includes(option.value);
                 return (
                   <button
                     key={option.value}

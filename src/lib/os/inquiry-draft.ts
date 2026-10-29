@@ -7,7 +7,7 @@ const NOTES_HASH = "#notes=";
 export type InquiryPathCopy = {
   label: string;
   hint: string;
-  options?: Record<string, string>;
+  options?: Record<string, string> | undefined;
 };
 
 export type InquiryPathDraft = {
@@ -16,7 +16,7 @@ export type InquiryPathDraft = {
 };
 
 export type InquiryDrafts = Partial<Record<InquiryInterest, InquiryPathDraft>> & {
-  shared?: InquiryPathDraft;
+  shared?: InquiryPathDraft | undefined;
 };
 
 export type InquiryEditorTab = InquiryInterest | "shared";
@@ -59,7 +59,11 @@ function withMissingSteps(saved: string[] | undefined, fallback: string[]) {
   if (missing.length === 0) return kept;
   const reviewAt = kept.lastIndexOf("review");
   if (reviewAt === -1) return [...kept, ...missing];
-  return [...kept.slice(0, reviewAt), ...missing.filter((id) => id !== "review"), ...kept.slice(reviewAt)];
+  return [
+    ...kept.slice(0, reviewAt),
+    ...missing.filter((id) => id !== "review"),
+    ...kept.slice(reviewAt),
+  ];
 }
 
 function snapshotCopy(step: InquiryStep): InquiryPathCopy {
@@ -80,7 +84,9 @@ function snapshotFromSteps(steps: InquiryStep[]): InquiryPathDraft {
 }
 
 export function snapshotSharedPath(): InquiryPathDraft {
-  return snapshotFromSteps(buildInquirySteps("weddings").filter((step) => isSharedInquiryStep(step.id)));
+  return snapshotFromSteps(
+    buildInquirySteps("weddings").filter((step) => isSharedInquiryStep(step.id)),
+  );
 }
 
 export function snapshotInquiryPath(interest: InquiryInterest): InquiryPathDraft {
@@ -116,7 +122,9 @@ export function resolveInquirySteps(
   const sharedDraft = drafts.shared;
   const pathDraft = interest ? drafts[interest] : undefined;
 
-  const sharedFallback = steps.filter((step) => isSharedInquiryStep(step.id)).map((step) => step.id);
+  const sharedFallback = steps
+    .filter((step) => isSharedInquiryStep(step.id))
+    .map((step) => step.id);
   const restFallback = steps.filter((step) => !isSharedInquiryStep(step.id)).map((step) => step.id);
   const sharedOrder = withMissingSteps(
     sharedDraft?.order.filter((id) => isSharedInquiryStep(id) && byId.has(id)),
@@ -132,7 +140,10 @@ export function resolveInquirySteps(
     .filter((step): step is InquiryStep => Boolean(step))
     .map((step) =>
       lowerInquiryStep(
-        applyStepCopy(step, isSharedInquiryStep(step.id) ? sharedDraft?.copy[step.id] : pathDraft?.copy[step.id]),
+        applyStepCopy(
+          step,
+          isSharedInquiryStep(step.id) ? sharedDraft?.copy[step.id] : pathDraft?.copy[step.id],
+        ),
       ),
     );
 }
@@ -141,10 +152,11 @@ function lowerInquiryStep(step: InquiryStep): InquiryStep {
   const label = step.label.toLowerCase();
   if (step.kind === "review") return { ...step, label };
   const hint = step.hint?.toLowerCase();
-  const next = hint ? { ...step, label, hint } : { ...step, label };
-  if (step.kind !== "choice" && step.kind !== "multi") return next;
+  const words = hint ? { label, hint } : { label };
+  if (step.kind !== "choice" && step.kind !== "multi") return { ...step, ...words };
   return {
-    ...next,
+    ...step,
+    ...words,
     options: step.options.map((option) => ({
       value: option.value,
       label: option.label.toLowerCase(),
@@ -153,11 +165,13 @@ function lowerInquiryStep(step: InquiryStep): InquiryStep {
 }
 
 export function resolveSharedSteps(drafts: InquiryDrafts = {}) {
-  return resolveInquirySteps("weddings", { shared: drafts.shared }).filter((step) => isSharedInquiryStep(step.id));
+  return resolveInquirySteps("weddings", { shared: drafts.shared }).filter((step) =>
+    isSharedInquiryStep(step.id),
+  );
 }
 
 export function draftedInterestLabel(value: InquiryInterest, drafts: InquiryDrafts) {
-  const label = drafts.shared?.copy.interest?.options?.[value]?.trim();
+  const label = drafts.shared?.copy["interest"]?.options?.[value]?.trim();
   return label || INTEREST_OPTIONS.find((option) => option.value === value)?.label || value;
 }
 
@@ -167,7 +181,10 @@ function stepsSignature(steps: InquiryStep[]) {
       id: step.id,
       label: step.label,
       hint: step.kind === "review" ? "" : (step.hint ?? ""),
-      options: step.kind === "choice" || step.kind === "multi" ? step.options.map((option) => option.label) : [],
+      options:
+        step.kind === "choice" || step.kind === "multi"
+          ? step.options.map((option) => option.label)
+          : [],
     })),
   );
 }

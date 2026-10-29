@@ -68,26 +68,30 @@ const vendorFields: CsvField[] = [
   { key: "contact_name", aliases: ["contact name", "contact_name", "contact"] },
   { key: "contact_email", aliases: ["contact email", "contact_email", "email"] },
   { key: "contact_phone", aliases: ["contact phone", "contact_phone", "phone"] },
-  { key: "ordering_method", aliases: ["ordering method", "ordering_method", "ordering", "how to order"] },
+  {
+    key: "ordering_method",
+    aliases: ["ordering method", "ordering_method", "ordering", "how to order"],
+  },
 ];
 
 export function readClientCsv(text: string): CsvRead<ClientCsvRow> {
   return readCsv(text, clientFields, (cells, line) => {
-    const name = requiredText(cells.name, 160);
-    const email = requiredText(cells.email, 320);
+    const name = requiredText(cells["name"], 160);
+    const email = requiredText(cells["email"], 320);
     if (!name) return { error: `row ${line} needs a name` };
     if (!email || !email.includes("@")) return { error: `row ${line} needs an email` };
-    const type = enumValue(cells.type, CLIENT_TYPES, "individual");
-    if (!type) return { error: `row ${line} type should be individual, brand, corporate, or venue partner` };
+    const type = enumValue(cells["type"], CLIENT_TYPES, "individual");
+    if (!type)
+      return { error: `row ${line} type should be individual, brand, corporate, or venue partner` };
     return {
       row: {
         name,
         email,
-        phone: optionalText(cells.phone, 50),
-        organization: optionalText(cells.organization, 160),
+        phone: optionalText(cells["phone"], 50),
+        organization: optionalText(cells["organization"], 160),
         type,
-        source: optionalText(cells.source, 160) ?? "csv",
-        notes: optionalText(cells.notes, 5000),
+        source: optionalText(cells["source"], 160) ?? "csv",
+        notes: optionalText(cells["notes"], 5000),
       },
     };
   });
@@ -95,20 +99,21 @@ export function readClientCsv(text: string): CsvRead<ClientCsvRow> {
 
 export function readVenueCsv(text: string): CsvRead<VenueCsvRow> {
   return readCsv(text, venueFields, (cells, line) => {
-    const name = requiredText(cells.name, 200);
-    const address = requiredText(cells.address, 500);
+    const name = requiredText(cells["name"], 200);
+    const address = requiredText(cells["address"], 500);
     if (!name) return { error: `row ${line} needs a name` };
     if (!address) return { error: `row ${line} needs an address` };
-    const contactEmail = optionalText(cells.contact_email, 320);
-    if (contactEmail && !contactEmail.includes("@")) return { error: `row ${line} contact email is not an email` };
+    const contactEmail = optionalText(cells["contact_email"], 320);
+    if (contactEmail && !contactEmail.includes("@"))
+      return { error: `row ${line} contact email is not an email` };
     return {
       row: {
         name,
         address,
-        contact_name: optionalText(cells.contact_name, 160),
+        contact_name: optionalText(cells["contact_name"], 160),
         contact_email: contactEmail,
-        contact_phone: optionalText(cells.contact_phone, 50),
-        load_in_notes: optionalText(cells.load_in_notes, 5000),
+        contact_phone: optionalText(cells["contact_phone"], 50),
+        load_in_notes: optionalText(cells["load_in_notes"], 5000),
       },
     };
   });
@@ -116,20 +121,22 @@ export function readVenueCsv(text: string): CsvRead<VenueCsvRow> {
 
 export function readVendorCsv(text: string): CsvRead<VendorCsvRow> {
   return readCsv(text, vendorFields, (cells, line) => {
-    const name = requiredText(cells.name, 200);
+    const name = requiredText(cells["name"], 200);
     if (!name) return { error: `row ${line} needs a name` };
-    const type = enumValue(cells.type, VENDOR_TYPES, "other");
-    if (!type) return { error: `row ${line} type should be warehouse, wholesaler, rental, or other` };
-    const contactEmail = optionalText(cells.contact_email, 320);
-    if (contactEmail && !contactEmail.includes("@")) return { error: `row ${line} contact email is not an email` };
+    const type = enumValue(cells["type"], VENDOR_TYPES, "other");
+    if (!type)
+      return { error: `row ${line} type should be warehouse, wholesaler, rental, or other` };
+    const contactEmail = optionalText(cells["contact_email"], 320);
+    if (contactEmail && !contactEmail.includes("@"))
+      return { error: `row ${line} contact email is not an email` };
     return {
       row: {
         name,
         type,
-        contact_name: optionalText(cells.contact_name, 160),
+        contact_name: optionalText(cells["contact_name"], 160),
         contact_email: contactEmail,
-        contact_phone: optionalText(cells.contact_phone, 50),
-        ordering_method: optionalText(cells.ordering_method, 5000),
+        contact_phone: optionalText(cells["contact_phone"], 50),
+        ordering_method: optionalText(cells["ordering_method"], 5000),
       },
     };
   });
@@ -188,7 +195,10 @@ function parseCsv(text: string) {
   let row: string[] = [];
   let cell = "";
   let quoted = false;
-  const source = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const source = text
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
     if (quoted) {
@@ -238,7 +248,11 @@ function optionalText(value: string | undefined, max: number) {
   return trimmed ? trimmed.slice(0, max) : null;
 }
 
-function enumValue<T extends string>(value: string | undefined, allowed: readonly T[], fallback: T) {
+function enumValue<T extends string>(
+  value: string | undefined,
+  allowed: readonly T[],
+  fallback: T,
+) {
   const trimmed = value?.trim() ?? "";
   if (!trimmed) return fallback;
   const normalized = trimmed.toLowerCase().replace(/[\s-]+/g, "_") as T;

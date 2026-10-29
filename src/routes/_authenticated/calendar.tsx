@@ -4,7 +4,12 @@ import { useServerFn } from "@tanstack/react-start";
 
 import { ScheduleDesk } from "@/components/portal/ScheduleDesk";
 import { getDevPreviewAppointments, getDevPreviewPipeline } from "@/lib/dev-preview";
-import { listAppointments, listStudioCalendarEvents, getGranolaStatus, getGranolaStatusDev } from "@/lib/os/bookings.functions";
+import {
+  listAppointments,
+  listStudioCalendarEvents,
+  getGranolaStatus,
+  getGranolaStatusDev,
+} from "@/lib/os/bookings.functions";
 import { EVENT_LABEL } from "@/lib/os/inquiry-desk";
 import { inquiryHoldDates } from "@/lib/os/inquiry-holds";
 import { listInquiryPipeline } from "@/lib/os/inquiries.functions";
@@ -13,10 +18,7 @@ import { useDevPreview } from "@/lib/use-dev-preview";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
   head: () => ({
-    meta: [
-      { title: "Schedule — Say Sukii OS" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Schedule — Say Sukii OS" }, { name: "robots", content: "noindex" }],
   }),
   component: SchedulePage,
 });
@@ -40,10 +42,14 @@ function SchedulePage() {
         const google = await googleBookings(fetchGoogleEvents);
         const preview = getDevPreviewAppointments();
         const seen = new Set(preview.map((row) => `${row.startsAt}|${row.email.toLowerCase()}`));
-        const googleFresh = google.filter((row) => !seen.has(`${row.startsAt}|${row.email.toLowerCase()}`));
-        return [...preview, ...googleFresh, ...local.filter((row) => !seen.has(`${row.startsAt}|${row.email.toLowerCase()}`))].sort(
-          byStart,
+        const googleFresh = google.filter(
+          (row) => !seen.has(`${row.startsAt}|${row.email.toLowerCase()}`),
         );
+        return [
+          ...preview,
+          ...googleFresh,
+          ...local.filter((row) => !seen.has(`${row.startsAt}|${row.email.toLowerCase()}`)),
+        ].sort(byStart);
       }
       try {
         const remote = await fetchAppointments();
@@ -96,7 +102,14 @@ function SchedulePage() {
   }
 
   const schedule = [...bookings, ...holds].sort(byStart);
-  return <ScheduleDesk bookings={schedule} briefs={briefs} pending={isPending || pipeline.isPending} granolaConnected={granolaConnected} />;
+  return (
+    <ScheduleDesk
+      bookings={schedule}
+      briefs={briefs}
+      pending={isPending || pipeline.isPending}
+      granolaConnected={granolaConnected}
+    />
+  );
 }
 
 function acceptedHolds(
@@ -155,7 +168,9 @@ function meetingBriefs(
     const when = row.event_date_tbd
       ? ""
       : row.event_date
-        ? new Date(`${row.event_date}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric" }).toLowerCase()
+        ? new Date(`${row.event_date}T12:00:00`)
+            .toLocaleDateString("en-US", { month: "long", day: "numeric" })
+            .toLowerCase()
         : "";
     briefs.push({
       email,
@@ -190,7 +205,9 @@ function byStart(left: StudioBooking, right: StudioBooking) {
 }
 
 async function googleBookings(
-  fetchGoogleEvents: () => Promise<Array<{ id: string; startsAt: string; name: string; allDay: boolean; joinUrl: string | null }>>,
+  fetchGoogleEvents: () => Promise<
+    Array<{ id: string; startsAt: string; name: string; allDay: boolean; joinUrl: string | null }>
+  >,
 ) {
   return fetchGoogleEvents()
     .then((events) =>

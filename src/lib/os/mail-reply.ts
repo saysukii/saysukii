@@ -4,7 +4,9 @@ const HEADER = /\nFrom: [^\n]+\nSent: /i;
 
 export function clientReplyText(body: string) {
   const text = body.replace(/\r\n/g, "\n").replace(/\u00a0/g, " ");
-  const marks = [text.search(WROTE), text.search(OUTLOOK), text.search(HEADER)].filter((index) => index >= 0);
+  const marks = [text.search(WROTE), text.search(OUTLOOK), text.search(HEADER)].filter(
+    (index) => index >= 0,
+  );
   const lines = text.split("\n");
   const quoted = lines.findIndex((line, index) => index > 0 && line.startsWith(">"));
   if (quoted >= 0) marks.push(lines.slice(0, quoted).join("\n").length);

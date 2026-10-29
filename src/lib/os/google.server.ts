@@ -62,7 +62,10 @@ export async function exchangeGoogleCalendarCode(code: string, connectedBy: stri
       expires_at: tokens.expires_in
         ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
         : null,
-      metadata: { scope: tokens.scope ?? GOOGLE_CONNECT_SCOPES.join(" "), account_email: accountEmail },
+      metadata: {
+        scope: tokens.scope ?? GOOGLE_CONNECT_SCOPES.join(" "),
+        account_email: accountEmail,
+      },
       connected_by: connectedBy,
     },
     { onConflict: "provider" },
@@ -240,7 +243,11 @@ export async function createConsultationEvent(input: {
   const calendarId = encodeURIComponent(process.env["GOOGLE_CALENDAR_ID"] ?? "primary");
   const body = {
     summary: `let's talk · ${input.name}`,
-    description: [`${minutes} minute ${phone ? "phone call" : "google meeting"}`, input.email, input.note]
+    description: [
+      `${minutes} minute ${phone ? "phone call" : "google meeting"}`,
+      input.email,
+      input.note,
+    ]
       .filter(Boolean)
       .join("\n"),
     start: { dateTime: start.toISOString(), timeZone: STUDIO_ZONE },
@@ -261,7 +268,8 @@ export async function createConsultationEvent(input: {
   if (invited.ok) return invited.id;
   const { attendees: _attendees, ...studioOnly } = body;
   const parked = await insertCalendarEvent(accessToken, calendarId, studioOnly, false);
-  if (!parked.ok) throw new Error(parked.message || invited.message || "Google Calendar request failed");
+  if (!parked.ok)
+    throw new Error(parked.message || invited.message || "Google Calendar request failed");
   return parked.id;
 }
 
@@ -273,14 +281,17 @@ async function insertCalendarEvent(
 ) {
   const params = new URLSearchParams({ conferenceDataVersion: "1" });
   if (invite) params.set("sendUpdates", "all");
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
-  });
+  );
   const event = (await response.json()) as { id?: string; error?: { message?: string } };
   return { ok: response.ok, id: event.id ?? null, message: event.error?.message };
 }
@@ -294,13 +305,16 @@ function eventWindow(event: GoogleEvent): CalendarWindow | null {
     };
   }
   if (event.start?.date && event.end?.date) {
-    return { start: studioWallTime(event.start.date).toISOString(), end: studioWallTime(event.end.date).toISOString() };
+    return {
+      start: studioWallTime(event.start.date).toISOString(),
+      end: studioWallTime(event.end.date).toISOString(),
+    };
   }
   return null;
 }
 
 function studioWallTime(date: string, hour = 0) {
-  const [year, month, day] = date.split("-").map(Number);
+  const [year = 1970, month = 1, day = 1] = date.split("-").map(Number);
   const guess = Date.UTC(year, month - 1, day, 12);
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: STUDIO_ZONE,
@@ -312,7 +326,13 @@ function studioWallTime(date: string, hour = 0) {
     minute: "2-digit",
   }).formatToParts(new Date(guess));
   const read = (type: string) => Number(parts.find((part) => part.type === type)?.value);
-  const shown = Date.UTC(read("year"), read("month") - 1, read("day"), read("hour"), read("minute"));
+  const shown = Date.UTC(
+    read("year"),
+    read("month") - 1,
+    read("day"),
+    read("hour"),
+    read("minute"),
+  );
   return new Date(Date.UTC(year, month - 1, day, hour, 0) - (shown - guess));
 }
 
@@ -342,7 +362,10 @@ function pickMeetingLink(event: GoogleEvent) {
   if (video?.uri) return cleanUrl(video.uri);
   if (event.hangoutLink && isMeetingUrl(event.hangoutLink)) return cleanUrl(event.hangoutLink);
   const attached = event.conferenceData?.entryPoints?.find(
-    (point) => point.uri?.startsWith("https://") && point.entryPointType !== "phone" && isMeetingUrl(point.uri),
+    (point) =>
+      point.uri?.startsWith("https://") &&
+      point.entryPointType !== "phone" &&
+      isMeetingUrl(point.uri),
   );
   if (attached?.uri) return cleanUrl(attached.uri);
   return firstMeetingUrl(event.location) ?? firstMeetingUrl(event.description);

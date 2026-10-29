@@ -33,7 +33,8 @@ function inquiryKind(value: string) {
 
 function studioOrigin(origin?: string) {
   const base = (origin ?? emailOrigin()).replace(/\/$/, "");
-  if (base.includes("localhost") || base.includes("127.0.0.1")) return "https://inside.saysukii.com";
+  if (base.includes("localhost") || base.includes("127.0.0.1"))
+    return "https://inside.saysukii.com";
   return base;
 }
 
@@ -85,8 +86,16 @@ function noticeRfc822(subject: string, html: string, text: string, to: string) {
     "MIME-Version: 1.0",
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ];
-  const plain = Buffer.from(text, "utf8").toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
-  const markup = Buffer.from(html, "utf8").toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
+  const plain =
+    Buffer.from(text, "utf8")
+      .toString("base64")
+      .match(/.{1,76}/g)
+      ?.join("\r\n") ?? "";
+  const markup =
+    Buffer.from(html, "utf8")
+      .toString("base64")
+      .match(/.{1,76}/g)
+      ?.join("\r\n") ?? "";
   return [
     headers.join("\r\n"),
     "",
@@ -129,15 +138,23 @@ async function insertStudioNotice(raw: string) {
   const accessToken = await validGmailAccessToken();
   const encoded = encodeGmailRaw(raw);
 
-  const inserted = await gmailWrite("https://gmail.googleapis.com/gmail/v1/users/me/messages", accessToken, {
-    raw: encoded,
-    labelIds: ["INBOX", "UNREAD"],
-  });
+  const inserted = await gmailWrite(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+    accessToken,
+    {
+      raw: encoded,
+      labelIds: ["INBOX", "UNREAD"],
+    },
+  );
   if (inserted.ok) return true;
 
-  const sent = await gmailWrite("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", accessToken, {
-    raw: encoded,
-  });
+  const sent = await gmailWrite(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    accessToken,
+    {
+      raw: encoded,
+    },
+  );
   if (!sent.ok || !sent.payload?.id) {
     console.error(
       "[Inquiry email] gmail did not deliver the notice:",
@@ -154,9 +171,13 @@ async function insertStudioNotice(raw: string) {
   const placedPayload = (await placed.json().catch(() => null)) as { labelIds?: string[] } | null;
   if (placedPayload?.labelIds?.includes("INBOX")) return true;
 
-  await gmailWrite(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${sent.payload.id}/modify`, accessToken, {
-    addLabelIds: ["INBOX", "UNREAD"],
-  });
+  await gmailWrite(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${sent.payload.id}/modify`,
+    accessToken,
+    {
+      addLabelIds: ["INBOX", "UNREAD"],
+    },
+  );
   return true;
 }
 
@@ -165,11 +186,18 @@ async function sendNotice(raw: string) {
   const gmail = await getGmailPublicStatus();
   if (gmail.status !== "connected") return false;
   const accessToken = await validGmailAccessToken();
-  const sent = await gmailWrite("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", accessToken, {
-    raw: encodeGmailRaw(raw),
-  });
+  const sent = await gmailWrite(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    accessToken,
+    {
+      raw: encodeGmailRaw(raw),
+    },
+  );
   if (!sent.ok || !sent.payload?.id) {
-    console.error("[Inquiry email] gmail did not send the notice:", sent.payload?.error?.message || sent.status);
+    console.error(
+      "[Inquiry email] gmail did not send the notice:",
+      sent.payload?.error?.message || sent.status,
+    );
     return false;
   }
   return true;

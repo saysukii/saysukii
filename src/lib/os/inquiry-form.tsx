@@ -227,7 +227,9 @@ export function InquiryForm({
               date is still tbd
             </button>
           </div>
-          {dateError ? <span className="mt-1.5 block text-xs text-muted-foreground">{dateError}</span> : null}
+          {dateError ? (
+            <span className="mt-1.5 block text-xs text-muted-foreground">{dateError}</span>
+          ) : null}
         </div>
         <Field label="Venue or neighborhood" hint="Optional if undecided">
           <input className={inputClass} name="venue_text" maxLength={240} />
@@ -250,7 +252,9 @@ export function InquiryForm({
               }}
             />
           </div>
-          {budgetError ? <span className="mt-1.5 block text-xs text-muted-foreground">{budgetError}</span> : null}
+          {budgetError ? (
+            <span className="mt-1.5 block text-xs text-muted-foreground">{budgetError}</span>
+          ) : null}
         </div>
       </div>
 

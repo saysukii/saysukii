@@ -26,5 +26,8 @@ export function connectLetterBody(name: string, _origin?: string) {
 }
 
 export function connectLetterPlain(name: string, origin?: string) {
-  return connectLetterBody(name, origin).replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1 ($2)");
+  return connectLetterBody(name, origin).replace(
+    /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+    "$1 ($2)",
+  );
 }

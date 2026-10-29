@@ -9,8 +9,7 @@ const AUTOMATED_LOCAL =
 const AUTOMATED_DOMAIN =
   /@(?:[\w.-]+\.)*(?:railway\.(?:app|com)|github\.com|eventbrite\.com|mailchimp\.com|stripe\.com|vercel\.com|supabase\.(?:com|io)|linear\.app|notion\.so|linkedin\.com|facebookmail\.com|instagram\.com|tiktok\.com|squareup\.com|square\.com|paypal\.com|amazon\.com|google\.com|accounts\.google\.com)$/i;
 
-const NON_INQUIRY =
-  /\b(?:you(?:'|’)re invited|rsvp)\b/i;
+const NON_INQUIRY = /\b(?:you(?:'|’)re invited|rsvp)\b/i;
 
 const HARD_NOISE =
   /\b(?:unsubscribe|newsletter|password reset|verify your email|your receipt|order confirmation|tracking number|out of office|automatic reply|mailer-daemon|deployment failed|build failed|support ticket|wholesale|partnership opportunity|railway|your payment|payment to|social toolkit|i built|we built|our app|our platform|book a demo)\b/i;
@@ -46,10 +45,10 @@ export function hasInquiryCue(text: string) {
 }
 
 export function belongsInReview(input: {
-  from?: string | null;
-  subject?: string | null;
-  body?: string | null;
-  confidence?: number | null;
+  from?: string | null | undefined;
+  subject?: string | null | undefined;
+  body?: string | null | undefined;
+  confidence?: number | null | undefined;
 }) {
   if (isAutomatedSender(input.from)) return false;
   const text = inboundAsk(input.subject, input.body);

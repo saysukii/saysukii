@@ -33,7 +33,12 @@ export function withDatesNote(message: string, dates: string[]) {
 }
 
 export function studioFileKey(folder: string, name: string) {
-  const ext = name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  const ext =
+    name
+      .split(".")
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") || "bin";
   const stem =
     name
       .replace(/\.[^.]+$/, "")

@@ -53,7 +53,9 @@ export function CalendarHours({ onSaved }: { onSaved?: () => void } = {}) {
     setHours((current) => ({
       ...current,
       days: current.days.map((item) =>
-        days.includes(item.day) ? { ...item, open: true, start: source.start, end: source.end } : item,
+        days.includes(item.day)
+          ? { ...item, open: true, start: source.start, end: source.end }
+          : item,
       ),
     }));
   }
@@ -82,7 +84,9 @@ export function CalendarHours({ onSaved }: { onSaved?: () => void } = {}) {
               onChange={(event) =>
                 setHours((current) => ({
                   ...current,
-                  durationMinutes: Number(event.target.value) as CalendarSettings["durationMinutes"],
+                  durationMinutes: Number(
+                    event.target.value,
+                  ) as CalendarSettings["durationMinutes"],
                 }))
               }
             >
@@ -98,7 +102,9 @@ export function CalendarHours({ onSaved }: { onSaved?: () => void } = {}) {
               onChange={(event) =>
                 setHours((current) => ({
                   ...current,
-                  incrementMinutes: Number(event.target.value) as CalendarSettings["incrementMinutes"],
+                  incrementMinutes: Number(
+                    event.target.value,
+                  ) as CalendarSettings["incrementMinutes"],
                 }))
               }
             >
@@ -120,7 +126,7 @@ export function CalendarHours({ onSaved }: { onSaved?: () => void } = {}) {
             return (
               <div key={item.day} className="studio-hours-row">
                 <span className={cn("studio-hours-mark", item.open && "is-on")} aria-hidden="true">
-                  {name.slice(0, 1)}
+                  {name?.slice(0, 1)}
                 </span>
                 {item.open ? (
                   <>
@@ -128,7 +134,9 @@ export function CalendarHours({ onSaved }: { onSaved?: () => void } = {}) {
                       <Clock
                         label={`${name} starts`}
                         value={item.start}
-                        onChange={(start) => updateDay(item.day, { start, end: laterEnd(start, item.end) })}
+                        onChange={(start) =>
+                          updateDay(item.day, { start, end: laterEnd(start, item.end) })
+                        }
                       />
                       <span>to</span>
                       <Clock
@@ -240,7 +248,12 @@ export function CalendarHours({ onSaved }: { onSaved?: () => void } = {}) {
       </div>
 
       <div className="studio-hours-save">
-        <button type="button" className="studio-today-go" disabled={persist.isPending} onClick={() => persist.mutate(hours)}>
+        <button
+          type="button"
+          className="studio-today-go"
+          disabled={persist.isPending}
+          onClick={() => persist.mutate(hours)}
+        >
           {persist.isPending ? "saving…" : "save"}
         </button>
       </div>
@@ -260,7 +273,10 @@ function CopyTimes({ source, onApply }: { source: DayHours; onApply: (days: numb
         if (next) setPicked([]);
       }}
     >
-      <PopoverTrigger className="studio-hours-icon" aria-label={`copy ${DAY_NAMES[source.day]} hours`}>
+      <PopoverTrigger
+        className="studio-hours-icon"
+        aria-label={`copy ${DAY_NAMES[source.day]} hours`}
+      >
         <Copy aria-hidden="true" strokeWidth={1.5} />
       </PopoverTrigger>
       <PopoverContent
@@ -282,7 +298,9 @@ function CopyTimes({ source, onApply }: { source: DayHours; onApply: (days: numb
                 className={on ? "is-on" : undefined}
                 onClick={() =>
                   setPicked((current) =>
-                    current.includes(day) ? current.filter((item) => item !== day) : [...current, day],
+                    current.includes(day)
+                      ? current.filter((item) => item !== day)
+                      : [...current, day],
                   )
                 }
               >
@@ -330,7 +348,11 @@ function Clock({
 }) {
   const choices = after ? CLOCKS.filter((item) => item > after) : CLOCKS;
   return (
-    <select aria-label={label} value={choices.includes(value) ? value : choices[0]} onChange={(event) => onChange(event.target.value)}>
+    <select
+      aria-label={label}
+      value={choices.includes(value) ? value : choices[0]}
+      onChange={(event) => onChange(event.target.value)}
+    >
       {choices.map((item) => (
         <option key={item} value={item}>
           {clockLabel(item)}
@@ -341,5 +363,5 @@ function Clock({
 }
 
 function laterEnd(start: string, end: string) {
-  return end > start ? end : CLOCKS.find((item) => item > start) ?? end;
+  return end > start ? end : (CLOCKS.find((item) => item > start) ?? end);
 }

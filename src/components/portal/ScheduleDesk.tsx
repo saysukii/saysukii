@@ -6,7 +6,13 @@ import { toast } from "sonner";
 import { CalendarHours } from "@/components/portal/CalendarHours";
 import { BloomWait } from "@/components/portal/StudioLoader";
 import { PersonName } from "@/components/studio/PersonName";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { readLocalCalendar } from "@/lib/calendar-settings";
 import {
   bookingWindow,
@@ -68,7 +74,8 @@ export function ScheduleDesk({
       list.push(booking);
       groups.set(key, list);
     }
-    for (const list of groups.values()) list.sort((left, right) => left.startsAt.localeCompare(right.startsAt));
+    for (const list of groups.values())
+      list.sort((left, right) => left.startsAt.localeCompare(right.startsAt));
     return groups;
   }, [bookings]);
 
@@ -116,7 +123,11 @@ export function ScheduleDesk({
           <p>the month, and the settings the letter offers.</p>
         </div>
         <div className="studio-home-hello-go">
-          <button type="button" className="studio-today-go is-pearl" onClick={() => setSettingsOpen(true)}>
+          <button
+            type="button"
+            className="studio-today-go is-pearl"
+            onClick={() => setSettingsOpen(true)}
+          >
             settings
           </button>
           <button
@@ -150,7 +161,11 @@ export function ScheduleDesk({
                     <i className="studio-rec" aria-hidden="true" />
                     live
                   </button>
-                  <button type="button" className="studio-listen-who" onClick={() => openMeeting(booking)}>
+                  <button
+                    type="button"
+                    className="studio-listen-who"
+                    onClick={() => openMeeting(booking)}
+                  >
                     <PersonName name={booking.name} />
                   </button>
                   <ListeningLine />
@@ -167,7 +182,9 @@ export function ScheduleDesk({
                 type="button"
                 className="studio-cal-nav"
                 aria-label="previous month"
-                onClick={() => setCursor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                onClick={() =>
+                  setCursor((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
+                }
               >
                 <ChevronLeft aria-hidden="true" />
               </button>
@@ -176,7 +193,9 @@ export function ScheduleDesk({
                 type="button"
                 className="studio-cal-nav"
                 aria-label="next month"
-                onClick={() => setCursor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                onClick={() =>
+                  setCursor((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
+                }
               >
                 <ChevronRight aria-hidden="true" />
               </button>
@@ -238,7 +257,11 @@ export function ScheduleDesk({
                       ),
                     )}
                     {items.length > shown.length ? (
-                      <button type="button" className="studio-agenda-more" onClick={() => chooseDay(key)}>
+                      <button
+                        type="button"
+                        className="studio-agenda-more"
+                        onClick={() => chooseDay(key)}
+                      >
                         +{items.length - shown.length}
                       </button>
                     ) : null}
@@ -269,7 +292,11 @@ export function ScheduleDesk({
         </div>
       </div>
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask is-soft is-split is-settings" hideClose>
+        <DialogContent
+          overlayClassName="studio-task-veil"
+          className="studio-task-modal is-ask is-soft is-split is-settings"
+          hideClose
+        >
           <div className="studio-task-head is-ask">
             <DialogTitle>settings</DialogTitle>
             <DialogClose className="studio-task-close" aria-label="Close">
@@ -323,7 +350,12 @@ function DayList({
       <div className="studio-directory">
         {bookings.map((booking) =>
           booking.inquirySlug ? (
-            <Link key={booking.id} to="/pipeline/$id" params={{ id: booking.inquirySlug }} className="studio-book-row">
+            <Link
+              key={booking.id}
+              to="/pipeline/$id"
+              params={{ id: booking.inquirySlug }}
+              className="studio-book-row"
+            >
               <span>
                 <b>
                   <PersonName name={booking.name} />
@@ -333,7 +365,12 @@ function DayList({
               <small>all day</small>
             </Link>
           ) : (
-            <button key={booking.id} type="button" className="studio-book-row" onClick={() => onOpen(booking)}>
+            <button
+              key={booking.id}
+              type="button"
+              className="studio-book-row"
+              onClick={() => onOpen(booking)}
+            >
               <span>
                 <b>
                   <PersonName name={booking.name} />
@@ -361,7 +398,7 @@ function MeetingRecord({
   booking: StudioBooking;
   minutes: number;
   brief: MeetingBrief | null;
-  capture?: MeetingCapture;
+  capture?: MeetingCapture | undefined;
   granolaConnected: boolean | null;
   onBack: () => void;
   onCapture: (capture: MeetingCapture) => void;
@@ -412,7 +449,11 @@ function MeetingRecord({
             onCapture({ recording: true, done: false, summary: capture?.summary ?? "" });
           }}
         >
-          {recording ? <i className="studio-rec" aria-hidden="true" /> : <span className="studio-summary-mark" aria-hidden="true" />}
+          {recording ? (
+            <i className="studio-rec" aria-hidden="true" />
+          ) : (
+            <span className="studio-summary-mark" aria-hidden="true" />
+          )}
           {recording ? "live" : "record"}
         </button>
         {recording ? <ListeningLine /> : null}
@@ -456,7 +497,8 @@ function monthCells(anchor: Date) {
   const startPad = first.getDay();
   const days = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
   const cells: Array<Date | null> = Array.from({ length: startPad }, () => null);
-  for (let day = 1; day <= days; day += 1) cells.push(new Date(anchor.getFullYear(), anchor.getMonth(), day));
+  for (let day = 1; day <= days; day += 1)
+    cells.push(new Date(anchor.getFullYear(), anchor.getMonth(), day));
   while (cells.length % 7) cells.push(null);
   return cells;
 }

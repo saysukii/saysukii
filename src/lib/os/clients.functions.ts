@@ -41,6 +41,8 @@ const vendorInput = z.object({
   ordering_method: nullableText(5000),
 });
 
+const archiveInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(1000) });
+
 function optional(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
@@ -48,12 +50,18 @@ function optional(value: string | null | undefined) {
 
 export const listClients = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from("clients")
-      .select("*")
-      .eq("archived", false)
-      .order("name");
+  .validator((input: unknown) =>
+    z
+      .object({ include_archived: z.boolean().optional().default(false) })
+      .optional()
+      .default({ include_archived: false })
+      .parse(input),
+  )
+  .handler(async ({ data: options, context }) => {
+    const query = context.supabase.from("clients").select("*").order("name");
+    const { data, error } = options.include_archived
+      ? await query
+      : await query.eq("archived", false);
     if (error) throw new Error(error.message);
     return data ?? [];
   });
@@ -138,7 +146,10 @@ export const getClient = createServerFn({ method: "GET" })
     return {
       client: clientResult.data,
       slug: clientSlugs(allClients.data ?? []).get(clientResult.data.id) ?? clientResult.data.id,
-      inquiries: (inquiries.data ?? []).map((inquiry) => ({ ...inquiry, slug: slugs.get(inquiry.id) ?? inquiry.id })),
+      inquiries: (inquiries.data ?? []).map((inquiry) => ({
+        ...inquiry,
+        slug: slugs.get(inquiry.id) ?? inquiry.id,
+      })),
       proposals: proposals.data ?? [],
       projects: projects.data ?? [],
       files: clientFiles,
@@ -241,12 +252,12 @@ export const importClients = createServerFn({ method: "POST" })
 
 export const archiveClient = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => archiveInput.parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("clients")
       .update({ archived: true })
-      .eq("id", data.id);
+      .in("id", data.ids);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -285,12 +296,12 @@ export const saveVenue = createServerFn({ method: "POST" })
 
 export const archiveVenue = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => archiveInput.parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("venues")
       .update({ archived: true })
-      .eq("id", data.id);
+      .in("id", data.ids);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -317,12 +328,12 @@ export const saveVendor = createServerFn({ method: "POST" })
 
 export const archiveVendor = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .validator((input: unknown) => archiveInput.parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("vendors")
       .update({ archived: true })
-      .eq("id", data.id);
+      .in("id", data.ids);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

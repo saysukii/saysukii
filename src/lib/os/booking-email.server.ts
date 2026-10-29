@@ -14,11 +14,18 @@ export type BookingMail = {
 const ZONE = "America/New_York";
 
 function icsText(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\r?\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
 }
 
 function stamp(date: Date) {
-  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return date
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
 }
 
 function fold(line: string) {
@@ -144,7 +151,12 @@ export function bookingText(input: BookingMail) {
 }
 
 function wrappedBase64(value: string) {
-  return Buffer.from(value, "utf8").toString("base64").match(/.{1,76}/g)?.join("\r\n") ?? "";
+  return (
+    Buffer.from(value, "utf8")
+      .toString("base64")
+      .match(/.{1,76}/g)
+      ?.join("\r\n") ?? ""
+  );
 }
 
 function bookingMime(input: BookingMail) {
@@ -199,7 +211,9 @@ async function sendBookingThroughGmail(input: BookingMail) {
     body: JSON.stringify({ raw: encodeGmailRaw(bookingMime(input)) }),
   });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+    const payload = (await response.json().catch(() => null)) as {
+      error?: { message?: string };
+    } | null;
     throw new Error(payload?.error?.message || `Gmail send failed (${response.status})`);
   }
   return { sent: true as const };

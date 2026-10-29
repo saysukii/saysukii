@@ -21,11 +21,8 @@ async function handleGmailCallback(request: Request) {
   const state = url.searchParams.get("state");
   if (!state) return settingsRedirect(request, "error");
 
-  const {
-    completeGmailOAuth,
-    consumeGmailOAuthState,
-    markGmailConnectionError,
-  } = await import("@/lib/os/gmail.server");
+  const { completeGmailOAuth, consumeGmailOAuthState, markGmailConnectionError } =
+    await import("@/lib/os/gmail.server");
 
   const connectedBy = await consumeGmailOAuthState(state);
   if (!connectedBy) return settingsRedirect(request, "error");

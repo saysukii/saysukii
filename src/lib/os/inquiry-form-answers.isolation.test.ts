@@ -26,8 +26,14 @@ describe("inquiry form answers", () => {
       answers.map((answer) => answer.label),
       ["interest", "space", "start", "cadence", "heard from", "anything else"],
     );
-    assert.equal(answers.find((answer) => answer.label === "anything else")?.value, "thank you for being amazing <3");
-    assert.equal(answers.some((answer) => answer.label === "vision"), false);
+    assert.equal(
+      answers.find((answer) => answer.label === "anything else")?.value,
+      "thank you for being amazing <3",
+    );
+    assert.equal(
+      answers.some((answer) => answer.label === "vision"),
+      false,
+    );
     assert.equal(answers[0]?.value, "concierge + subscriptions");
   });
 
@@ -39,7 +45,13 @@ describe("inquiry form answers", () => {
       budget_range: "$10,000",
       eventWhen: "03/14/27",
     });
-    assert.equal(answers.find((answer) => answer.label === "vision")?.value, "garden roses and a long table");
-    assert.equal(answers.some((answer) => answer.label === "anything else"), false);
+    assert.equal(
+      answers.find((answer) => answer.label === "vision")?.value,
+      "garden roses and a long table",
+    );
+    assert.equal(
+      answers.some((answer) => answer.label === "anything else"),
+      false,
+    );
   });
 });

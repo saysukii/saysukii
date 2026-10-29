@@ -6,10 +6,7 @@ import { InquiryQuestionEditor } from "@/components/inquiry/InquiryQuestionEdito
 export const Route = createFileRoute("/inquire/preview")({
   ssr: false,
   head: () => ({
-    meta: [
-      { title: "Let's Connect – Say Sukii" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Let's Connect – Say Sukii" }, { name: "robots", content: "noindex" }],
   }),
   component: InquirePreviewPage,
 });

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 import type { InboundMessageRow } from "../../integrations/supabase/types";
+import { mailRecord } from "./mail-people";
 
 const LOOKBACK_DAYS = 7;
 const PAGE_SIZE = 50;
@@ -15,6 +16,7 @@ export type CapturedInbound = {
   gmail_message_id: string;
   gmail_thread_id: string | null;
   from_addr: string | null;
+  from_name: string | null;
   to_addr: string | null;
   subject: string | null;
   body: string | null;
@@ -52,13 +54,19 @@ export type GmailApiMessage = {
 
 export type InboundMailbox = {
   profileHistoryId(): Promise<string | null>;
-  listHistory(historyId: string, pageToken?: string): Promise<{
+  listHistory(
+    historyId: string,
+    pageToken?: string,
+  ): Promise<{
     ids: string[];
     historyId: string | null;
     nextPageToken: string | null;
     expired: boolean;
   }>;
-  listInbox(query: string, pageToken?: string): Promise<{
+  listInbox(
+    query: string,
+    pageToken?: string,
+  ): Promise<{
     ids: string[];
     nextPageToken: string | null;
   }>;
@@ -102,7 +110,9 @@ export function decodeGmailBody(data: string) {
 }
 
 export function headerValue(payload: GmailApiPart | undefined, name: string) {
-  const match = payload?.headers?.find((header) => header.name?.toLowerCase() === name.toLowerCase());
+  const match = payload?.headers?.find(
+    (header) => header.name?.toLowerCase() === name.toLowerCase(),
+  );
   const value = match?.value?.trim();
   return value ? value : null;
 }
@@ -112,6 +122,19 @@ export function headerEmail(value: string | null) {
   const angled = value.match(/<([^>]+)>/);
   const email = (angled?.[1] ?? value).trim();
   return email.slice(0, 320) || null;
+}
+
+export function headerName(value: string | null) {
+  const named = value?.match(/^\s*"?([^"<]+?)"?\s*</);
+  const name = named?.[1]?.trim() ?? "";
+  return name.length >= 2 && !name.includes("@") ? name.slice(0, 160) : null;
+}
+
+/** Every address on To and Cc, kept as the same "to · cc:" line the studio writes when it sends. */
+export function headerRecipients(to: string | null, cc: string | null) {
+  const addresses = (value: string | null) => value?.match(/[^\s<>",;]+@[^\s<>",;]+/g) ?? [];
+  const line = mailRecord(addresses(to), addresses(cc)).line;
+  return line ? line.slice(0, 2000) : null;
 }
 
 export function htmlToText(html: string) {
@@ -158,21 +181,23 @@ export function parseGmailMessage(message: GmailApiMessage): CapturedInbound | n
     gmail_message_id: id,
     gmail_thread_id: message.threadId?.trim() || null,
     from_addr: headerEmail(headerValue(message.payload, "From")),
-    to_addr: headerEmail(headerValue(message.payload, "To")),
+    from_name: headerName(headerValue(message.payload, "From")),
+    to_addr: headerRecipients(
+      headerValue(message.payload, "To"),
+      headerValue(message.payload, "Cc"),
+    ),
     subject: headerValue(message.payload, "Subject"),
     body: body || null,
     received_at: receivedAt,
   };
 }
 
-export async function syncInboundMail(
-  deps: {
-    mailbox: InboundMailbox;
-    store: InboundStore;
-    now?: () => Date;
-    lookbackDays?: number;
-  },
-): Promise<Omit<InboundSyncResult, "skipped" | "reason"> & { skipped: false; reason: null }> {
+export async function syncInboundMail(deps: {
+  mailbox: InboundMailbox;
+  store: InboundStore;
+  now?: () => Date;
+  lookbackDays?: number;
+}): Promise<Omit<InboundSyncResult, "skipped" | "reason"> & { skipped: false; reason: null }> {
   const now = deps.now?.() ?? new Date();
   const lookbackDays = deps.lookbackDays ?? LOOKBACK_DAYS;
   const cursor = await deps.store.readCursor();
@@ -340,7 +365,9 @@ function liveInboundMailbox(): InboundMailbox {
         nextPageToken?: string;
       }>(`/messages?${params.toString()}`);
       return {
-        ids: (payload.messages ?? []).map((item) => item.id).filter((id): id is string => Boolean(id)),
+        ids: (payload.messages ?? [])
+          .map((item) => item.id)
+          .filter((id): id is string => Boolean(id)),
         nextPageToken: payload.nextPageToken ?? null,
       };
     },
@@ -427,6 +454,7 @@ async function insertSupabaseMessages(rows: CapturedInbound[]) {
           gmail_message_id: row.gmail_message_id,
           gmail_thread_id: row.gmail_thread_id,
           from_addr: row.from_addr,
+          from_name: row.from_name,
           to_addr: row.to_addr,
           subject: row.subject,
           body: row.body,
@@ -465,7 +493,12 @@ async function readSupabaseCursor(): Promise<InboundCursor | null> {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error || !data?.payload || typeof data.payload !== "object" || Array.isArray(data.payload)) {
+    if (
+      error ||
+      !data?.payload ||
+      typeof data.payload !== "object" ||
+      Array.isArray(data.payload)
+    ) {
       return null;
     }
     const historyId = data.payload["historyId"];
@@ -542,6 +575,7 @@ async function insertLocalMessages(rows: CapturedInbound[]) {
       gmail_message_id: row.gmail_message_id,
       gmail_thread_id: row.gmail_thread_id,
       from_addr: row.from_addr,
+      from_name: row.from_name,
       to_addr: row.to_addr,
       subject: row.subject,
       body: row.body,

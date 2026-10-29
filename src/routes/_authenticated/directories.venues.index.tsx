@@ -6,15 +6,29 @@ import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { AskField } from "@/components/portal/ask-form";
-import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
+import {
+  DirectoryHome,
+  DirectoryImport,
+  DirectoryPick,
+  DirectorySearch,
+  DirectorySelectBar,
+  DirectorySelectToggle,
+} from "@/components/portal/DirectoryHome";
 import { BloomWait } from "@/components/portal/StudioLoader";
 import { PersonName } from "@/components/studio/PersonName";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { VenueRow } from "@/integrations/supabase/types";
 import { getDevPreviewDirectories } from "@/lib/dev-preview";
-import { importVenues, listDirectories, saveVenue } from "@/lib/os/clients.functions";
+import { archiveVenue, importVenues, listDirectories, saveVenue } from "@/lib/os/clients.functions";
 import { csvImportNote, readVenueCsv } from "@/lib/os/directory-csv";
 import { useDevPreview } from "@/lib/use-dev-preview";
+import { useDirectorySelection } from "@/lib/use-directory-selection";
 
 export const Route = createFileRoute("/_authenticated/directories/venues/")({
   head: () => ({
@@ -40,8 +54,11 @@ function VenueDirectoryPage() {
   const fetchDirectories = useServerFn(listDirectories);
   const submitVenue = useServerFn(saveVenue);
   const bringIn = useServerFn(importVenues);
+  const removeVenues = useServerFn(archiveVenue);
   const [search, setSearch] = useState("");
   const [broughtIn, setBroughtIn] = useState<VenueRow[]>([]);
+  const [gone, setGone] = useState<Set<string>>(() => new Set());
+  const selection = useDirectorySelection();
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
@@ -51,11 +68,14 @@ function VenueDirectoryPage() {
     enabled: isAdmin,
   });
 
-  const saved = data?.venues ?? [];
+  const saved = useMemo(() => data?.venues ?? [], [data]);
   const venues = useMemo(() => {
     const seen = new Set(saved.map((venue) => venue.name.trim().toLowerCase()));
-    return [...broughtIn.filter((venue) => !seen.has(venue.name.trim().toLowerCase())), ...saved];
-  }, [broughtIn, saved]);
+    return [
+      ...broughtIn.filter((venue) => !seen.has(venue.name.trim().toLowerCase())),
+      ...saved,
+    ].filter((venue) => !gone.has(venue.id));
+  }, [broughtIn, gone, saved]);
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     const rows = term
@@ -99,7 +119,12 @@ function VenueDirectoryPage() {
         await queryClient.invalidateQueries({ queryKey: ["os", "directories"] });
       }
       const note = [
-        csvImportNote(fresh.length, parsed.rows.length - fresh.length, parsed.rejected.length, devPreview),
+        csvImportNote(
+          fresh.length,
+          parsed.rows.length - fresh.length,
+          parsed.rejected.length,
+          devPreview,
+        ),
         parsed.rejected[0]?.reason,
       ]
         .filter(Boolean)
@@ -145,6 +170,20 @@ function VenueDirectoryPage() {
     createVenue.mutate();
   }
 
+  const remove = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!devPreview) await removeVenues({ data: { ids } });
+      return ids;
+    },
+    onSuccess: async (ids) => {
+      setGone((current) => new Set([...current, ...ids]));
+      selection.stop();
+      toast.success(ids.length === 1 ? "venue deleted" : `${ids.length} venues deleted`);
+      if (!devPreview) await queryClient.invalidateQueries({ queryKey: ["os", "directories"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   if (!isAdmin) {
     return (
       <div className="studio-home is-book">
@@ -167,27 +206,56 @@ function VenueDirectoryPage() {
           <button type="button" className="studio-today-go" onClick={() => setAdding(true)}>
             add
           </button>
+          {venues.length > 0 ? <DirectorySelectToggle selection={selection} /> : null}
         </>
       }
     >
-      <DirectorySearch label="find a venue" value={search} placeholder="find a venue" onChange={setSearch} />
+      <DirectorySearch
+        label="find a venue"
+        value={search}
+        placeholder="find a venue"
+        onChange={setSearch}
+      />
       {isPending ? <p className="studio-empty">gathering…</p> : null}
       {!isPending && visible.length === 0 ? <p className="studio-empty">no venues yet.</p> : null}
       {visible.length > 0 ? (
         <div className="studio-directory">
-          {visible.map((venue) => (
-            <Link key={venue.id} to="/directories/venues/$id" params={{ id: venue.id }} className="studio-book-row">
-              <span>
-                <b>{venue.name}</b>
-                <em>{venue.address}</em>
-              </span>
-              {venue.contact_name ? (
-                <small>
-                  <PersonName name={venue.contact_name} />
-                </small>
-              ) : null}
-            </Link>
-          ))}
+          <DirectorySelectBar
+            selection={selection}
+            visibleIds={visible.map((venue) => venue.id)}
+            noun={["venue", "venues"]}
+            busy={remove.isPending}
+            onDelete={(ids) => remove.mutate(ids)}
+          />
+          {visible.map((venue) => {
+            const row = (
+              <>
+                <span>
+                  <b>{venue.name}</b>
+                  <em>{venue.address}</em>
+                </span>
+                {venue.contact_name ? (
+                  <small>
+                    <PersonName name={venue.contact_name} />
+                  </small>
+                ) : null}
+              </>
+            );
+            return selection.on ? (
+              <DirectoryPick key={venue.id} selection={selection} id={venue.id}>
+                {row}
+              </DirectoryPick>
+            ) : (
+              <Link
+                key={venue.id}
+                to="/directories/venues/$id"
+                params={{ id: venue.id }}
+                className="studio-book-row"
+              >
+                {row}
+              </Link>
+            );
+          })}
         </div>
       ) : null}
 
@@ -198,7 +266,11 @@ function VenueDirectoryPage() {
           if (!open) setForm(emptyForm);
         }}
       >
-        <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask" hideClose>
+        <DialogContent
+          overlayClassName="studio-task-veil"
+          className="studio-task-modal is-ask"
+          hideClose
+        >
           <div className="studio-task-head">
             <DialogClose className="studio-task-close" aria-label="Close">
               <X aria-hidden="true" />

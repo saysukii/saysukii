@@ -44,7 +44,9 @@ export function InquiryQuestionEditor() {
 
   const shared = tab === "shared";
   const draft =
-    tab === "shared" ? (drafts.shared ?? snapshotSharedPath()) : (drafts[tab] ?? snapshotInquiryPath(tab));
+    tab === "shared"
+      ? (drafts.shared ?? snapshotSharedPath())
+      : (drafts[tab] ?? snapshotInquiryPath(tab));
   const steps =
     tab === "shared"
       ? resolveSharedSteps(drafts)
@@ -65,6 +67,7 @@ export function InquiryQuestionEditor() {
       const order = [...draft.order];
       if (to < 0 || to >= order.length || from === to) return;
       const [item] = order.splice(from, 1);
+      if (item === undefined) return;
       order.splice(to, 0, item);
       updatePath({ ...draft, order });
       return;
@@ -75,6 +78,7 @@ export function InquiryQuestionEditor() {
     if (to < 0 || to >= rest.length || from === to) return;
     const next = [...rest];
     const [item] = next.splice(from, 1);
+    if (item === undefined) return;
     next.splice(to, 0, item);
     updatePath({ ...draft, order: [...sharedOrder, ...next] });
   }
@@ -172,7 +176,9 @@ export function InquiryQuestionEditor() {
                   setDragging(null);
                 }}
               >
-                <article className={cn("inquire-question-card", dragging === index && "is-dragging")}>
+                <article
+                  className={cn("inquire-question-card", dragging === index && "is-dragging")}
+                >
                   <button
                     type="button"
                     className="inquire-question-grip"
@@ -194,7 +200,9 @@ export function InquiryQuestionEditor() {
                       <textarea
                         rows={2}
                         value={copy.label}
-                        onChange={(event) => updateCopy(step, { ...copy, label: event.target.value })}
+                        onChange={(event) =>
+                          updateCopy(step, { ...copy, label: event.target.value })
+                        }
                       />
                     </label>
                     {step.kind === "review" ? null : (
@@ -204,7 +212,9 @@ export function InquiryQuestionEditor() {
                           rows={2}
                           placeholder="optional hint under the question"
                           value={copy.hint}
-                          onChange={(event) => updateCopy(step, { ...copy, hint: event.target.value })}
+                          onChange={(event) =>
+                            updateCopy(step, { ...copy, hint: event.target.value })
+                          }
                         />
                       </label>
                     )}

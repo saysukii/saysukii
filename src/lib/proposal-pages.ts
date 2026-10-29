@@ -65,7 +65,12 @@ export function releaseProposal(doc: ProposalDocument | null) {
   );
 }
 
-export async function paintProposalPage(doc: ProposalDocument, pageNumber: number, host: HTMLElement, cancelled: () => boolean) {
+export async function paintProposalPage(
+  doc: ProposalDocument,
+  pageNumber: number,
+  host: HTMLElement,
+  cancelled: () => boolean,
+) {
   const page = await doc.getPage(pageNumber);
   if (cancelled()) {
     page.cleanup();

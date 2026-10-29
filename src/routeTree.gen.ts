@@ -35,6 +35,7 @@ import { Route as AuthenticatedPipelineIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedPipelineIdRouteImport } from './routes/_authenticated/pipeline.$id'
 import { Route as ApiCronGmailInboundRouteImport } from './routes/api/cron/gmail-inbound'
 import { Route as ApiCronGmailRouteRouteImport } from './routes/api/cron/gmail-route'
+import { Route as ApiCronScheduledLettersRouteImport } from './routes/api/cron/scheduled-letters'
 import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
 import { Route as AuthenticatedDirectoriesVendorsIndexRouteImport } from './routes/_authenticated/directories.vendors.index'
 import { Route as AuthenticatedDirectoriesVendorsIdRouteImport } from './routes/_authenticated/directories.vendors.$id'
@@ -177,6 +178,11 @@ const ApiCronGmailRouteRoute = ApiCronGmailRouteRouteImport.update({
   path: '/api/cron/gmail-route',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronScheduledLettersRoute = ApiCronScheduledLettersRouteImport.update({
+  id: '/api/cron/scheduled-letters',
+  path: '/api/cron/scheduled-letters',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSquareWebhookRoute = ApiSquareWebhookRouteImport.update({
   id: '/api/square/webhook',
   path: '/api/square/webhook',
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/pipeline/$id': typeof AuthenticatedPipelineIdRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
+  '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/pipeline/': typeof AuthenticatedPipelineIndexRoute
   '/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
@@ -282,6 +289,7 @@ export interface FileRoutesByTo {
   '/pipeline/$id': typeof AuthenticatedPipelineIdRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
+  '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/pipeline': typeof AuthenticatedPipelineIndexRoute
   '/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
@@ -319,6 +327,7 @@ export interface FileRoutesById {
   '/_authenticated/pipeline/$id': typeof AuthenticatedPipelineIdRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
+  '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/_authenticated/pipeline/': typeof AuthenticatedPipelineIndexRoute
   '/_authenticated/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/pipeline/$id'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
+    | '/api/cron/scheduled-letters'
     | '/api/square/webhook'
     | '/pipeline/'
     | '/directories/vendors/$id'
@@ -388,6 +398,7 @@ export interface FileRouteTypes {
     | '/pipeline/$id'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
+    | '/api/cron/scheduled-letters'
     | '/api/square/webhook'
     | '/pipeline'
     | '/directories/vendors/$id'
@@ -424,6 +435,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pipeline/$id'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
+    | '/api/cron/scheduled-letters'
     | '/api/square/webhook'
     | '/_authenticated/pipeline/'
     | '/_authenticated/directories/vendors/$id'
@@ -447,6 +459,7 @@ export interface RootRouteChildren {
   ProposalTokenRoute: typeof ProposalTokenRoute
   ApiCronGmailInboundRoute: typeof ApiCronGmailInboundRoute
   ApiCronGmailRouteRoute: typeof ApiCronGmailRouteRoute
+  ApiCronScheduledLettersRoute: typeof ApiCronScheduledLettersRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
   ApiIntegrationsGmailCallbackRoute: typeof ApiIntegrationsGmailCallbackRoute
   ApiIntegrationsGoogleCallbackRoute: typeof ApiIntegrationsGoogleCallbackRoute
@@ -637,6 +650,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronGmailRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/scheduled-letters': {
+      id: '/api/cron/scheduled-letters'
+      path: '/api/cron/scheduled-letters'
+      fullPath: '/api/cron/scheduled-letters'
+      preLoaderRoute: typeof ApiCronScheduledLettersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/square/webhook': {
       id: '/api/square/webhook'
       path: '/api/square/webhook'
@@ -802,6 +822,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProposalTokenRoute: ProposalTokenRoute,
   ApiCronGmailInboundRoute: ApiCronGmailInboundRoute,
   ApiCronGmailRouteRoute: ApiCronGmailRouteRoute,
+  ApiCronScheduledLettersRoute: ApiCronScheduledLettersRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,
   ApiIntegrationsGmailCallbackRoute: ApiIntegrationsGmailCallbackRoute,
   ApiIntegrationsGoogleCallbackRoute: ApiIntegrationsGoogleCallbackRoute,

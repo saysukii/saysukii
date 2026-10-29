@@ -227,50 +227,54 @@ export const disconnectGoogle = createServerFn({ method: "POST" })
     return { status: "disconnected" as const };
   });
 
-export const getGmailStatus = createServerFn({ method: "GET" }).handler(async () => {
-  const { getGmailPublicStatus, resolveGmailAdminId } = await import("./gmail.server");
-  await resolveGmailAdminId();
-  return getGmailPublicStatus();
-});
+export const getGmailStatus = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { getGmailPublicStatus } = await import("./gmail.server");
+    return getGmailPublicStatus();
+  });
 
-export const beginGmailOAuth = createServerFn({ method: "POST" }).handler(async () => {
-  try {
-    const { resolveGmailAdminId, startGmailOAuth } = await import("./gmail.server");
-    const connectedBy = await resolveGmailAdminId();
-    return { redirectTo: await startGmailOAuth(connectedBy) };
-  } catch (error) {
-    return {
-      redirectTo: null,
-      error: error instanceof Error ? error.message : "Gmail could not be connected",
-    };
-  }
-});
+export const beginGmailOAuth = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }) => {
+    try {
+      const { startGmailOAuth } = await import("./gmail.server");
+      return { redirectTo: await startGmailOAuth(context.profile.id) };
+    } catch (error) {
+      return {
+        redirectTo: null,
+        error: error instanceof Error ? error.message : "Gmail could not be connected",
+      };
+    }
+  });
 
-export const disconnectGmail = createServerFn({ method: "POST" }).handler(async () => {
-  try {
-    const { disconnectGmailConnection, resolveGmailAdminId } = await import("./gmail.server");
-    await resolveGmailAdminId();
-    return { status: await disconnectGmailConnection() };
-  } catch (error) {
-    return {
-      status: null,
-      error: error instanceof Error ? error.message : "Gmail could not be disconnected",
-    };
-  }
-});
+export const disconnectGmail = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    try {
+      const { disconnectGmailConnection } = await import("./gmail.server");
+      return { status: await disconnectGmailConnection() };
+    } catch (error) {
+      return {
+        status: null,
+        error: error instanceof Error ? error.message : "Gmail could not be disconnected",
+      };
+    }
+  });
 
-export const refreshGmail = createServerFn({ method: "POST" }).handler(async () => {
-  try {
-    const { refreshGmailConnection, resolveGmailAdminId } = await import("./gmail.server");
-    await resolveGmailAdminId();
-    return { status: await refreshGmailConnection({ force: true }) };
-  } catch (error) {
-    return {
-      status: null,
-      error: error instanceof Error ? error.message : "Gmail token could not be refreshed",
-    };
-  }
-});
+export const refreshGmail = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    try {
+      const { refreshGmailConnection } = await import("./gmail.server");
+      return { status: await refreshGmailConnection({ force: true }) };
+    } catch (error) {
+      return {
+        status: null,
+        error: error instanceof Error ? error.message : "Gmail token could not be refreshed",
+      };
+    }
+  });
 
 type SettingsConnection = {
   id: string;
@@ -289,7 +293,9 @@ async function readGmailPublicConnection(
   try {
     const { data, error } = await supabaseAdmin
       .from("email_integration")
-      .select("id, provider, account_email, status, connected_at, connected_by, created_at, updated_at")
+      .select(
+        "id, provider, account_email, status, connected_at, connected_by, created_at, updated_at",
+      )
       .eq("provider", "gmail")
       .maybeSingle();
     if (error || !data) {

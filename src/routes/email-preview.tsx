@@ -5,10 +5,7 @@ import { z } from "zod";
 
 export const Route = createFileRoute("/email-preview")({
   head: () => ({
-    meta: [
-      { title: "Email designs — Say Sukii" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Email designs — Say Sukii" }, { name: "robots", content: "noindex" }],
   }),
   component: EmailPreviewPage,
 });

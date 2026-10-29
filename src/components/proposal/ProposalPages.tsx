@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import { BloomWait } from "@/components/portal/StudioLoader";
-import { openProposal, paintProposalPage, releaseProposal, type ProposalDocument } from "@/lib/proposal-pages";
+import {
+  openProposal,
+  paintProposalPage,
+  releaseProposal,
+  type ProposalDocument,
+} from "@/lib/proposal-pages";
 
 export function ProposalPages({
   src,
@@ -55,7 +60,13 @@ export function ProposalPages({
   }, [page, state, src]);
 
   if (state === "failed") {
-    return <iframe title="Proposal" src={`${src}#toolbar=0&navpanes=0&page=${page + 1}`} className="client-packet-frame" />;
+    return (
+      <iframe
+        title="Proposal"
+        src={`${src}#toolbar=0&navpanes=0&page=${page + 1}`}
+        className="client-packet-frame"
+      />
+    );
   }
 
   return (

@@ -44,10 +44,14 @@ function DashboardPage() {
       const preview = getDevPreviewDashboard();
       const events = await fetchGoogleEvents().catch(() => []);
       const taken = new Set(
-        preview.appointments.map((talk) => String(Math.round(new Date(talk.startsAt).getTime() / 60_000))),
+        preview.appointments.map((talk) =>
+          String(Math.round(new Date(talk.startsAt).getTime() / 60_000)),
+        ),
       );
       const google = events
-        .filter((event) => !taken.has(String(Math.round(new Date(event.startsAt).getTime() / 60_000))))
+        .filter(
+          (event) => !taken.has(String(Math.round(new Date(event.startsAt).getTime() / 60_000))),
+        )
         .map((event) => ({
           id: event.id,
           startsAt: event.startsAt,
@@ -61,8 +65,8 @@ function DashboardPage() {
   });
 
   const completeDeskTask = useMutation({
-    mutationFn: (id: string) => {
-      if (devPreview) return Promise.resolve();
+    mutationFn: async (id: string) => {
+      if (devPreview) return null;
       return markTaskDone({ data: { id } });
     },
     onSuccess: () => {

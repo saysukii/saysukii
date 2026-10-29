@@ -5,7 +5,13 @@ export const STUDIO_LOADERS = ["bloom", "page", "line", "dots", "veil", "ring"] 
 
 export type StudioLoaderKind = (typeof STUDIO_LOADERS)[number];
 
-export function StudioLoader({ kind, waiting = false }: { kind: StudioLoaderKind; waiting?: boolean }) {
+export function StudioLoader({
+  kind,
+  waiting = false,
+}: {
+  kind: StudioLoaderKind;
+  waiting?: boolean;
+}) {
   const className = cn("studio-loader", `is-${kind}`, waiting && "is-waiting");
   if (kind === "bloom") {
     return (
@@ -41,7 +47,10 @@ export function StudioLoader({ kind, waiting = false }: { kind: StudioLoaderKind
 
 export function BloomWait({ label, compact = false }: { label: string; compact?: boolean }) {
   return (
-    <div className={compact ? "studio-bloom-wait is-compact" : "studio-bloom-wait studio-home"} role="status">
+    <div
+      className={compact ? "studio-bloom-wait is-compact" : "studio-bloom-wait studio-home"}
+      role="status"
+    >
       <span className="sr-only">{label}</span>
       <StudioLoader kind="bloom" waiting />
     </div>
@@ -108,7 +117,11 @@ export function BloomPass({ play }: { play: number }) {
 
   if (phase === "off") return null;
   return (
-    <div className={phase === "out" ? "studio-bloom-pass is-out" : "studio-bloom-pass"} role="status" aria-label="opening the studio">
+    <div
+      className={phase === "out" ? "studio-bloom-pass is-out" : "studio-bloom-pass"}
+      role="status"
+      aria-label="opening the studio"
+    >
       <div className="studio-bloom-mark">
         <span className="is-playing">
           <StudioLoader kind="bloom" />

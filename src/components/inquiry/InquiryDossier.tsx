@@ -82,11 +82,19 @@ export function InquiryDossier({
           const active = item.id === step.id;
           return (
             <li key={item.id} className={active ? "is-current" : undefined}>
-              <button type="button" className="letter-jump" disabled={disabled} onClick={() => setStepId(item.id)}>
+              <button
+                type="button"
+                className="letter-jump"
+                disabled={disabled}
+                onClick={() => setStepId(item.id)}
+              >
                 {rowLabel(item)}
               </button>
 
-              {item.kind === "text" || item.kind === "email" || item.kind === "tel" || item.kind === "address" ? (
+              {item.kind === "text" ||
+              item.kind === "email" ||
+              item.kind === "tel" ||
+              item.kind === "address" ? (
                 <input
                   type={item.kind === "email" ? "email" : item.kind === "tel" ? "tel" : "text"}
                   value={String(values[item.field] ?? "")}
@@ -96,7 +104,10 @@ export function InquiryDossier({
                   onFocus={() => setStepId(item.id)}
                   onChange={(event) => change(item.field, event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && isStepComplete(item, { ...values, [item.field]: event.currentTarget.value })) {
+                    if (
+                      event.key === "Enter" &&
+                      isStepComplete(item, { ...values, [item.field]: event.currentTarget.value })
+                    ) {
                       const next = steps[itemIndex + 1];
                       if (next) setStepId(next.id);
                     }

@@ -147,7 +147,9 @@ export function isInquiryActive(inquiry: {
   status: InquiryStatus;
   detection_status: DetectionStatus;
 }) {
-  return !inquiry.archived && inquiry.status !== "closed" && inquiry.detection_status !== "dismissed";
+  return (
+    !inquiry.archived && inquiry.status !== "closed" && inquiry.detection_status !== "dismissed"
+  );
 }
 
 export function assembleMatches(
@@ -204,7 +206,8 @@ export function assembleMatches(
   }
 
   scored.sort((a, b) => {
-    const threadDelta = Number(b.match_via.includes("thread")) - Number(a.match_via.includes("thread"));
+    const threadDelta =
+      Number(b.match_via.includes("thread")) - Number(a.match_via.includes("thread"));
     if (threadDelta) return threadDelta;
     const activeDelta = Number(b.active) - Number(a.active);
     if (activeDelta) return activeDelta;
@@ -214,7 +217,9 @@ export function assembleMatches(
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function asString(value: unknown) {
@@ -274,7 +279,10 @@ export function normalizeRoutingDecision(
     email: normalizeSenderEmail(asString(extractionRaw["email"]) ?? message.from_addr),
     event_type: asEventType(extractionRaw["event_type"]),
     event_date: asDate(extractionRaw["event_date"]),
-    event_date_tbd: extractionRaw["event_date_tbd"] == null ? !asDate(extractionRaw["event_date"]) : asBoolean(extractionRaw["event_date_tbd"]),
+    event_date_tbd:
+      extractionRaw["event_date_tbd"] == null
+        ? !asDate(extractionRaw["event_date"])
+        : asBoolean(extractionRaw["event_date_tbd"]),
     place: asString(extractionRaw["place"]),
     budget: asString(extractionRaw["budget"]),
     vision: asString(extractionRaw["vision"]),
@@ -324,12 +332,21 @@ function clientTypeFromEvent(eventType: EventType): ClientType {
 
 function fallbackName(email: string, extracted: string | null) {
   if (extracted && extracted.length >= 2) return extracted.slice(0, 160);
-  const local = email.split("@")[0]?.replace(/[._+]+/g, " ").trim() ?? "";
+  const local =
+    email
+      .split("@")[0]
+      ?.replace(/[._+]+/g, " ")
+      .trim() ?? "";
   return (local.length >= 2 ? local : "new inquiry").slice(0, 160);
 }
 
 function authorFor(message: InboundMessageRow, extraction: ExtractedInquiryFields) {
-  return extraction.name || message.from_addr || "inbound";
+  return extraction.name || message.from_name || message.from_addr || "inbound";
+}
+
+/** A teammate writing on the thread from their own studio address. */
+export function isStudioSender(from: string | null | undefined) {
+  return Boolean(normalizeSenderEmail(from)?.endsWith("@saysukii.com"));
 }
 
 export function publicRoutingResult(result: RoutingRunResult): RoutingRunResult {
@@ -376,7 +393,10 @@ export function createMemoryRoutingStore(seed: Partial<MemoryRoutingState> = {})
       return state.messages.some((row) => row.gmail_message_id === gmailMessageId);
     },
     async attachMessage({ message, inquiryId, author }) {
-      if (message.gmail_message_id && state.messages.some((row) => row.gmail_message_id === message.gmail_message_id)) {
+      if (
+        message.gmail_message_id &&
+        state.messages.some((row) => row.gmail_message_id === message.gmail_message_id)
+      ) {
         return;
       }
       state.messages.push(conversationFromInbound(message, inquiryId, author));
@@ -413,7 +433,9 @@ export function createMemoryRoutingStore(seed: Partial<MemoryRoutingState> = {})
       }
       const inquiry = candidateInquiry(message, client.id, decision);
       state.inquiries.push(inquiry);
-      state.messages.push(conversationFromInbound(message, inquiry.id, authorFor(message, decision.extraction)));
+      state.messages.push(
+        conversationFromInbound(message, inquiry.id, authorFor(message, decision.extraction)),
+      );
       return { inquiryId: inquiry.id };
     },
     async markRouted({ inboundId, result, matchedInquiryId, processedAt }) {
@@ -443,7 +465,7 @@ function conversationFromInbound(
   return {
     id: randomUUID(),
     inquiry_id: inquiryId,
-    direction: "inbound",
+    direction: isStudioSender(message.from_addr) ? "outbound" : "inbound",
     channel: "email",
     subject: message.subject,
     body: message.body || "(empty)",
@@ -684,11 +706,11 @@ export function orderUnprocessedInbound(
 }
 
 export function activeThreadReply(
-  message: Pick<InboundMessageRow, "from_addr">,
+  message: Pick<InboundMessageRow, "from_addr" | "from_name">,
   matches: InquiryMatch[],
 ): RoutingDecision | null {
   const email = normalizeSenderEmail(message.from_addr);
-  if (!email || email.endsWith("@saysukii.com")) return null;
+  if (!email) return null;
   const thread = matches.find((row) => row.active && row.match_via.includes("thread"));
   if (!thread) return null;
   return {
@@ -696,11 +718,13 @@ export function activeThreadReply(
     matched_inquiry_id: thread.id,
     is_true_inquiry: true,
     confidence: 1,
-    reason: "reply on the same gmail thread as an open inquiry",
+    reason: isStudioSender(email)
+      ? "the studio wrote on the same gmail thread as an open inquiry"
+      : "reply on the same gmail thread as an open inquiry",
     extraction: {
       ...EMPTY_EXTRACTION,
       email,
-      name: senderName(message.from_addr),
+      name: message.from_name || senderName(message.from_addr),
     },
   };
 }
@@ -774,7 +798,10 @@ export async function routeUnprocessedInbound(deps: {
         decision.confidence = Math.max(decision.confidence, 0.8);
         decision.reason = "similar to an inquiry that was accepted";
       }
-      if (decision.action === "candidate" && !normalizeSenderEmail(decision.extraction.email ?? message.from_addr)) {
+      if (
+        decision.action === "candidate" &&
+        !normalizeSenderEmail(decision.extraction.email ?? message.from_addr)
+      ) {
         decision.action = "ignored";
         decision.reason = "candidate requires a sender email";
         decision.is_true_inquiry = false;
@@ -796,7 +823,10 @@ export async function routeUnprocessedInbound(deps: {
       tally(result, action);
     } catch (error) {
       result.errors += 1;
-      console.error("[gmail-route] left a message unprocessed:", error instanceof Error ? error.message : error);
+      console.error(
+        "[gmail-route] left a message unprocessed:",
+        error instanceof Error ? error.message : error,
+      );
     }
   }
 
@@ -815,7 +845,8 @@ function senderName(from: string | null | undefined) {
 }
 
 function guessEventType(text: string): EventType | null {
-  if (/\b(subscription|concierge|weekly flowers|standing order)\b/i.test(text)) return "subscription";
+  if (/\b(subscription|concierge|weekly flowers|standing order)\b/i.test(text))
+    return "subscription";
   if (/\b(wedding|bridal|elopement|ceremony|reception)\b/i.test(text)) return "wedding";
   if (/\b(photoshoot|styled shoot|editorial)\b/i.test(text)) return "photoshoot";
   if (/\bcorporate\b/i.test(text)) return "corporate";
@@ -841,7 +872,9 @@ export function heuristicRoutingRaw(input: {
       action: "ignored",
       is_true_inquiry: false,
       confidence: 0.9,
-      reason: email?.endsWith("@saysukii.com") ? "sent from the studio" : "not a booking conversation",
+      reason: email?.endsWith("@saysukii.com")
+        ? "sent from the studio"
+        : "not a booking conversation",
       extraction: { email, name },
     };
   }
@@ -912,8 +945,10 @@ export async function runGmailInboundRouting(deps?: {
   const classify =
     deps?.classify ??
     (process.env["ANTHROPIC_API_KEY"]
-      ? (input: { message: InboundMessageRow; matches: InquiryMatch[] }) => classifyWithAnthropic(input)
-      : async (input: { message: InboundMessageRow; matches: InquiryMatch[] }) => heuristicRoutingRaw(input));
+      ? (input: { message: InboundMessageRow; matches: InquiryMatch[] }) =>
+          classifyWithAnthropic(input)
+      : async (input: { message: InboundMessageRow; matches: InquiryMatch[] }) =>
+          heuristicRoutingRaw(input));
   const routed: {
     store: RoutingStore;
     classify: ClassifyInbound;
@@ -936,9 +971,12 @@ function lessonsFromMemory(state: MemoryRoutingState): InquiryLesson[] {
   const lessons: InquiryLesson[] = [];
   for (const inquiry of state.inquiries) {
     if (inquiry.origin !== "detected") continue;
-    if (inquiry.detection_status !== "confirmed" && inquiry.detection_status !== "dismissed") continue;
+    if (inquiry.detection_status !== "confirmed" && inquiry.detection_status !== "dismissed")
+      continue;
     const person = state.clients.find((row) => row.id === inquiry.client_id);
-    const mail = state.messages.find((row) => row.inquiry_id === inquiry.id && row.direction === "inbound");
+    const mail = state.messages.find(
+      (row) => row.inquiry_id === inquiry.id && row.direction === "inbound",
+    );
     const lesson = makeLesson({
       accepted: inquiry.detection_status === "confirmed",
       from: mail?.from_address ?? person?.email,
@@ -950,7 +988,9 @@ function lessonsFromMemory(state: MemoryRoutingState): InquiryLesson[] {
   return lessons.slice(0, 40);
 }
 
-export async function loadInquiryLessons(client: SupabaseClient<Database>): Promise<InquiryLesson[]> {
+export async function loadInquiryLessons(
+  client: SupabaseClient<Database>,
+): Promise<InquiryLesson[]> {
   const { data, error } = await client
     .from("inquiries")
     .select("id, detection_status, message, source_message_id, client_id")
@@ -960,12 +1000,21 @@ export async function loadInquiryLessons(client: SupabaseClient<Database>): Prom
     .limit(40);
   if (error || !data?.length) return [];
   const clientIds = [...new Set(data.map((row) => row.client_id))];
-  const sourceIds = [...new Set(data.map((row) => row.source_message_id).filter((id): id is string => Boolean(id)))];
+  const sourceIds = [
+    ...new Set(data.map((row) => row.source_message_id).filter((id): id is string => Boolean(id))),
+  ];
   const [people, inbound] = await Promise.all([
     client.from("clients").select("id, email").in("id", clientIds),
     sourceIds.length
       ? client.from("inbound_messages").select("id, from_addr, subject, body").in("id", sourceIds)
-      : Promise.resolve({ data: [] as Array<{ id: string; from_addr: string | null; subject: string | null; body: string | null }> }),
+      : Promise.resolve({
+          data: [] as Array<{
+            id: string;
+            from_addr: string | null;
+            subject: string | null;
+            body: string | null;
+          }>,
+        }),
   ]);
   const emailByClient = new Map((people.data ?? []).map((row) => [row.id, row.email]));
   const mailById = new Map((inbound.data ?? []).map((row) => [row.id, row]));
@@ -1095,10 +1144,17 @@ async function listUnprocessedFromSupabase(limit: number) {
 
 async function listThreadRepliesFromSupabase(limit: number) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const threads = await supabaseAdmin.from("inquiry_messages").select("gmail_thread_id").not("gmail_thread_id", "is", null);
+  const threads = await supabaseAdmin
+    .from("inquiry_messages")
+    .select("gmail_thread_id")
+    .not("gmail_thread_id", "is", null);
   if (threads.error) return [];
   const threadIds = [
-    ...new Set((threads.data ?? []).map((row) => row.gmail_thread_id).filter((id): id is string => Boolean(id))),
+    ...new Set(
+      (threads.data ?? [])
+        .map((row) => row.gmail_thread_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
   ];
   if (!threadIds.length) return [];
   const found: InboundMessageRow[] = [];
@@ -1274,7 +1330,11 @@ async function createCandidateSupabase(input: {
         .single();
       if (!createError && created) clientId = created.id;
       else if (createError?.code === "23505") {
-        const { data: raced } = await supabaseAdmin.from("clients").select("id").eq("email", email).single();
+        const { data: raced } = await supabaseAdmin
+          .from("clients")
+          .select("id")
+          .eq("email", email)
+          .single();
         clientId = raced?.id ?? null;
       } else {
         return null;

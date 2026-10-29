@@ -1,85 +1,164 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{headline}}</title>
-<style>
-  @media only screen and (max-width: 480px) {
-    .email-logo { padding: 36px 20px 4px !important; }
-    .email-body { padding: 28px 20px !important; }
-    .email-word { padding: 0 6px !important; }
-  }
-</style>
-</head>
-<body style="margin:0; padding:0; background-color:#F5E6E8; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5E6E8;">
-  <tr>
-    <td align="center" style="padding: 0;">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px; width:100%;">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{headline}}</title>
+    <style>
+      @media only screen and (max-width: 480px) {
+        .email-logo {
+          padding: 36px 20px 4px !important;
+        }
+        .email-body {
+          padding: 28px 20px !important;
+        }
+        .email-word {
+          padding: 0 6px !important;
+        }
+      }
+    </style>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f5e6e8;
+      font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif;
+    "
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background-color: #f5e6e8"
+    >
+      <tr>
+        <td align="center" style="padding: 0">
+          <table
+            role="presentation"
+            width="560"
+            cellpadding="0"
+            cellspacing="0"
+            style="max-width: 560px; width: 100%"
+          >
+            <tr>
+              <td class="email-logo" align="center" style="padding: 48px 24px 8px 24px">
+                <img
+                  src="{{logo_url}}"
+                  width="200"
+                  alt="Say Sukii"
+                  style="display: block; margin-bottom: 18px"
+                />
+              </td>
+            </tr>
 
-        <tr>
-          <td class="email-logo" align="center" style="padding: 48px 24px 8px 24px;">
-            <img src="{{logo_url}}" width="200" alt="Say Sukii" style="display:block; margin-bottom: 18px;">
-          </td>
-        </tr>
+            <tr>
+              <td class="email-body" style="padding: 40px 32px">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center" style="padding-bottom: 8px">
+                      <span
+                        style="font-size:11px; letter-spacing:0.14em; color:{{eyebrow_color}}; font-weight:700;"
+                        >{{eyebrow}}</span
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding-bottom: 20px">
+                      <span
+                        style="font-size: 28px; line-height: 1.25; color: #24221f; font-weight: 700"
+                        >{{headline}}</span
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding-bottom: 20px">
+                      <span style="font-size: 15px; line-height: 1.7; color: #444444"
+                        >{{body}}</span
+                      >
+                    </td>
+                  </tr>
 
-        <tr>
-          <td class="email-body" style="padding: 40px 32px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td align="center" style="padding-bottom: 8px;">
-                  <span style="font-size:11px; letter-spacing:0.14em; color:{{eyebrow_color}}; font-weight:700;">{{eyebrow}}</span>
-                </td>
-              </tr>
-              <tr>
-                <td align="center" style="padding-bottom: 20px;">
-                  <span style="font-size:28px; line-height:1.25; color:#24221F; font-weight:700;">{{headline}}</span>
-                </td>
-              </tr>
-              <tr>
-                <td align="center" style="padding-bottom: 20px;">
-                  <span style="font-size:15px; line-height:1.7; color:#444444;">{{body}}</span>
-                </td>
-              </tr>
+                  {{detail_block}}
 
-              {{detail_block}}
+                  <tr>
+                    <td style="padding: 8px 0 28px 0">
+                      <div style="height: 1px; background-color: #e7c9cf; width: 100%"></div>
+                    </td>
+                  </tr>
 
-              <tr>
-                <td style="padding: 8px 0 28px 0;">
-                  <div style="height:1px; background-color:#E7C9CF; width:100%;"></div>
-                </td>
-              </tr>
+                  <tr>
+                    <td align="center" style="padding-bottom: 28px">
+                      <table role="presentation" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td
+                            class="email-word"
+                            style="
+                              padding: 0 10px;
+                              font-size: 11px;
+                              color: #ff4d94;
+                              font-weight: 700;
+                            "
+                          >
+                            weddings
+                          </td>
+                          <td
+                            class="email-word"
+                            style="
+                              padding: 0 10px;
+                              font-size: 11px;
+                              color: #c45d72;
+                              font-weight: 700;
+                            "
+                          >
+                            events
+                          </td>
+                          <td
+                            class="email-word"
+                            style="
+                              padding: 0 10px;
+                              font-size: 11px;
+                              color: #9a8070;
+                              font-weight: 700;
+                            "
+                          >
+                            deliveries
+                          </td>
+                          <td
+                            class="email-word"
+                            style="
+                              padding: 0 10px;
+                              font-size: 11px;
+                              color: #6f8a72;
+                              font-weight: 700;
+                            "
+                          >
+                            flowers
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
 
-              <tr>
-                <td align="center" style="padding-bottom: 28px;">
-                  <table role="presentation" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td class="email-word" style="padding:0 10px; font-size:11px; color:#FF4D94; font-weight:700;">weddings</td>
-                      <td class="email-word" style="padding:0 10px; font-size:11px; color:#C45D72; font-weight:700;">events</td>
-                      <td class="email-word" style="padding:0 10px; font-size:11px; color:#9A8070; font-weight:700;">deliveries</td>
-                      <td class="email-word" style="padding:0 10px; font-size:11px; color:#6F8A72; font-weight:700;">flowers</td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
+                  {{button_block}} {{note_block}}
+                </table>
+              </td>
+            </tr>
 
-              {{button_block}}
-              {{note_block}}
-            </table>
-          </td>
-        </tr>
-
-        <tr>
-          <td align="center" style="padding: 8px 24px 40px 24px;">
-            <span style="font-size:13px; line-height:1.6; color:#999999; font-style:italic;">flowers for the people.</span><br>
-            <span style="font-size:11px; letter-spacing:0.04em; color:#BBBBBB;">COPYRIGHT © 2026 SAY SUKII, LLC. ALL RIGHTS RESERVED.</span>
-          </td>
-        </tr>
-
-      </table>
-    </td>
-  </tr>
-</table>
-</body>
+            <tr>
+              <td align="center" style="padding: 8px 24px 40px 24px">
+                <span style="font-size: 13px; line-height: 1.6; color: #999999; font-style: italic"
+                  >flowers for the people.</span
+                ><br />
+                <span style="font-size: 11px; letter-spacing: 0.04em; color: #bbbbbb"
+                  >COPYRIGHT © 2026 SAY SUKII, LLC. ALL RIGHTS RESERVED.</span
+                >
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
 </html>

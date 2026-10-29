@@ -1,18 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { DirectoryHome, DirectoryImport, DirectorySearch } from "@/components/portal/DirectoryHome";
+import {
+  DirectoryHome,
+  DirectoryImport,
+  DirectoryPick,
+  DirectorySearch,
+  DirectorySelectBar,
+  DirectorySelectToggle,
+} from "@/components/portal/DirectoryHome";
 import { shownName, isPersonType } from "@/components/studio/PersonName";
 import type { ClientRow } from "@/integrations/supabase/types";
 import { getDevPreviewClient, getDevPreviewClients } from "@/lib/dev-preview";
-import { getClient, importClients, listClients } from "@/lib/os/clients.functions";
+import { archiveClient, getClient, importClients, listClients } from "@/lib/os/clients.functions";
 import { csvImportNote, readClientCsv } from "@/lib/os/directory-csv";
 import { clientSlugs } from "@/lib/os/inquiry-desk";
 import { mergePreviewClients, previewDirectoryRecord } from "@/lib/preview-clients";
 import { useDevPreview } from "@/lib/use-dev-preview";
+import { useDirectorySelection } from "@/lib/use-directory-selection";
 
 export const Route = createFileRoute("/_authenticated/directories/clients")({
   head: () => ({
@@ -28,14 +36,19 @@ function ClientDirectoryPage() {
   const fetchClients = useServerFn(listClients);
   const fetchClient = useServerFn(getClient);
   const bringIn = useServerFn(importClients);
+  const removeClients = useServerFn(archiveClient);
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [broughtIn, setBroughtIn] = useState<ClientRow[]>([]);
+  const [archivedHere, setArchivedHere] = useState<Set<string>>(() => new Set());
+  const selection = useDirectorySelection();
 
   const { data: clients = [], isPending } = useQuery({
     queryKey: ["os", "clients", devPreview],
     queryFn: async () => {
-      const rows = devPreview ? getDevPreviewClients() : await fetchClients();
+      const rows = devPreview
+        ? getDevPreviewClients()
+        : await fetchClients({ data: { include_archived: true } });
       return devPreview ? mergePreviewClients(rows) : rows;
     },
     enabled: isAdmin,
@@ -43,8 +56,12 @@ function ClientDirectoryPage() {
 
   const people = useMemo(() => {
     const seen = new Set(clients.map((client) => client.email.toLowerCase()));
-    return [...broughtIn.filter((client) => !seen.has(client.email.toLowerCase())), ...clients];
-  }, [broughtIn, clients]);
+    return [...broughtIn.filter((client) => !seen.has(client.email.toLowerCase())), ...clients].map(
+      (client) => (archivedHere.has(client.id) ? { ...client, archived: true } : client),
+    );
+  }, [archivedHere, broughtIn, clients]);
+  const activeCount = people.filter((client) => !client.archived).length;
+  const archivedCount = people.length - activeCount;
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -55,7 +72,11 @@ function ClientDirectoryPage() {
             .some((value) => String(value).toLowerCase().includes(term)),
         )
       : people;
-    return [...rows].sort((left, right) => left.name.localeCompare(right.name));
+    // archived clients stay in the book, after everyone still active
+    return [...rows].sort(
+      (left, right) =>
+        Number(left.archived) - Number(right.archived) || left.name.localeCompare(right.name),
+    );
   }, [people, search]);
 
   const slugs = useMemo(() => clientSlugs(people), [people]);
@@ -91,7 +112,12 @@ function ClientDirectoryPage() {
         await queryClient.invalidateQueries({ queryKey: ["os", "clients"] });
       }
       const note = [
-        csvImportNote(fresh.length, parsed.rows.length - fresh.length, parsed.rejected.length, devPreview),
+        csvImportNote(
+          fresh.length,
+          parsed.rows.length - fresh.length,
+          parsed.rejected.length,
+          devPreview,
+        ),
         parsed.rejected[0]?.reason,
       ]
         .filter(Boolean)
@@ -102,6 +128,20 @@ function ClientDirectoryPage() {
       toast.error(error instanceof Error ? error.message : "import failed");
     }
   }
+
+  const remove = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!devPreview) await removeClients({ data: { ids } });
+      return ids;
+    },
+    onSuccess: async (ids) => {
+      setArchivedHere((current) => new Set([...current, ...ids]));
+      selection.stop();
+      toast.success(ids.length === 1 ? "client archived" : `${ids.length} clients archived`);
+      if (!devPreview) await queryClient.invalidateQueries({ queryKey: ["os", "clients"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   if (!isAdmin) {
     return (
@@ -115,43 +155,79 @@ function ClientDirectoryPage() {
     <DirectoryHome
       title="clients"
       back={{ to: "/library", label: "library" }}
-      lede={isPending ? undefined : `${people.length} ${people.length === 1 ? "person" : "people"}`}
+      lede={
+        isPending
+          ? undefined
+          : `${activeCount} ${activeCount === 1 ? "person" : "people"}${archivedCount ? ` · ${archivedCount} archived` : ""}`
+      }
       action={
-        <DirectoryImport
-          hint="columns: name, email, phone, organization, type, source, notes"
-          onText={onImport}
-        />
+        <>
+          <DirectoryImport
+            hint="columns: name, email, phone, organization, type, source, notes"
+            onText={onImport}
+          />
+          {people.length > 0 ? <DirectorySelectToggle selection={selection} /> : null}
+        </>
       }
     >
-      <DirectorySearch label="find a client" value={search} placeholder="find a person" onChange={setSearch} />
+      <DirectorySearch
+        label="find a client"
+        value={search}
+        placeholder="find a person"
+        onChange={setSearch}
+      />
       {isPending ? <p className="studio-empty">gathering…</p> : null}
-      {!isPending && visible.length === 0 ? <p className="studio-empty">nobody in the book yet.</p> : null}
+      {!isPending && visible.length === 0 ? (
+        <p className="studio-empty">nobody in the book yet.</p>
+      ) : null}
       {visible.length > 0 ? (
         <div className="studio-directory">
-          {visible.map((client) => (
-            <Link
-              key={client.id}
-              to="/clients/$id"
-              params={{ id: slugs.get(client.id) ?? client.id }}
-              className="studio-book-row"
-              onPointerEnter={() => {
-                const id = slugs.get(client.id) ?? client.id;
-                void queryClient.prefetchQuery({
-                  queryKey: ["os", "client", id, devPreview],
-                  queryFn: () => {
-                    if (!devPreview) return fetchClient({ data: { id } });
-                    return previewDirectoryRecord(id) ?? getDevPreviewClient(id);
-                  },
-                });
-              }}
-            >
-              <span>
-                <b>{shownName(client.name, isPersonType(client.type))}</b>
-                <em>{client.organization || client.email}</em>
-              </span>
-              <small>{client.type.replaceAll("_", " ")}</small>
-            </Link>
-          ))}
+          <DirectorySelectBar
+            selection={selection}
+            visibleIds={visible.filter((client) => !client.archived).map((client) => client.id)}
+            noun={["client", "clients"]}
+            verb="archive"
+            busy={remove.isPending}
+            onDelete={(ids) => remove.mutate(ids)}
+          />
+          {visible.map((client) => {
+            const row = (
+              <>
+                <span>
+                  <b>
+                    {shownName(client.name, isPersonType(client.type))}
+                    {client.archived ? <i className="studio-archived-pill">archived</i> : null}
+                  </b>
+                  <em>{client.organization || client.email}</em>
+                </span>
+                <small>{client.type.replaceAll("_", " ")}</small>
+              </>
+            );
+            return selection.on && !client.archived ? (
+              <DirectoryPick key={client.id} selection={selection} id={client.id}>
+                {row}
+              </DirectoryPick>
+            ) : (
+              <Link
+                key={client.id}
+                to="/clients/$id"
+                params={{ id: slugs.get(client.id) ?? client.id }}
+                className="studio-book-row"
+                onPointerEnter={() => {
+                  const id = slugs.get(client.id) ?? client.id;
+                  void queryClient.prefetchQuery({
+                    queryKey: ["os", "client", id, devPreview],
+                    queryFn: () => {
+                      if (!devPreview) return fetchClient({ data: { id } });
+                      return previewDirectoryRecord(id) ?? getDevPreviewClient(id);
+                    },
+                  });
+                }}
+              >
+                {row}
+              </Link>
+            );
+          })}
         </div>
       ) : null}
     </DirectoryHome>

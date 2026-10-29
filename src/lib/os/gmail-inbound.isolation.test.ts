@@ -10,7 +10,10 @@ import {
   type InboundMailbox,
 } from "./gmail-inbound.server";
 
-function message(id: string, overrides?: Partial<{ from: string; subject: string; body: string; html: string; date: number }>): GmailApiMessage {
+function message(
+  id: string,
+  overrides?: Partial<{ from: string; subject: string; body: string; html: string; date: number }>,
+): GmailApiMessage {
   const parts = [];
   if (overrides?.body) {
     parts.push({
@@ -40,7 +43,10 @@ function message(id: string, overrides?: Partial<{ from: string; subject: string
   };
 }
 
-function fakeMailbox(seed: GmailApiMessage[], options?: { historyExpired?: boolean }): InboundMailbox & { seed: GmailApiMessage[] } {
+function fakeMailbox(
+  seed: GmailApiMessage[],
+  options?: { historyExpired?: boolean },
+): InboundMailbox & { seed: GmailApiMessage[] } {
   const box = {
     seed,
     async profileHistoryId() {
@@ -91,6 +97,21 @@ describe("Gmail inbound capture", () => {
     );
   });
 
+  it("keeps the sender's name and everyone on to and cc", () => {
+    const raw = message("m-cc", {
+      body: "see you thursday",
+      from: "Ana Ruiz <ana@planner.example>",
+    });
+    raw.payload?.headers?.push({
+      name: "Cc",
+      value: "Camila Reyes <camila@example.com>, maya@saysukii.com",
+    });
+    const parsed = parseGmailMessage(raw);
+    assert.equal(parsed?.from_addr, "ana@planner.example");
+    assert.equal(parsed?.from_name, "Ana Ruiz");
+    assert.equal(parsed?.to_addr, "info@saysukii.com · cc: camila@example.com, maya@saysukii.com");
+  });
+
   it("captures new inbox mail and de-duplicates by gmail_message_id", async () => {
     const store = createMemoryInboundStore();
     const mailbox = fakeMailbox([
@@ -99,19 +120,31 @@ describe("Gmail inbound capture", () => {
       message("a", { subject: "duplicate id in list" }),
     ]);
 
-    const first = await syncInboundMail({ mailbox, store, now: () => new Date("2026-09-14T16:00:00.000Z") });
+    const first = await syncInboundMail({
+      mailbox,
+      store,
+      now: () => new Date("2026-09-14T16:00:00.000Z"),
+    });
     assert.equal(first.inserted, 2);
     assert.equal(first.scanned, 2);
     assert.equal(first.duplicates, 0);
     assert.equal(first.historyId, "hist-3");
 
-    const second = await syncInboundMail({ mailbox, store, now: () => new Date("2026-09-14T16:05:00.000Z") });
+    const second = await syncInboundMail({
+      mailbox,
+      store,
+      now: () => new Date("2026-09-14T16:05:00.000Z"),
+    });
     assert.equal(second.inserted, 0);
     assert.equal(second.duplicates, 2);
     assert.equal(second.scanned, 2);
 
     mailbox.seed.push(message("c", { subject: "new lead" }));
-    const third = await syncInboundMail({ mailbox, store, now: () => new Date("2026-09-14T16:10:00.000Z") });
+    const third = await syncInboundMail({
+      mailbox,
+      store,
+      now: () => new Date("2026-09-14T16:10:00.000Z"),
+    });
     assert.equal(third.inserted, 1);
     assert.equal(third.duplicates, 2);
     assert.equal(third.scanned, 3);
@@ -128,7 +161,9 @@ describe("Gmail inbound capture", () => {
   it("falls back to inbox list when history has expired and never routes", async () => {
     const store = createMemoryInboundStore();
     await store.writeCursor({ historyId: "stale", lastSyncedAt: "2026-09-01T00:00:00.000Z" });
-    const mailbox = fakeMailbox([message("z", { subject: "after reconnect" })], { historyExpired: true });
+    const mailbox = fakeMailbox([message("z", { subject: "after reconnect" })], {
+      historyExpired: true,
+    });
     const result = await syncInboundMail({ mailbox, store });
     assert.equal(result.inserted, 1);
     assert.equal(result.scanned, 1);

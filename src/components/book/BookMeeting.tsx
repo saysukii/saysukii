@@ -3,10 +3,22 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Globe, Instagram, X } from "lucide-react";
 
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { SIGNATURE_LINKS } from "@/lib/os/mail-signature";
 
-import { DEFAULT_CALENDAR, hasLocalCalendar, meetingLabel, readLocalCalendar, type CalendarSettings } from "@/lib/calendar-settings";
+import {
+  DEFAULT_CALENDAR,
+  hasLocalCalendar,
+  meetingLabel,
+  readLocalCalendar,
+  type CalendarSettings,
+} from "@/lib/calendar-settings";
 import { getCalendarSettings } from "@/lib/os/calendar-settings.functions";
 import { listMeetingBusy } from "@/lib/os/bookings.functions";
 import {
@@ -54,13 +66,19 @@ export function BookMeeting({
   const windows = useMemo(() => {
     const local = readBookings().map((row) => ({
       start: row.startsAt,
-      end: new Date(new Date(row.startsAt).getTime() + settings.durationMinutes * 60 * 1000).toISOString(),
+      end: new Date(
+        new Date(row.startsAt).getTime() + settings.durationMinutes * 60 * 1000,
+      ).toISOString(),
     }));
     return [...(availability?.busy ?? []), ...local];
+    // a new booking lands in this browser's store, so it re-reads the store when one is made
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availability?.busy, booked, settings.durationMinutes]);
   const cells = monthCells(cursor);
   const slots = day ? daySlots(day, new Set(), windows, settings) : [];
-  const month = cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" }).toLowerCase();
+  const month = cursor
+    .toLocaleDateString("en-US", { month: "long", year: "numeric" })
+    .toLowerCase();
 
   function chooseDay(next: Date) {
     setDay(next);
@@ -75,26 +93,33 @@ export function BookMeeting({
         <div className="book-meet-intro">
           <p className="studio-kicker">say sukii</p>
           <h1>let’s talk</h1>
-          <p className="book-meet-length">{settings.durationMinutes} minutes · {meetingLabel(settings.meeting)}</p>
+          <p className="book-meet-length">
+            {settings.durationMinutes} minutes · {meetingLabel(settings.meeting)}
+          </p>
           <MeetingCopy />
           <div className="book-meet-social">
             <a href={SIGNATURE_LINKS.site} aria-label="website" target="_blank" rel="noreferrer">
               <Globe aria-hidden="true" strokeWidth={1.5} />
             </a>
-            <a href={SIGNATURE_LINKS.instagram} aria-label="instagram" target="_blank" rel="noreferrer">
+            <a
+              href={SIGNATURE_LINKS.instagram}
+              aria-label="instagram"
+              target="_blank"
+              rel="noreferrer"
+            >
               <Instagram aria-hidden="true" strokeWidth={1.5} />
             </a>
           </div>
         </div>
 
         <Month
-            month={month}
-            cells={cells}
-            day={day}
-            settings={settings}
-            onCursor={(amount) => setCursor(shiftMonth(cursor, amount))}
-            onDay={chooseDay}
-          />
+          month={month}
+          cells={cells}
+          day={day}
+          settings={settings}
+          onCursor={(amount) => setCursor(shiftMonth(cursor, amount))}
+          onDay={chooseDay}
+        />
         {times}
       </section>
       <Dialog
@@ -119,13 +144,21 @@ export function BookMeeting({
               <X aria-hidden="true" />
             </DialogClose>
           </div>
-          <DialogTitle className="sr-only">{booked ? "you're booked" : "book this time"}</DialogTitle>
+          <DialogTitle className="sr-only">
+            {booked ? "you're booked" : "book this time"}
+          </DialogTitle>
           <DialogDescription className="sr-only">
             {booked
               ? "booked with sukii."
               : `${settings.durationMinutes} minute ${meetingLabel(settings.meeting)}. name and email are required.`}
           </DialogDescription>
-          {booked ? <BookedNote booking={booked} minutes={settings.durationMinutes} meeting={settings.meeting} /> : null}
+          {booked ? (
+            <BookedNote
+              booking={booked}
+              minutes={settings.durationMinutes}
+              meeting={settings.meeting}
+            />
+          ) : null}
           {slot && !booked ? (
             <form
               className="studio-task-form"
@@ -145,8 +178,12 @@ export function BookMeeting({
               }}
             >
               <div className="book-ask-time">
-                <p className="studio-ask-hint is-when">{bookingWindow(slot, settings.durationMinutes)}</p>
-                <p className="studio-ask-hint">{settings.durationMinutes} minutes · {meetingLabel(settings.meeting)}</p>
+                <p className="studio-ask-hint is-when">
+                  {bookingWindow(slot, settings.durationMinutes)}
+                </p>
+                <p className="studio-ask-hint">
+                  {settings.durationMinutes} minutes · {meetingLabel(settings.meeting)}
+                </p>
               </div>
               <label className="studio-ask-field">
                 <span className="studio-ask-label">
@@ -155,7 +192,13 @@ export function BookMeeting({
                     *
                   </span>
                 </span>
-                <input required autoFocus value={name} autoComplete="name" onChange={(event) => setName(event.target.value)} />
+                <input
+                  required
+                  autoFocus
+                  value={name}
+                  autoComplete="name"
+                  onChange={(event) => setName(event.target.value)}
+                />
               </label>
               <label className="studio-ask-field">
                 <span className="studio-ask-label">
@@ -293,7 +336,9 @@ function BookedNote({
       <h2>you’re booked</h2>
       <p className="book-booked-with">with sukii</p>
       <p className="book-meet-when">{bookingWindow(booking.startsAt, minutes)}</p>
-      <p className="book-meet-sent">{minutes} minutes · {meetingLabel(meeting)}</p>
+      <p className="book-meet-sent">
+        {minutes} minutes · {meetingLabel(meeting)}
+      </p>
       <p className="book-meet-sent">a note is on its way to {booking.email}</p>
     </div>
   );
@@ -304,12 +349,12 @@ function MeetingCopy() {
     <div className="book-meet-copy">
       <p>thank you for making time. looking forward to connecting with you soon! {"<3"}</p>
       <p>
-        if this is an event or wedding -- in our initial consultation, we will discuss your overall vision and needs
-        to follow up with an accurate proposal quote.
+        if this is an event or wedding -- in our initial consultation, we will discuss your overall
+        vision and needs to follow up with an accurate proposal quote.
       </p>
       <p>
-        please have any inspiration images you have readily available for our meeting. you may also email them to{" "}
-        <a href="mailto:info@saysukii.com">info@saysukii.com</a>.
+        please have any inspiration images you have readily available for our meeting. you may also
+        email them to <a href="mailto:info@saysukii.com">info@saysukii.com</a>.
       </p>
     </div>
   );

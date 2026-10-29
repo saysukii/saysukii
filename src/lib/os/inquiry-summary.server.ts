@@ -2,16 +2,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, InquiryMessageRow, InquiryStatus } from "@/integrations/supabase/types";
 import {
-  NEW_LEAD_SUMMARY,
   buildInquirySummaryFacts,
   fallbackInquirySummary,
   formatInquirySummaryUserMessage,
   inquirySummaryFingerprint,
   inquirySummarySystemPrompt,
-  isNewUncontactedLead,
   sanitizeInquirySummary,
   summaryTextIsStale,
+  type InquirySummaryDetails,
   type InquirySummaryFacts,
+  type InquirySummaryInvoice,
   type InquirySummaryMeeting,
   type InquirySummaryProposal,
 } from "@/lib/os/inquiry-summary";
@@ -23,9 +23,13 @@ type SummaryState = {
   status: InquiryStatus;
   contacted_at: string | null;
   summary_text: string | null;
+  summary_generated_at?: string | null;
   messages: InquiryMessageRow[];
   proposals: InquirySummaryProposal[];
   meetings: InquirySummaryMeeting[];
+  details?: InquirySummaryDetails;
+  calls?: Array<{ starts_at: string }>;
+  invoices?: InquirySummaryInvoice[];
 };
 
 type SummaryDeps = {
@@ -62,7 +66,10 @@ export async function refreshInquirySummarySafe(client: StudioClient, inquiryId:
   try {
     await refreshInquirySummary(client, inquiryId);
   } catch (error) {
-    console.error("[inquiry-summary] refresh failed:", error instanceof Error ? error.message : error);
+    console.error(
+      "[inquiry-summary] refresh failed:",
+      error instanceof Error ? error.message : error,
+    );
   }
 }
 
@@ -77,39 +84,34 @@ export async function summarizeInquiryRecord(
     messages: state.messages,
     proposals: state.proposals,
     meetings: state.meetings,
-    now: deps?.now,
+    ...(state.details ? { details: state.details } : {}),
+    ...(state.calls ? { calls: state.calls } : {}),
+    ...(state.invoices ? { invoices: state.invoices } : {}),
+    ...(deps?.now ? { now: deps.now } : {}),
   });
   const fingerprint = inquirySummaryFingerprint(facts);
   const cached = memory.get(state.inquiryId);
   if (!deps?.force) {
     if (cached?.fingerprint === fingerprint) return cached.text;
-    if (!cached && state.summary_text && !summaryTextIsStale(state.summary_text, facts)) {
+    if (
+      !cached &&
+      state.summary_text &&
+      !summaryTextIsStale(state.summary_text, facts, state.summary_generated_at, deps?.now)
+    ) {
       memory.set(state.inquiryId, { fingerprint, text: state.summary_text });
       return state.summary_text;
     }
   }
 
-  const text = await generateInquirySummaryText(facts, {
-    ...deps,
-    empty: isNewUncontactedLead({
-      status: state.status,
-      contacted_at: state.contacted_at,
-      messages: state.messages,
-      proposalStatus: facts.proposalStatus,
-    }),
-  });
+  const text = await generateInquirySummaryText(facts, deps);
   memory.set(state.inquiryId, { fingerprint, text });
   await persistSummary(client, state.inquiryId, text, deps?.now ?? new Date());
   return text;
 }
 
-export async function generateInquirySummaryText(
-  facts: InquirySummaryFacts,
-  deps?: SummaryDeps & { empty?: boolean },
-) {
-  if (deps?.empty || (facts.status === "new" && !facts.contacted && !facts.proposalStatus)) {
-    return NEW_LEAD_SUMMARY;
-  }
+export async function generateInquirySummaryText(facts: InquirySummaryFacts, deps?: SummaryDeps) {
+  // an archived lead has nothing left to read into
+  if (facts.situation === "archived") return fallbackInquirySummary(facts);
   const apiKey = deps?.apiKey ?? process.env["ANTHROPIC_API_KEY"];
   if (!apiKey) return fallbackInquirySummary(facts);
 
@@ -125,7 +127,7 @@ export async function generateInquirySummaryText(
       },
       body: JSON.stringify({
         model,
-        max_tokens: 160,
+        max_tokens: 200,
         temperature: 0,
         system: inquirySummarySystemPrompt(),
         messages: [{ role: "user", content: formatInquirySummaryUserMessage(facts) }],
@@ -135,7 +137,8 @@ export async function generateInquirySummaryText(
       error?: { message?: string };
       content?: Array<{ type?: string; text?: string }>;
     };
-    if (!response.ok) throw new Error(payload.error?.message || `Anthropic request failed (${response.status})`);
+    if (!response.ok)
+      throw new Error(payload.error?.message || `Anthropic request failed (${response.status})`);
     const text = sanitizeInquirySummary(
       (payload.content ?? [])
         .filter((block) => block.type === "text")
@@ -148,11 +151,20 @@ export async function generateInquirySummaryText(
   }
 }
 
-async function loadSummaryState(client: StudioClient, inquiryId: string): Promise<SummaryState | null> {
-  const inquiryResult = await client.from("inquiries").select("*").eq("id", inquiryId).maybeSingle();
+async function loadSummaryState(
+  client: StudioClient,
+  inquiryId: string,
+): Promise<SummaryState | null> {
+  const inquiryResult = await client
+    .from("inquiries")
+    .select("*")
+    .eq("id", inquiryId)
+    .maybeSingle();
   if (inquiryResult.error || !inquiryResult.data) return null;
+  const inquiry = inquiryResult.data;
 
-  const [messagesResult, proposalsResult, meetingsResult] = await Promise.all([
+  const [clientResult, messagesResult, proposalsResult, meetingsResult] = await Promise.all([
+    client.from("clients").select("name, email").eq("id", inquiry.client_id).maybeSingle(),
     client
       .from("inquiry_messages")
       .select("*")
@@ -160,25 +172,55 @@ async function loadSummaryState(client: StudioClient, inquiryId: string): Promis
       .order("sent_at", { ascending: true }),
     client
       .from("proposals")
-      .select("status, created_at")
+      .select(
+        "id, status, created_at, sent_at, viewed_at, accepted_at, declined_at, declined_reason, valid_until, total_cents",
+      )
       .eq("inquiry_id", inquiryId)
       .eq("archived", false)
       .order("created_at", { ascending: false }),
     client
       .from("meetings")
-      .select("title, occurred_at, match_status")
+      .select("title, occurred_at, match_status, summary")
       .eq("inquiry_id", inquiryId)
       .order("occurred_at", { ascending: true }),
   ]);
 
+  const email = clientResult.data?.email?.trim() ?? "";
+  const proposalIds = (proposalsResult.data ?? []).map((proposal) => proposal.id);
+  const [callsResult, invoicesResult] = await Promise.all([
+    email
+      ? client.from("appointments").select("starts_at").ilike("guest_email", email)
+      : Promise.resolve({ data: [] as Array<{ starts_at: string }>, error: null }),
+    proposalIds.length
+      ? client.from("invoices").select("status, amount_cents").in("proposal_id", proposalIds)
+      : Promise.resolve({ data: [] as InquirySummaryInvoice[], error: null }),
+  ]);
+
   return {
     inquiryId,
-    status: inquiryResult.data.status,
-    contacted_at: inquiryResult.data.contacted_at,
-    summary_text: inquiryResult.data.summary_text ?? null,
+    status: inquiry.status,
+    contacted_at: inquiry.contacted_at,
+    summary_text: inquiry.summary_text ?? null,
+    summary_generated_at: inquiry.summary_generated_at ?? null,
     messages: (messagesResult.data ?? []) as InquiryMessageRow[],
     proposals: (proposalsResult.data ?? []) as InquirySummaryProposal[],
     meetings: meetingsResult.error ? [] : ((meetingsResult.data ?? []) as InquirySummaryMeeting[]),
+    details: {
+      clientName: clientResult.data?.name ?? null,
+      clientEmail: email || null,
+      eventType: inquiry.event_type,
+      eventDate: inquiry.event_date,
+      eventDateTbd: inquiry.event_date_tbd,
+      venue: inquiry.venue_text,
+      guestCount: inquiry.guest_count,
+      budget: inquiry.budget_range,
+      receivedAt: inquiry.received_at,
+      closedAt: inquiry.closed_at,
+      closedReason: inquiry.closed_reason,
+      detectionStatus: inquiry.detection_status,
+    },
+    calls: callsResult.error ? [] : (callsResult.data ?? []),
+    invoices: invoicesResult.error ? [] : ((invoicesResult.data ?? []) as InquirySummaryInvoice[]),
   };
 }
 

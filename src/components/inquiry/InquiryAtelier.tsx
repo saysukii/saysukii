@@ -16,10 +16,20 @@ const ROOMS: Array<{
   wash: string;
 }> = [
   { value: "weddings", title: "Weddings", line: "Vows, procession, the room.", wash: "#f4b8c0" },
-  { value: "events", title: "Events", line: "Dinners, activations, brand worlds.", wash: "#e7c48a" },
+  {
+    value: "events",
+    title: "Events",
+    line: "Dinners, activations, brand worlds.",
+    wash: "#e7c48a",
+  },
   { value: "deliveries", title: "Deliveries", line: "A gift at the door.", wash: "#b7c9a8" },
   { value: "subscriptions", title: "Subscriptions", line: "Flowers on a rhythm.", wash: "#c7b3d6" },
-  { value: "set_design", title: "Set + styling", line: "Still life, campaign, set.", wash: "#9eb6c4" },
+  {
+    value: "set_design",
+    title: "Set + styling",
+    line: "Still life, campaign, set.",
+    wash: "#9eb6c4",
+  },
 ];
 
 export function InquiryAtelier({
@@ -34,7 +44,9 @@ export function InquiryAtelier({
 
   const walls = useMemo(() => {
     if (!values.interest) return [];
-    return buildInquirySteps(values.interest).filter((step) => step.id !== "interest" && step.kind !== "review");
+    return buildInquirySteps(values.interest).filter(
+      (step) => step.id !== "interest" && step.kind !== "review",
+    );
   }, [values.interest]);
 
   const [wall, setWall] = useState(0);
@@ -92,7 +104,10 @@ export function InquiryAtelier({
         <h2>{step.label}</h2>
         {step.hint ? <p className="wall-hint">{step.hint}</p> : null}
 
-        {step.kind === "text" || step.kind === "email" || step.kind === "tel" || step.kind === "address" ? (
+        {step.kind === "text" ||
+        step.kind === "email" ||
+        step.kind === "tel" ||
+        step.kind === "address" ? (
           <input
             className="wall-line"
             type={step.kind === "email" ? "email" : step.kind === "tel" ? "tel" : "text"}
@@ -176,7 +191,11 @@ export function InquiryAtelier({
       </div>
 
       <footer className="wall-nav">
-        <button type="button" disabled={disabled || wall === 0} onClick={() => setWall((current) => current - 1)}>
+        <button
+          type="button"
+          disabled={disabled || wall === 0}
+          onClick={() => setWall((current) => current - 1)}
+        >
           Previous wall
         </button>
         {wall < walls.length - 1 ? (

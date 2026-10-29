@@ -28,6 +28,9 @@ export function readPreviewArrivals(): PreviewArrival[] {
 }
 
 export function rememberPreviewArrival(arrival: PreviewArrival) {
-  const next = [arrival, ...readPreviewArrivals().filter((item) => item.id !== arrival.id)].slice(0, 8);
+  const next = [arrival, ...readPreviewArrivals().filter((item) => item.id !== arrival.id)].slice(
+    0,
+    8,
+  );
   localStorage.setItem(PREVIEW_ARRIVALS_KEY, JSON.stringify(next));
 }

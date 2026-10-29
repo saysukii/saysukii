@@ -3,7 +3,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Wordmark } from "@/components/portal/bits";
-import { StudioLoader, STUDIO_LOADERS, type StudioLoaderKind } from "@/components/portal/StudioLoader";
+import {
+  StudioLoader,
+  STUDIO_LOADERS,
+  type StudioLoaderKind,
+} from "@/components/portal/StudioLoader";
 
 export const Route = createFileRoute("/_authenticated/loading")({
   head: () => ({
@@ -36,7 +40,15 @@ const views = [
 
 type LoadView = (typeof views)[number]["id"];
 
-function LoaderCard({ kind, label, screen = false }: { kind: StudioLoaderKind; label: string; screen?: boolean }) {
+function LoaderCard({
+  kind,
+  label,
+  screen = false,
+}: {
+  kind: StudioLoaderKind;
+  label: string;
+  screen?: boolean;
+}) {
   const [play, setPlay] = useState(0);
   return (
     <article className={screen ? "studio-load-card is-screen" : "studio-load-card"}>
@@ -63,7 +75,12 @@ function LoadPicks({
   return (
     <div className="studio-load-picks" role="group" aria-label="animations">
       {STUDIO_LOADERS.map((item) => (
-        <button key={item} type="button" className={kind === item ? "is-on" : undefined} onClick={() => onPlay(item)}>
+        <button
+          key={item}
+          type="button"
+          className={kind === item ? "is-on" : undefined}
+          onClick={() => onPlay(item)}
+        >
           {item}
         </button>
       ))}
@@ -71,7 +88,9 @@ function LoadPicks({
   );
 }
 
-const proposalPages = [1, 2, 3, 4, 5, 6].map((page) => `/attachments/fenty-pages/page-0${page}.png?v=2`);
+const proposalPages = [1, 2, 3, 4, 5, 6].map(
+  (page) => `/attachments/fenty-pages/page-0${page}.png?v=2`,
+);
 
 function ProposalLive() {
   const [kind, setKind] = useState<StudioLoaderKind | null>(null);
@@ -136,13 +155,13 @@ function ProposalLive() {
         <div className="studio-load-sheet">
           <img src={proposalPages[page]} alt={`Proposal page ${page + 1}`} draggable={false} />
           {opening && kind ? (
-          <div className="studio-load-sheet-veil" key={play}>
-            <div className="studio-load-stage">
-              <span className="is-playing">
-                <StudioLoader kind={kind} />
-              </span>
+            <div className="studio-load-sheet-veil" key={play}>
+              <div className="studio-load-stage">
+                <span className="is-playing">
+                  <StudioLoader kind={kind} />
+                </span>
+              </div>
             </div>
-          </div>
           ) : null}
         </div>
       </div>
@@ -178,7 +197,10 @@ function ScreenLive() {
       <LoadPicks kind={kind} onPlay={open} />
       <p className="studio-load-note">play one. it covers the screen, then this page returns.</p>
       {phase !== "off" && kind ? (
-        <div className={phase === "out" ? "studio-load-cover is-out" : "studio-load-cover"} key={play}>
+        <div
+          className={phase === "out" ? "studio-load-cover is-out" : "studio-load-cover"}
+          key={play}
+        >
           <div className="studio-load-stage">
             <span className="is-playing">
               <StudioLoader kind={kind} />
@@ -199,7 +221,10 @@ function LoadingPage() {
         <div>
           <p className="studio-kicker">loading</p>
           <h1>ways to wait</h1>
-          <p>bloom opens the studio, a proposal, and any page that needs a moment. the page is already there.</p>
+          <p>
+            bloom opens the studio, a proposal, and any page that needs a moment. the page is
+            already there.
+          </p>
         </div>
       </header>
       <div className="studio-form-tabs" role="tablist" aria-label="where to watch">

@@ -57,7 +57,11 @@ export const bookAppointment = createServerFn({ method: "POST" })
     const durationMinutes = settings?.durationMinutes ?? 30;
     const meeting = settings?.meeting ?? "meet";
     const { createConsultationEvent } = await import("@/lib/os/google.server");
-    const googleEventId = await createConsultationEvent({ ...data, durationMinutes, meeting }).catch(() => null);
+    const googleEventId = await createConsultationEvent({
+      ...data,
+      durationMinutes,
+      meeting,
+    }).catch(() => null);
     let savedId: string | null = null;
     let saveError = "";
     try {

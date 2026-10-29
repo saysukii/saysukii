@@ -16,8 +16,12 @@ import {
   inquiryOriginFromCreator,
   isReviewCandidate,
 } from "@/lib/os/inquiry-detection";
-import { listStudioTasks, syncInquiryAutoTaskFor, syncInquiryAutoTasks } from "@/lib/os/tasks.functions";
-import { refreshInquirySummarySafe, summarizeInquiryRecord } from "@/lib/os/inquiry-summary.server";
+import {
+  listStudioTasks,
+  syncInquiryAutoTaskFor,
+  syncInquiryAutoTasks,
+} from "@/lib/os/tasks.functions";
+import { ensureInquirySummary, refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
 import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
 import { noteWriter, signatureName, signatureText, wroteNote } from "@/lib/os/mail-signature";
 import { fileNameFromNotes } from "@/lib/floral-agreement";
@@ -53,9 +57,13 @@ const inquiryDetails = z
       .max(40)
       .optional()
       .default("")
-      .refine((value) => !value || /^\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value.replace(/^\+1\s*/, "")), {
-        message: "Enter a 10-digit phone number",
-      }),
+      .refine(
+        (value) =>
+          !value || /^\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(value.replace(/^\+1\s*/, "")),
+        {
+          message: "Enter a 10-digit phone number",
+        },
+      ),
     organization: z.string().trim().max(160).optional().default(""),
     client_type: clientType.default("individual"),
     event_date: z.string().date().nullable().optional(),
@@ -257,11 +265,12 @@ async function dropNonInquiries<
   return visible;
 }
 
-async function attachSourcePeeks<T extends { source_message_id: string | null; source_peek: InquirySourcePeek | null }>(
-  client: StudioClient,
-  rows: T[],
-) {
-  const ids = [...new Set(rows.map((row) => row.source_message_id).filter((id): id is string => Boolean(id)))];
+async function attachSourcePeeks<
+  T extends { source_message_id: string | null; source_peek: InquirySourcePeek | null },
+>(client: StudioClient, rows: T[]) {
+  const ids = [
+    ...new Set(rows.map((row) => row.source_message_id).filter((id): id is string => Boolean(id))),
+  ];
   if (ids.length === 0) return rows;
   const { data, error } = await client
     .from("inbound_messages")
@@ -284,21 +293,18 @@ function dateOnly(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-
 export const submitPublicInquiry = createServerFn({ method: "POST" })
   .validator((input: unknown) => publicInquiryInput.parse(input))
   .handler(async ({ data }) => {
     // Honeypot submissions get a normal success response without touching the database.
     if (data.website.trim()) return { ok: true as const, preview: false as const };
 
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!process.env["SUPABASE_URL"] || !process.env["SUPABASE_SERVICE_ROLE_KEY"]) {
       if (import.meta.env.DEV) {
         console.warn("[inquiry] kept in this browser. SUPABASE_SERVICE_ROLE_KEY is not set.");
         return { ok: true as const, preview: true as const };
       }
-      throw new Error(
-        "Missing Supabase environment variable(s): SUPABASE_SERVICE_ROLE_KEY.",
-      );
+      throw new Error("Missing Supabase environment variable(s): SUPABASE_SERVICE_ROLE_KEY.");
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -352,26 +358,30 @@ export const createAdminInquiry = createServerFn({ method: "POST" })
 
 export const listInquiryPipeline = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async ({ context }) => listInquiriesWithClients(context.supabase, DESK_DETECTION_STATUSES));
+  .handler(async ({ context }) =>
+    listInquiriesWithClients(context.supabase, DESK_DETECTION_STATUSES),
+  );
 
 export const getInquiryDashboard = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async ({ context }) => {
-    const [inquiries, projectsResult, clientsResult, tasks, appointmentsResult] = await Promise.all([
-      listInquiriesWithClients(context.supabase),
-      context.supabase
-        .from("projects")
-        .select("*")
-        .eq("archived", false)
-        .order("event_date", { ascending: true }),
-      context.supabase.from("clients").select("*"),
-      listStudioTasks(context.supabase),
-      context.supabase
-        .from("appointments")
-        .select("id, starts_at, guest_name, guest_email, note")
-        .gte("starts_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        .order("starts_at"),
-    ]);
+    const [inquiries, projectsResult, clientsResult, tasks, appointmentsResult] = await Promise.all(
+      [
+        listInquiriesWithClients(context.supabase),
+        context.supabase
+          .from("projects")
+          .select("*")
+          .eq("archived", false)
+          .order("event_date", { ascending: true }),
+        context.supabase.from("clients").select("*"),
+        listStudioTasks(context.supabase),
+        context.supabase
+          .from("appointments")
+          .select("id, starts_at, guest_name, guest_email, note")
+          .gte("starts_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+          .order("starts_at"),
+      ],
+    );
     if (projectsResult.error) throw new Error(projectsResult.error.message);
     if (clientsResult.error) throw new Error(clientsResult.error.message);
 
@@ -512,7 +522,11 @@ export const updateInquiryMoment = createServerFn({ method: "POST" })
         id: z.string().uuid(),
         venue_text: z.string().trim().max(300).optional(),
         budget_range: z.string().trim().max(120).optional(),
-        event_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+        event_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .nullable()
+          .optional(),
         event_date_tbd: z.boolean().optional(),
       })
       .parse(input),
@@ -621,7 +635,8 @@ async function searchPhotonPlaces(query: string) {
 
     const payload = (await response.json()) as { features?: PhotonFeature[] };
     const seen = new Set<string>();
-    const suggestions: Array<{ id: string; label: string; value: string; provider: "fallback" }> = [];
+    const suggestions: Array<{ id: string; label: string; value: string; provider: "fallback" }> =
+      [];
 
     for (const feature of payload.features ?? []) {
       const properties = feature.properties;
@@ -658,21 +673,21 @@ export const searchFloridaAddresses = createServerFn({ method: "GET" })
     const google = searchGooglePlaces(data.q).catch(() => null);
     const photon = searchPhotonPlaces(data.q);
 
-    return new Promise<
-      Array<{ id: string; label: string; value: string; provider?: string }>
-    >((resolve) => {
-      let pending = 2;
-      const finish = (places: Array<{ id: string; label: string; value: string }> | null) => {
-        if (places?.length) {
-          resolve(places);
-          return;
-        }
-        pending -= 1;
-        if (pending === 0) resolve([]);
-      };
-      void google.then(finish);
-      void photon.then(finish);
-    });
+    return new Promise<Array<{ id: string; label: string; value: string; provider?: string }>>(
+      (resolve) => {
+        let pending = 2;
+        const finish = (places: Array<{ id: string; label: string; value: string }> | null) => {
+          if (places?.length) {
+            resolve(places);
+            return;
+          }
+          pending -= 1;
+          if (pending === 0) resolve([]);
+        };
+        void google.then(finish);
+        void photon.then(finish);
+      },
+    );
   });
 
 async function resolveInquiryId(client: StudioClient, key: string) {
@@ -697,35 +712,69 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
     if (inquiryResult.error) throw new Error(inquiryResult.error.message);
     if (!inquiryResult.data) throw new Error("Inquiry not found");
 
-    const [clientResult, messagesResult, proposalsResult, filesResult, gmailResult, googleResult, inboxResult, meetingsResult] =
-      await Promise.all([
-        context.supabase.from("clients").select("*").eq("id", inquiryResult.data.client_id).maybeSingle(),
-        context.supabase
-          .from("inquiry_messages")
-          .select("*")
-          .eq("inquiry_id", inquiryId)
-          .order("sent_at", { ascending: true }),
-        context.supabase
-          .from("proposals")
-          .select("id, number, status, total_cents, event_date, created_at, access_token, deposit_amount_cents, pdf_path, notes, viewed_at")
-          .eq("inquiry_id", inquiryId)
-          .eq("archived", false)
-          .order("created_at", { ascending: false }),
-        context.supabase
-          .from("files")
-          .select("*")
-          .eq("owner_type", "inquiry")
-          .eq("owner_id", inquiryId)
-          .order("created_at", { ascending: false }),
-        context.supabase.from("integration_connections").select("status").eq("provider", "gmail").maybeSingle(),
-        context.supabase.from("integration_connections").select("status").eq("provider", "google").maybeSingle(),
-        context.supabase.from("email_integration").select("status").eq("provider", "gmail").maybeSingle(),
-        context.supabase
-          .from("meetings")
-          .select("title, occurred_at, match_status")
-          .eq("inquiry_id", inquiryId)
-          .order("occurred_at", { ascending: true }),
-      ]);
+    const [
+      clientResult,
+      messagesResult,
+      proposalsResult,
+      filesResult,
+      gmailResult,
+      googleResult,
+      inboxResult,
+      meetingsResult,
+      invoicesResult,
+    ] = await Promise.all([
+      context.supabase
+        .from("clients")
+        .select("*")
+        .eq("id", inquiryResult.data.client_id)
+        .maybeSingle(),
+      context.supabase
+        .from("inquiry_messages")
+        .select("*")
+        .eq("inquiry_id", inquiryId)
+        .order("sent_at", { ascending: true }),
+      context.supabase
+        .from("proposals")
+        .select(
+          "id, number, status, total_cents, event_date, created_at, access_token, deposit_amount_cents, pdf_path, notes, viewed_at",
+        )
+        .eq("inquiry_id", inquiryId)
+        .eq("archived", false)
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("files")
+        .select("*")
+        .eq("owner_type", "inquiry")
+        .eq("owner_id", inquiryId)
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("integration_connections")
+        .select("status")
+        .eq("provider", "gmail")
+        .maybeSingle(),
+      context.supabase
+        .from("integration_connections")
+        .select("status")
+        .eq("provider", "google")
+        .maybeSingle(),
+      context.supabase
+        .from("email_integration")
+        .select("status")
+        .eq("provider", "gmail")
+        .maybeSingle(),
+      context.supabase
+        .from("meetings")
+        .select("title, occurred_at, match_status")
+        .eq("inquiry_id", inquiryId)
+        .order("occurred_at", { ascending: true }),
+      context.supabase
+        .from("inquiry_invoices")
+        .select(
+          "id, number, total_cents, due_now_cents, pay_in_full, status, public_url, sent_at, paid_cents",
+        )
+        .eq("inquiry_id", inquiryId)
+        .order("sent_at", { ascending: false }),
+    ]);
 
     if (clientResult.error) throw new Error(clientResult.error.message);
     if (messagesResult.error) throw new Error(messagesResult.error.message);
@@ -762,14 +811,21 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
     const proposalRows = proposalsResult.data ?? [];
     const proposalIds = proposalRows.map((proposal) => proposal.id);
     const invoiceResult = proposalIds.length
-      ? await context.supabase.from("invoices").select("proposal_id, number").in("proposal_id", proposalIds)
+      ? await context.supabase
+          .from("invoices")
+          .select("proposal_id, number")
+          .in("proposal_id", proposalIds)
       : { data: [], error: null };
     if (invoiceResult.error) throw new Error(invoiceResult.error.message);
-    const invoiceNumbers = new Map((invoiceResult.data ?? []).map((invoice) => [invoice.proposal_id, invoice.number]));
+    const invoiceNumbers = new Map(
+      (invoiceResult.data ?? []).map((invoice) => [invoice.proposal_id, invoice.number]),
+    );
     const proposals = await Promise.all(
       proposalRows.map(async (proposal) => {
         const signed = proposal.pdf_path
-          ? await context.supabase.storage.from("documents").createSignedUrl(proposal.pdf_path, 60 * 30)
+          ? await context.supabase.storage
+              .from("documents")
+              .createSignedUrl(proposal.pdf_path, 60 * 30)
           : null;
         const invoiceNumber = invoiceNumbers.get(proposal.id);
         return {
@@ -783,16 +839,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
     const meetings = meetingsResult.error ? [] : (meetingsResult.data ?? []);
     let summary = inquiryResult.data.summary_text ?? null;
     try {
-      summary =
-        (await summarizeInquiryRecord(context.supabase, {
-          inquiryId,
-          status: inquiryResult.data.status,
-          contacted_at: inquiryResult.data.contacted_at,
-          summary_text: inquiryResult.data.summary_text ?? null,
-          messages,
-          proposals,
-          meetings,
-        })) ?? summary;
+      summary = (await ensureInquirySummary(context.supabase, inquiryId)) ?? summary;
     } catch {
       summary = resolveInquirySummaryText(
         buildInquirySummaryFacts({
@@ -807,13 +854,17 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
 
     const listed = await listInquiriesWithClients(context.supabase);
     return {
-      inquiry: { ...inquiryResult.data, summary_text: summary ?? inquiryResult.data.summary_text ?? null },
+      inquiry: {
+        ...inquiryResult.data,
+        summary_text: summary ?? inquiryResult.data.summary_text ?? null,
+      },
       slug: listed.find((row) => row.id === inquiryId)?.slug ?? inquiryId,
       client: clientResult.data,
       messages,
       proposals,
       files,
       source_message,
+      invoices: invoicesResult.error ? [] : (invoicesResult.data ?? []),
       gmailConnected:
         inboxResult.data?.status === "connected" ||
         gmailResult.data?.status === "connected" ||
@@ -903,6 +954,17 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
         thread_id: z.string().trim().max(200).nullable().optional(),
         to: z.array(z.string().trim().email().max(200)).max(12).optional().default([]),
         cc: z.array(z.string().trim().email().max(200)).max(12).optional().default([]),
+        attachments: z
+          .array(
+            z.object({
+              path: z.string().trim().min(1).max(500),
+              name: z.string().trim().min(1).max(255),
+            }),
+          )
+          .max(10)
+          .optional()
+          .default([]),
+        send_at: z.string().datetime({ offset: true }).optional(),
       })
       .parse(input),
   )
@@ -948,105 +1010,61 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
       return { ok: true as const, channel: "note" as const };
     }
 
-    const { mailRecord } = await import("@/lib/os/mail-people");
-    const clientEmail = clientResult.data.email?.trim() ?? "";
-    const people = mailRecord([clientEmail, ...data.to], data.cc);
-    if (!people.to.length) throw new Error("This client needs an email address before you can send.");
-    const to = people.to[0] ?? "";
-    const named = Boolean(clientEmail) && to.toLowerCase() === clientEmail.toLowerCase();
-
-    const { getGmailPublicStatus, validGmailAccessToken } = await import("@/lib/os/gmail.server");
-    const gmail = await getGmailPublicStatus();
-    if (gmail.status !== "connected") {
-      throw new Error("Connect Gmail in settings to send.");
-    }
-
-    const prior = await context.supabase
-      .from("inquiry_messages")
-      .select("gmail_thread_id, gmail_message_id, subject, sent_at, channel")
-      .eq("inquiry_id", data.inquiry_id)
-      .order("sent_at", { ascending: true });
-    if (prior.error) throw new Error(prior.error.message);
-
-    const { fetchGmailReplyHeaders, replySubject, resolveReplyContext, sendInquiryEmail } = await import(
-      "@/lib/os/gmail-outbound.server"
-    );
-    const fresh = Boolean(data.fresh);
-    if (fresh && !data.subject.trim()) throw new Error("Add a subject for the new conversation.");
-    const rows = prior.data ?? [];
-    const scoped = fresh
-      ? []
-      : data.thread_id
-        ? rows.filter((row) => row.gmail_thread_id === data.thread_id)
-        : rows;
-    const reply = resolveReplyContext(scoped);
-    const accessToken = await validGmailAccessToken();
-    let inReplyTo: string | null = null;
-    let references: string | null = null;
-    if (!fresh && reply.replyToMessageId) {
-      try {
-        const headers = await fetchGmailReplyHeaders(reply.replyToMessageId, accessToken);
-        inReplyTo = headers.messageId;
-        references = headers.references || headers.messageId;
-      } catch {
-        inReplyTo = null;
-      }
-    }
-
-    const from = gmail.account_email || fromAddress;
-    const subject = fresh ? data.subject.trim() : data.subject.trim() || replySubject(reply.subject);
-    const sender = signatureName(context.profile.full_name);
-    const sent = await sendInquiryEmail({
-      from,
-      fromName: "Say Sukii",
-      to,
-      toName: named ? clientResult.data.name : null,
-      tos: people.to,
-      cc: people.cc,
-      subject,
-      body: `${data.body.trim()}\n\n${signatureText(sender)}`,
-      threadId: fresh ? null : reply.threadId,
-      inReplyTo,
-      references,
-      accessToken,
-    });
-
-    const { error } = await context.supabase.from("inquiry_messages").insert({
-      inquiry_id: data.inquiry_id,
-      direction: "outbound",
-      channel: "email",
-      subject,
+    const { deliverLetter, scheduleLetter } = await import("@/lib/os/letter-send.server");
+    const request = {
+      inquiryId: data.inquiry_id,
       body: data.body,
-      from_address: from,
-      to_address: people.cc.length || people.to.length > 1 ? people.line : clientEmail || to,
-      gmail_message_id: sent.gmail_message_id,
-      gmail_thread_id: sent.gmail_thread_id,
-      author: sender,
-      sent_at: sentAt,
-      status: "sent",
-      created_by: context.profile.id,
-    });
-    if (error) throw new Error(error.message);
-    const { markProposalsSentInLetter } = await import("@/lib/os/proposal-send.server");
-    await markProposalsSentInLetter(data.inquiry_id, data.body);
-
-    if (
-      inquiryResult.data.status === "new" &&
-      !isReviewCandidate(inquiryResult.data) &&
-      proposalCards(data.body).cards.length === 0
-    ) {
-      await context.supabase
-        .from("inquiries")
-        .update({
-          status: "contacted",
-          contacted_at: new Date().toISOString(),
-        })
-        .eq("id", data.inquiry_id);
+      subject: data.subject,
+      fresh: Boolean(data.fresh),
+      threadId: data.thread_id ?? null,
+      to: data.to,
+      cc: data.cc,
+      attachments: data.attachments,
+      sender: signatureName(context.profile.full_name),
+      createdBy: context.profile.id,
+    };
+    if (data.send_at) {
+      const when = new Date(data.send_at);
+      if (when.getTime() < Date.now() + 60_000)
+        throw new Error("pick a time at least a minute from now.");
+      await scheduleLetter(context.supabase, request, when);
+      return { ok: true as const, channel: "email" as const, scheduled: true as const };
     }
+    await deliverLetter(context.supabase, request);
+    return { ok: true as const, channel: "email" as const, scheduled: false as const };
+  });
 
-    await syncInquiryAutoTaskFor(context.supabase, data.inquiry_id);
-    await refreshInquirySummarySafe(context.supabase, data.inquiry_id);
-    return { ok: true as const, channel: "email" as const };
+export const cancelScheduledLetter = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: removed, error } = await context.supabase
+      .from("inquiry_messages")
+      .delete()
+      .eq("id", data.id)
+      .in("status", ["queued", "failed"])
+      .select("inquiry_id");
+    if (error) throw new Error(error.message);
+    if (!removed?.length) throw new Error("that letter already went out.");
+    return { ok: true as const };
+  });
+
+export const removeInquiryFile = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: file, error } = await context.supabase
+      .from("files")
+      .select("id, owner_type, file_path")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!file || file.owner_type !== "inquiry") throw new Error("that file is already gone.");
+    const removed = await context.supabase.storage.from("project-files").remove([file.file_path]);
+    if (removed.error) throw new Error(removed.error.message);
+    const { error: rowError } = await context.supabase.from("files").delete().eq("id", data.id);
+    if (rowError) throw new Error(rowError.message);
+    return { ok: true as const };
   });
 
 async function studioNote(id: string) {
@@ -1080,7 +1098,10 @@ export const updateInquiryNote = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const writer = context.profile.role === "admin" ? context.supabase : supabaseAdmin;
-    const { error } = await writer.from("inquiry_messages").update({ body: data.body }).eq("id", note.id);
+    const { error } = await writer
+      .from("inquiry_messages")
+      .update({ body: data.body })
+      .eq("id", note.id);
     if (error) throw new Error(error.message);
     await refreshInquirySummarySafe(writer, note.inquiry_id);
     return { ok: true as const };

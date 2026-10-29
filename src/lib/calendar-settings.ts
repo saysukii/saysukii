@@ -18,11 +18,21 @@ export type CalendarSettings = {
   maxPerDay: 0 | 2 | 4 | 6 | 8;
 };
 
-const WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+const WEEK = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
 
 export const DAY_NAMES = WEEK;
 
-export const CLOCKS = Array.from({ length: 24 }, (_, hour) => [0, 30].map((minute) => clock(hour, minute))).flat();
+export const CLOCKS = Array.from({ length: 24 }, (_, hour) =>
+  [0, 30].map((minute) => clock(hour, minute)),
+).flat();
 
 export const DEFAULT_CALENDAR: CalendarSettings = {
   days: WEEK.map((_, day) => ({
@@ -98,7 +108,8 @@ export function normalizeCalendar(value: unknown): CalendarSettings {
     horizonDays: horizon === 14 || horizon === 42 || horizon === 60 ? horizon : 28,
     noticeHours: notice === 1 || notice === 12 || notice === 24 ? notice : 4,
     bufferMinutes: buffer === 15 || buffer === 30 ? buffer : 0,
-    maxPerDay: maxPerDay === 2 || maxPerDay === 4 || maxPerDay === 6 || maxPerDay === 8 ? maxPerDay : 0,
+    maxPerDay:
+      maxPerDay === 2 || maxPerDay === 4 || maxPerDay === 6 || maxPerDay === 8 ? maxPerDay : 0,
   };
 }
 
@@ -111,7 +122,7 @@ export function meetingLabel(meeting: CalendarSettings["meeting"]) {
 }
 
 export function minutes(value: string) {
-  const [hour, minute] = value.split(":").map(Number);
+  const [hour = 0, minute = 0] = value.split(":").map(Number);
   return hour * 60 + minute;
 }
 

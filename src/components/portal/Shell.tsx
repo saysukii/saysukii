@@ -53,20 +53,16 @@ const ADMIN_NAV: NavItem[] = [
 
 const TEAM_NAV = ADMIN_NAV.filter(({ label }) => label === "today");
 
-function PrimaryNav({
-  items,
-  onNavigate,
-}: {
-  items: NavItem[];
-  onNavigate?: () => void;
-}) {
+function PrimaryNav({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   return (
     <nav aria-label="Primary" className="studio-pearl-nav">
       {items.map(({ to, label }) => {
         const onLibrary =
           to === "/library" &&
-          (pathname === "/library" || pathname.startsWith("/directories") || pathname.startsWith("/files"));
+          (pathname === "/library" ||
+            pathname.startsWith("/directories") ||
+            pathname.startsWith("/files"));
         return (
           <Link
             key={to}
@@ -84,8 +80,36 @@ function PrimaryNav({
   );
 }
 
+// the inquiry desk keeps one page while a lead is picked, so its leads share a key
+function risePageKey(pathname: string) {
+  return pathname.startsWith("/pipeline") ? "/pipeline" : pathname;
+}
+
+function usePageRise() {
+  const mainRef = useRef<HTMLElement>(null);
+  const pageKey = useRouterState({
+    select: (state) => risePageKey((state.resolvedLocation ?? state.location).pathname),
+  });
+
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    if (!main || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const rise = main.animate(
+      [
+        { opacity: 0, transform: "translateY(12px)" },
+        { opacity: 1, transform: "none" },
+      ],
+      { duration: 500, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    return () => rise.cancel();
+  }, [pageKey]);
+
+  return mainRef;
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const mainRef = usePageRise();
   const notices = useStudioNotices();
   const noticeModal = useNoticeModal(notices);
   const router = useRouter();
@@ -294,7 +318,9 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        <main className="studio-pearl-main">{children}</main>
+        <main ref={mainRef} className="studio-pearl-main">
+          {children}
+        </main>
       </div>
       <NoticeModal
         open={noticeModal.open}
@@ -309,7 +335,9 @@ export function Shell({ children }: { children: ReactNode }) {
 function noticeWhen(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  const time = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  const time = date
+    .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    .toLowerCase();
   const now = new Date();
   if (date.toDateString() === now.toDateString()) return `today at ${time}`;
   const day = date.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toLowerCase();
@@ -428,18 +456,21 @@ function NoticeModal({
       setCap((current) => (current === null ? current : null));
       return;
     }
-    const items = list.querySelectorAll(":scope > li");
-    if (items.length < 2) return;
-    const gap = parseFloat(getComputedStyle(items[1]).marginTop) || 0;
-    const height = items[0].offsetHeight + items[1].offsetHeight + gap;
+    const [first, second] = Array.from(list.querySelectorAll<HTMLElement>(":scope > li"));
+    if (!first || !second) return;
+    const gap = parseFloat(getComputedStyle(second).marginTop) || 0;
+    const height = first.offsetHeight + second.offsetHeight + gap;
     if (height < 1) return;
     setCap((current) => (current === height ? current : height));
   }, []);
 
-  const setList = useCallback((node: HTMLUListElement | null) => {
-    listRef.current = node;
-    measure();
-  }, [measure]);
+  const setList = useCallback(
+    (node: HTMLUListElement | null) => {
+      listRef.current = node;
+      measure();
+    },
+    [measure],
+  );
 
   useEffect(() => {
     measure();
@@ -462,7 +493,11 @@ function NoticeModal({
         {notices.length === 0 ? (
           <p className="studio-notice-line">nothing new</p>
         ) : (
-          <ul ref={setList} className="studio-notice-list" style={cap ? { maxHeight: cap } : undefined}>
+          <ul
+            ref={setList}
+            className="studio-notice-list"
+            style={cap ? { maxHeight: cap } : undefined}
+          >
             {notices.map((notice) => (
               <li key={notice.id}>
                 <div className="studio-notice-head">
@@ -476,7 +511,11 @@ function NoticeModal({
                       open
                     </a>
                   ) : null}
-                  <button type="button" className="studio-notice-clear" onClick={() => onClear(notice.id)}>
+                  <button
+                    type="button"
+                    className="studio-notice-clear"
+                    onClick={() => onClear(notice.id)}
+                  >
                     clear
                   </button>
                 </span>
@@ -534,12 +573,7 @@ function AccountMenu({
         ) : null}
         <ChevronDown className="size-3.5 shrink-0 opacity-45" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        side="top"
-        align="start"
-        sideOffset={8}
-        className="studio-account-menu"
-      >
+      <DropdownMenuContent side="top" align="start" sideOffset={8} className="studio-account-menu">
         <div className="studio-account-who">
           <b>{who}</b>
           <span>{email}</span>

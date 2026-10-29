@@ -13,7 +13,15 @@ type Particle = {
   glow: boolean;
 };
 
-const GLITTER_COLORS = ["#FFD700", "#FFB6C1", "#E6B3FF", "#FFFFFF", "#3AB819", "#15AAD2", "#EFB003"];
+const GLITTER_COLORS = [
+  "#FFD700",
+  "#FFB6C1",
+  "#E6B3FF",
+  "#FFFFFF",
+  "#3AB819",
+  "#15AAD2",
+  "#EFB003",
+];
 
 function pickColor() {
   return GLITTER_COLORS[Math.floor(Math.random() * GLITTER_COLORS.length)]!;
@@ -178,10 +186,6 @@ export function GlitterCursorTrail() {
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="pointer-events-none fixed inset-0 z-[9999]"
-      aria-hidden
-    />
+    <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-[9999]" aria-hidden />
   );
 }

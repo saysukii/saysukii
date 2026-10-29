@@ -7,7 +7,7 @@ import { nitro } from "nitro/vite";
 
 export default defineConfig(({ command }) => {
   const nitroPreset =
-    process.env.NETLIFY || process.env.NITRO_PRESET === "netlify" ? "netlify" : undefined;
+    process.env["NETLIFY"] || process.env["NITRO_PRESET"] === "netlify" ? "netlify" : undefined;
 
   return {
     server: {

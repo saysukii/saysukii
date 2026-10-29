@@ -24,7 +24,13 @@ export const INQUIRE_EVENT_TIMES = [
   "10:00 pm",
 ] as const;
 
-export const INQUIRE_DELIVERY_TIMES = ["10:00 am", "11:00 am", "12:00 pm", "1:00 pm", "2:00 pm"] as const;
+export const INQUIRE_DELIVERY_TIMES = [
+  "10:00 am",
+  "11:00 am",
+  "12:00 pm",
+  "1:00 pm",
+  "2:00 pm",
+] as const;
 
 function formatDisplayDate(value: string, compact: boolean) {
   return format(parseISO(value), compact ? "MMM d, yyyy" : "MMMM d, yyyy");
@@ -43,9 +49,9 @@ export function InquiryDatePicker({
   onTimeChange,
 }: {
   value: string | null;
-  time?: string;
+  time?: string | undefined;
   times?: readonly string[];
-  disabled?: boolean;
+  disabled?: boolean | undefined;
   withTime?: boolean;
   allowPast?: boolean;
   compact?: boolean;
@@ -95,7 +101,10 @@ export function InquiryDatePicker({
               !value && "inquire-date-trigger--empty",
             )}
           >
-            <CalendarDays className={cn("shrink-0 opacity-55", compact ? "size-3.5" : "size-4")} aria-hidden="true" />
+            <CalendarDays
+              className={cn("shrink-0 opacity-55", compact ? "size-3.5" : "size-4")}
+              aria-hidden="true"
+            />
             <span>{summary}</span>
           </button>
         </PopoverTrigger>
@@ -120,7 +129,10 @@ export function InquiryDatePicker({
         </PopoverContent>
       </Popover>
       {withTime && (showTimes || timesOpen) ? (
-        <div className={cn("inquire-times", timesOpen && showTimes && "is-open")} aria-hidden={!timesOpen}>
+        <div
+          className={cn("inquire-times", timesOpen && showTimes && "is-open")}
+          aria-hidden={!timesOpen}
+        >
           <div className="inquire-times-inner">
             <p>time</p>
             <div className="inquire-times-grid">

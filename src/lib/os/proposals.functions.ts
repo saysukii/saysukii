@@ -223,7 +223,9 @@ const importInput = z
     statement: statementInput.optional(),
     courtesy_cents: z.number().int().min(0).max(100_000_000).default(0),
   })
-  .refine((value) => Boolean(value.pdf_base64 || value.pdf_path), { message: "Choose the proposal PDF." });
+  .refine((value) => Boolean(value.pdf_base64 || value.pdf_path), {
+    message: "Choose the proposal PDF.",
+  });
 
 export const importProposalPdf = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
@@ -269,14 +271,15 @@ export const importProposalPdf = createServerFn({ method: "POST" })
     const deposit = Math.round(data.total_cents * (data.deposit_percent / 100));
     const courtesy = Math.min(data.courtesy_cents, data.total_cents);
     const listCents = data.total_cents + courtesy;
-    let notes = statementNotes(statementOfWork(data.statement), courtesy, data.file_name);
+    const notes = statementNotes(statementOfWork(data.statement), courtesy, data.file_name);
     const venueText = data.statement?.venue.trim() || inquiry.venue_text;
     let proposalId = existing.data?.id ?? "";
     let number = existing.data?.number ?? "";
     let tokenValue = existing.data?.access_token ?? "";
 
     if (!proposalId) {
-      const { data: nextNumber, error: numberError } = await supabaseAdmin.rpc("next_proposal_number");
+      const { data: nextNumber, error: numberError } =
+        await supabaseAdmin.rpc("next_proposal_number");
       if (numberError) throw new Error(numberError.message);
       number = nextNumber;
       const created = createPublicToken();
@@ -319,7 +322,10 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
 
-    const pdfPath = pdfBytes || copyFrom ? `${proposalId}/proposal-${number}.pdf` : (existing.data?.pdf_path ?? "");
+    const pdfPath =
+      pdfBytes || copyFrom
+        ? `${proposalId}/proposal-${number}.pdf`
+        : (existing.data?.pdf_path ?? "");
     if (pdfBytes) await uploadDocument(pdfPath, pdfBytes);
     if (copyFrom && copyFrom !== pdfPath) {
       let copied = await supabaseAdmin.storage.from("documents").copy(copyFrom, pdfPath);
@@ -361,9 +367,13 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       patch.declined_at = null;
       patch.declined_reason = null;
     }
-    const { error: updateError } = await context.supabase.from("proposals").update(patch).eq("id", proposalId);
+    const { error: updateError } = await context.supabase
+      .from("proposals")
+      .update(patch)
+      .eq("id", proposalId);
     if (updateError) throw new Error(updateError.message);
-    const invoiceNumber = data.total_cents > 0 ? await ensureInvoiceNumber(proposalId, deposit) : null;
+    const invoiceNumber =
+      data.total_cents > 0 ? await ensureInvoiceNumber(proposalId, deposit) : null;
     await refreshInquirySummarySafe(context.supabase, inquiry.id);
     return {
       id: proposalId,
@@ -483,7 +493,11 @@ export const getPublicProposal = createServerFn({ method: "GET" })
       ),
       pdfUrl,
       agreement: agreement
-        ? { content: agreement.content, signedName: agreement.signed_name, signedAt: agreement.signed_at }
+        ? {
+            content: agreement.content,
+            signedName: agreement.signed_name,
+            signedAt: agreement.signed_at,
+          }
         : null,
       invoice: invoice
         ? {
@@ -507,7 +521,11 @@ export const acceptPublicProposal = createServerFn({ method: "POST" })
           .select("content, signed_name")
           .eq("proposal_id", bundle.proposal.id)
           .maybeSingle();
-        return { accepted: true, agreement: agreement?.content ?? "", signedName: agreement?.signed_name ?? null };
+        return {
+          accepted: true,
+          agreement: agreement?.content ?? "",
+          signedName: agreement?.signed_name ?? null,
+        };
       }
       throw new Error("This proposal can no longer be accepted");
     }
@@ -571,7 +589,8 @@ export const signPublicAgreement = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const bundle = await loadProposalBundleByToken(data.token);
-    if (bundle.proposal.status !== "accepted") throw new Error("Accept the proposal before signing.");
+    if (bundle.proposal.status !== "accepted")
+      throw new Error("Accept the proposal before signing.");
     const { data: agreement, error: agreementError } = await supabaseAdmin
       .from("agreements")
       .select("id, content, signed_name")
@@ -823,7 +842,10 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
   if (existingError) throw new Error(existingError.message);
   if (existing?.square_payment_link) return existing.square_payment_link;
 
-  const invoiceNumber = await ensureInvoiceNumber(bundle.proposal.id, bundle.proposal.deposit_amount_cents);
+  const invoiceNumber = await ensureInvoiceNumber(
+    bundle.proposal.id,
+    bundle.proposal.deposit_amount_cents,
+  );
   const { data: invoiceRow, error: invoiceRowError } = await supabaseAdmin
     .from("invoices")
     .select("id")
@@ -861,7 +883,10 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
   const courtesy = courtesyFromNotes(bundle.proposal.notes);
   const occasion = statement?.occasion || eventLabel(bundle.inquiry.event_type);
   const packageName = floralPackageName(occasion);
-  const booking = invoiceBookingLine(occasion, invoiceDateLabel(statement?.eventWhen || bundle.proposal.event_date || ""));
+  const booking = invoiceBookingLine(
+    occasion,
+    invoiceDateLabel(statement?.eventWhen || bundle.proposal.event_date || ""),
+  );
   const listCents = bundle.proposal.subtotal_cents || bundle.proposal.total_cents + courtesy;
   const items = bundle.items.length
     ? pdfItems(bundle.items)
@@ -900,7 +925,11 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
 }
 
 async function ensureInvoiceNumber(proposalId: string, amountCents: number) {
-  const existing = await supabaseAdmin.from("invoices").select("id, number").eq("proposal_id", proposalId).maybeSingle();
+  const existing = await supabaseAdmin
+    .from("invoices")
+    .select("id, number")
+    .eq("proposal_id", proposalId)
+    .maybeSingle();
   if (existing.error) throw new Error(existing.error.message);
   if (existing.data) {
     const number = invoiceTitle(existing.data.number);
@@ -911,7 +940,8 @@ async function ensureInvoiceNumber(proposalId: string, amountCents: number) {
     return number;
   }
   const { data: nextNumber, error: numberError } = await supabaseAdmin.rpc("next_invoice_number");
-  if (numberError || typeof nextNumber !== "string" || !nextNumber) throw new Error(numberError?.message ?? "The invoice number could not be opened.");
+  if (numberError || typeof nextNumber !== "string" || !nextNumber)
+    throw new Error(numberError?.message ?? "The invoice number could not be opened.");
   const number = invoiceTitle(nextNumber);
   const { error } = await supabaseAdmin.from("invoices").insert({
     proposal_id: proposalId,

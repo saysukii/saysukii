@@ -346,53 +346,6 @@ function liveGmail() {
   });
 }
 
-export async function resolveGmailAdminId() {
-  const supabaseUrl = process.env["SUPABASE_URL"];
-  const publishableKey = process.env["SUPABASE_PUBLISHABLE_KEY"];
-  const serviceRole = process.env["SUPABASE_SERVICE_ROLE_KEY"];
-  const { getRequest } = await import("@tanstack/react-start/server");
-  const request = getRequest();
-  const authHeader = request.headers.get("authorization");
-
-  if (supabaseUrl && publishableKey && serviceRole && authHeader?.startsWith("Bearer ")) {
-    try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const token = authHeader.slice("Bearer ".length);
-      const supabase = createClient(supabaseUrl, publishableKey, {
-        auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
-        global: { headers: { Authorization: authHeader } },
-      });
-      const { data, error } = await Promise.race([
-        supabase.auth.getClaims(token),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("Supabase auth timed out")), 4000);
-        }),
-      ]);
-      if (error || !data?.claims?.sub) throw new Error("Unauthorized: Invalid token");
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, role, active")
-        .eq("id", data.claims.sub)
-        .eq("active", true)
-        .maybeSingle();
-      if (profileError || !profile) {
-        throw new Error("Unauthorized: An active studio membership is required");
-      }
-      if (profile.role !== "admin") throw new Error("Forbidden: Admin access is required");
-      return profile.id;
-    } catch (error) {
-      if (process.env["NODE_ENV"] === "production") throw error;
-    }
-  }
-
-  if (process.env["NODE_ENV"] === "production") {
-    throw new Error("Unauthorized: No authorization header provided");
-  }
-
-  const { DEV_PREVIEW_PROFILE } = await import("../dev-preview");
-  return DEV_PREVIEW_PROFILE.id;
-}
-
 export async function getGmailPublicStatus() {
   return toGmailPublicStatus(await liveGmailVault.read());
 }
@@ -400,7 +353,9 @@ export async function getGmailPublicStatus() {
 export async function startGmailOAuth(connectedBy: string) {
   const credentials = readGmailCredentials();
   if (!process.env["INTEGRATION_ENCRYPTION_KEY"]) {
-    throw new Error("Gmail OAuth is not configured. Add INTEGRATION_ENCRYPTION_KEY, then restart the server.");
+    throw new Error(
+      "Gmail OAuth is not configured. Add INTEGRATION_ENCRYPTION_KEY, then restart the server.",
+    );
   }
   const { token, hash } = createPublicToken();
   const expiresAt = Date.now() + OAUTH_STATE_TTL_MS;
@@ -433,7 +388,7 @@ export async function completeGmailOAuth(code: string, connectedBy: string) {
 export async function storeGmailGrant(input: {
   accessToken: string;
   refreshToken: string | null;
-  expiresIn?: number;
+  expiresIn?: number | undefined;
   accountEmail: string | null;
   connectedBy: string;
 }) {
@@ -451,7 +406,9 @@ export async function storeGmailGrant(input: {
     account_email: input.accountEmail,
     encrypted_access_token: encryptSecret(input.accessToken),
     encrypted_refresh_token: encryptSecret(refreshToken),
-    token_expires_at: input.expiresIn ? new Date(at.getTime() + input.expiresIn * 1000).toISOString() : null,
+    token_expires_at: input.expiresIn
+      ? new Date(at.getTime() + input.expiresIn * 1000).toISOString()
+      : null,
     status: "connected",
     connected_at: at.toISOString(),
     connected_by: input.connectedBy,
@@ -525,13 +482,17 @@ async function readGoogleConnectionRecord(): Promise<GmailRecord | null> {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("integration_connections")
-      .select("id, encrypted_access_token, encrypted_refresh_token, expires_at, status, metadata, connected_by, updated_at")
+      .select(
+        "id, encrypted_access_token, encrypted_refresh_token, expires_at, status, metadata, connected_by, updated_at",
+      )
       .eq("provider", "google")
       .eq("status", "connected")
       .maybeSingle();
     if (error || !data?.encrypted_refresh_token) return null;
     const metadata =
-      data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata) ? data.metadata : {};
+      data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
+        ? data.metadata
+        : {};
     const scopeValue = metadata["scope"];
     const scope = typeof scopeValue === "string" ? scopeValue : "";
     if (scope && !scope.includes("gmail.send")) return null;
@@ -635,7 +596,9 @@ async function consumeSupabaseOAuthState(tokenHash: string) {
 
     const candidate = states[0];
     const payload =
-      candidate.payload && typeof candidate.payload === "object" && !Array.isArray(candidate.payload)
+      candidate.payload &&
+      typeof candidate.payload === "object" &&
+      !Array.isArray(candidate.payload)
         ? candidate.payload
         : null;
     const expiresAt = payload?.["expires_at"];

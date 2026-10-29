@@ -10,7 +10,11 @@ import { formatDate } from "@/lib/money";
 import { archiveClient, getClient, saveClient } from "@/lib/os/clients.functions";
 import { getDevPreviewClient, getDevPreviewInquiryWorkspace } from "@/lib/dev-preview";
 import { getInquiryWorkspace } from "@/lib/os/inquiries.functions";
-import { findPreviewClient, previewDirectoryRecord, updatePreviewClient } from "@/lib/preview-clients";
+import {
+  findPreviewClient,
+  previewDirectoryRecord,
+  updatePreviewClient,
+} from "@/lib/preview-clients";
 import { EVENT_LABEL, STATUS_LABEL } from "@/lib/os/inquiry-desk";
 import { useDevPreview } from "@/lib/use-dev-preview";
 
@@ -101,12 +105,12 @@ function ClientDetailPage() {
         toast.message("preview mode — client not archived");
         return Promise.resolve({ ok: true as const });
       }
-      return removeClient({ data: { id: data?.client.id ?? id } });
+      return removeClient({ data: { ids: [data?.client.id ?? id] } });
     },
     onSuccess: async () => {
       toast.success("client archived");
       await queryClient.invalidateQueries({ queryKey: ["os", "clients"] });
-      await router.navigate({ to: "/clients" });
+      await router.navigate({ to: "/directories/clients" });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -142,7 +146,11 @@ function ClientDetailPage() {
   const openJobs = jobs.filter((inquiry) => inquiry.status !== "closed");
   const focus = openJobs[0] ?? jobs[0];
   const line = openJobs[0]
-    ? [openJobs.length === 1 ? "1 open" : `${openJobs.length} open`, jobWhen(openJobs[0]), jobPlace(openJobs[0].venue_text, true)]
+    ? [
+        openJobs.length === 1 ? "1 open" : `${openJobs.length} open`,
+        jobWhen(openJobs[0]),
+        jobPlace(openJobs[0].venue_text, true),
+      ]
         .filter(Boolean)
         .join(" · ")
     : jobs.length
@@ -184,23 +192,46 @@ function ClientDetailPage() {
           >
             <label className="studio-field">
               <span>name</span>
-              <input className="studio-input" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+              <input
+                className="studio-input"
+                required
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+              />
             </label>
             <label className="studio-field">
               <span>email</span>
-              <input className="studio-input" required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+              <input
+                className="studio-input"
+                required
+                type="email"
+                value={form.email}
+                onChange={(event) => setForm({ ...form, email: event.target.value })}
+              />
             </label>
             <label className="studio-field">
               <span>phone</span>
-              <input className="studio-input" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+              <input
+                className="studio-input"
+                value={form.phone}
+                onChange={(event) => setForm({ ...form, phone: event.target.value })}
+              />
             </label>
             <label className="studio-field">
               <span>organization</span>
-              <input className="studio-input" value={form.organization} onChange={(event) => setForm({ ...form, organization: event.target.value })} />
+              <input
+                className="studio-input"
+                value={form.organization}
+                onChange={(event) => setForm({ ...form, organization: event.target.value })}
+              />
             </label>
             <label className="studio-field">
               <span>client type</span>
-              <select className="studio-select" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as ClientType })}>
+              <select
+                className="studio-select"
+                value={form.type}
+                onChange={(event) => setForm({ ...form, type: event.target.value as ClientType })}
+              >
                 <option value="individual">individual</option>
                 <option value="brand">brand</option>
                 <option value="corporate">corporate</option>
@@ -209,11 +240,19 @@ function ClientDetailPage() {
             </label>
             <label className="studio-field">
               <span>found us</span>
-              <input className="studio-input" value={form.source} onChange={(event) => setForm({ ...form, source: event.target.value })} />
+              <input
+                className="studio-input"
+                value={form.source}
+                onChange={(event) => setForm({ ...form, source: event.target.value })}
+              />
             </label>
             <label className="studio-field is-wide">
               <span>studio notes</span>
-              <textarea className="studio-textarea" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+              <textarea
+                className="studio-textarea"
+                value={form.notes}
+                onChange={(event) => setForm({ ...form, notes: event.target.value })}
+              />
             </label>
             <button type="submit" className="studio-today-go" disabled={save.isPending}>
               {save.isPending ? "saving…" : "save client"}
@@ -232,7 +271,9 @@ function ClientDetailPage() {
                     key={inquiry.id}
                     to="/pipeline/$id"
                     params={{ id: inquiry.slug }}
-                    className={inquiry.status === "closed" ? "studio-book-row is-quiet" : "studio-book-row"}
+                    className={
+                      inquiry.status === "closed" ? "studio-book-row is-quiet" : "studio-book-row"
+                    }
                     onPointerEnter={() => {
                       void queryClient.prefetchQuery({
                         queryKey: ["os", "inquiry-workspace", inquiry.slug, devPreview],
@@ -246,7 +287,9 @@ function ClientDetailPage() {
                     <span>
                       <b>{EVENT_LABEL[inquiry.event_type]}</b>
                       <em>
-                        {[jobWhen(inquiry), jobPlace(inquiry.venue_text)].filter(Boolean).join(" · ")}
+                        {[jobWhen(inquiry), jobPlace(inquiry.venue_text)]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </em>
                     </span>
                     <small>{STATUS_LABEL[inquiry.status]}</small>
@@ -302,19 +345,27 @@ function ClientDetailPage() {
             ) : null}
             <hr className="studio-ledger-split" />
             <div className="studio-ledger-actions">
-              <button type="button" className="studio-ghost" onClick={() => setEditing((open) => !open)}>
-                {editing ? "close" : "edit"}
-              </button>
               <button
                 type="button"
-                className="studio-ghost is-quiet"
-                disabled={archive.isPending}
-                onClick={() => {
-                  if (window.confirm("archive this client?")) archive.mutate();
-                }}
+                className="studio-ghost"
+                onClick={() => setEditing((open) => !open)}
               >
-                archive
+                {editing ? "close" : "edit"}
               </button>
+              {data?.client && "archived" in data.client && data.client.archived ? (
+                <i className="studio-archived-pill">archived</i>
+              ) : (
+                <button
+                  type="button"
+                  className="studio-ghost is-quiet"
+                  disabled={archive.isPending}
+                  onClick={() => {
+                    if (window.confirm("archive this client?")) archive.mutate();
+                  }}
+                >
+                  archive
+                </button>
+              )}
             </div>
           </aside>
         </div>
@@ -336,7 +387,10 @@ function jobWhen(inquiry: { event_date: string | null; event_date_tbd: boolean }
 function jobPlace(venue: string | null | undefined, brief = false) {
   const text = venue?.trim();
   if (!text) return "";
-  const parts = text.split(",").map((part) => part.trim()).filter(Boolean);
+  const parts = text
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
   const state = parts.at(-1) ?? "";
   const shown = brief && parts.length > 1 && /^[a-z]{2}$/i.test(state) ? parts.slice(0, -1) : parts;
   return shown.join(", ").toLowerCase();

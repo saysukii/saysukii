@@ -15,7 +15,11 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getDevPreviewInquiryWorkspace, getDevPreviewPipeline, previewReviewDecision } from "@/lib/dev-preview";
+import {
+  getDevPreviewInquiryWorkspace,
+  getDevPreviewPipeline,
+  previewReviewDecision,
+} from "@/lib/dev-preview";
 import { formatDateNumeric } from "@/lib/money";
 import {
   BOARD_COLUMNS,
@@ -90,14 +94,13 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
     [inquiries],
   );
   const calendarMarks = useMemo(
-    () =>
-      [
-        ...new Set(
-          inquiries
-            .filter((inquiry) => inquiry.event_date && !inquiry.event_date_tbd)
-            .map((inquiry) => inquiry.event_date as string),
-        ),
-      ],
+    () => [
+      ...new Set(
+        inquiries
+          .filter((inquiry) => inquiry.event_date && !inquiry.event_date_tbd)
+          .map((inquiry) => inquiry.event_date as string),
+      ),
+    ],
     [inquiries],
   );
 
@@ -139,7 +142,9 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
   });
 
   const waitingCount = inquiries.filter(
-    (inquiry) => !isReviewCandidate(inquiry) && ["new", "contacted", "in_conversation"].includes(inquiry.status),
+    (inquiry) =>
+      !isReviewCandidate(inquiry) &&
+      ["new", "contacted", "in_conversation"].includes(inquiry.status),
   ).length;
   const proposalCount = inquiries.filter((inquiry) => inquiry.status === "proposal_sent").length;
 
@@ -171,8 +176,12 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
         </div>
       </header>
 
-      {isError ? <p className="studio-pearl-note">the inquiry board is for studio admins.</p> : null}
-      {!isPending && inquiries.length === 0 ? <p className="studio-empty">nobody is waiting. good place to be.</p> : null}
+      {isError ? (
+        <p className="studio-pearl-note">the inquiry board is for studio admins.</p>
+      ) : null}
+      {!isPending && inquiries.length === 0 ? (
+        <p className="studio-empty">nobody is waiting. good place to be.</p>
+      ) : null}
 
       {!isPending && inquiries.length > 0 ? (
         <div className="studio-book-body">
@@ -186,7 +195,9 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
                     <span>{column.items.length}</span>
                   </h2>
                   <div className="studio-kanban-cards">
-                    {column.items.length === 0 ? <p className="studio-kanban-empty">none here yet</p> : null}
+                    {column.items.length === 0 ? (
+                      <p className="studio-kanban-empty">none here yet</p>
+                    ) : null}
                     {column.items.map((inquiry) => (
                       <BoardCard key={inquiry.id} inquiry={inquiry} />
                     ))}
@@ -236,7 +247,9 @@ function ReviewStrip({
   }, [index, safe]);
 
   function step(direction: -1 | 1) {
-    setIndex((current) => Math.min(Math.max(current + direction, 0), Math.max(items.length - 1, 0)));
+    setIndex((current) =>
+      Math.min(Math.max(current + direction, 0), Math.max(items.length - 1, 0)),
+    );
   }
 
   function swipe(clientX: number) {
@@ -261,10 +274,20 @@ function ReviewStrip({
         <span className="sr-only">flagged by studio intelligence</span>
         {items.length > 1 ? (
           <span className="studio-review-nav">
-            <button type="button" aria-label="Previous inquiry" disabled={safe <= 0} onClick={() => step(-1)}>
+            <button
+              type="button"
+              aria-label="Previous inquiry"
+              disabled={safe <= 0}
+              onClick={() => step(-1)}
+            >
               <ChevronLeft size={16} strokeWidth={1.5} />
             </button>
-            <button type="button" aria-label="Next inquiry" disabled={safe >= items.length - 1} onClick={() => step(1)}>
+            <button
+              type="button"
+              aria-label="Next inquiry"
+              disabled={safe >= items.length - 1}
+              onClick={() => step(1)}
+            >
               <ChevronRight size={16} strokeWidth={1.5} />
             </button>
           </span>
@@ -281,7 +304,10 @@ function ReviewStrip({
           startX.current = null;
         }}
       >
-        <div className="studio-book-review-track" style={{ transform: `translateX(${safe * -100}%)` }}>
+        <div
+          className="studio-book-review-track"
+          style={{ transform: `translateX(${safe * -100}%)` }}
+        >
           {items.map((inquiry) => (
             <button
               key={inquiry.id}
@@ -300,7 +326,7 @@ function ReviewStrip({
                   {isPersonType(inquiry.client?.type) && inquiry.client?.name ? (
                     <PersonName name={inquiry.client.name} />
                   ) : (
-                    inquiry.client?.name ?? "client"
+                    (inquiry.client?.name ?? "client")
                   )}
                 </b>
                 <em>{messagePreview(inquiry)}</em>
@@ -346,14 +372,20 @@ function ReviewMessage({
 
   return (
     <Dialog open={Boolean(inquiry)} onOpenChange={onOpenChange}>
-      <DialogContent overlayClassName="studio-task-veil" className="studio-task-modal is-ask is-soft" hideClose>
+      <DialogContent
+        overlayClassName="studio-task-veil"
+        className="studio-task-modal is-ask is-soft"
+        hideClose
+      >
         <div className="studio-task-head">
           <DialogClose className="studio-task-close" aria-label="Close">
             <X aria-hidden="true" />
           </DialogClose>
         </div>
         <DialogTitle className="sr-only">{when || "a note from gmail"}</DialogTitle>
-        <DialogDescription className="sr-only">the gmail message. add it to the book, or skip it.</DialogDescription>
+        <DialogDescription className="sr-only">
+          the gmail message. add it to the book, or skip it.
+        </DialogDescription>
         <div className="studio-task-form">
           <div className="studio-review-stack">
             {when ? <p className="studio-ask-hint is-when">{when}</p> : null}
@@ -361,15 +393,30 @@ function ReviewMessage({
           </div>
           <p className="studio-review-mail">{body}</p>
           <div className="studio-ask-foot is-pair is-spread">
-            <button type="button" className="studio-ghost" disabled={busy} onClick={() => setPending("dismiss")}>
+            <button
+              type="button"
+              className="studio-ghost"
+              disabled={busy}
+              onClick={() => setPending("dismiss")}
+            >
               skip this inquiry
             </button>
-            <button type="button" className="studio-today-go" disabled={busy} onClick={() => setPending("approve")}>
+            <button
+              type="button"
+              className="studio-today-go"
+              disabled={busy}
+              onClick={() => setPending("approve")}
+            >
               add this inquiry
             </button>
           </div>
         </div>
-        <Dialog open={pending !== null} onOpenChange={(open) => { if (!open) setPending(null); }}>
+        <Dialog
+          open={pending !== null}
+          onOpenChange={(open) => {
+            if (!open) setPending(null);
+          }}
+        >
           <DialogContent
             overlayClassName="studio-task-veil z-[60]"
             className="studio-task-modal is-ask is-confirm is-soft z-[60]"
@@ -381,11 +428,18 @@ function ReviewMessage({
               </DialogClose>
             </div>
             <DialogTitle className="sr-only">{confirm || "confirm"}</DialogTitle>
-            <DialogDescription className="sr-only">confirm before the book changes.</DialogDescription>
+            <DialogDescription className="sr-only">
+              confirm before the book changes.
+            </DialogDescription>
             <div className="studio-task-form">
               <p className="studio-review-confirm">{confirm}</p>
               <div className="studio-ask-foot is-pair is-spread">
-                <button type="button" className="studio-ghost" disabled={busy} onClick={() => setPending(null)}>
+                <button
+                  type="button"
+                  className="studio-ghost"
+                  disabled={busy}
+                  onClick={() => setPending(null)}
+                >
                   back
                 </button>
                 <button
@@ -420,7 +474,9 @@ function messageWhen(value: string | null | undefined) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   const year = String(date.getFullYear()).slice(-2);
-  const time = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).toLowerCase();
+  const time = date
+    .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    .toLowerCase();
   return `${month}/${day}/${year} · ${time}`;
 }
 
@@ -446,7 +502,9 @@ function BoardCard({ inquiry }: { inquiry: InquiryPipelineItem }) {
     void queryClient.prefetchQuery({
       queryKey: ["os", "inquiry-workspace", inquiry.slug, devPreview],
       queryFn: () =>
-        devPreview ? getDevPreviewInquiryWorkspace(inquiry.slug) : fetchWorkspace({ data: { id: inquiry.slug } }),
+        devPreview
+          ? getDevPreviewInquiryWorkspace(inquiry.slug)
+          : fetchWorkspace({ data: { id: inquiry.slug } }),
     });
   }
 

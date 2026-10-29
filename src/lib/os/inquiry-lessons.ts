@@ -51,9 +51,9 @@ const COMMON_DOMAINS = new Set([
 
 export function makeLesson(input: {
   accepted: boolean;
-  from?: string | null;
-  subject?: string | null;
-  body?: string | null;
+  from?: string | null | undefined;
+  subject?: string | null | undefined;
+  body?: string | null | undefined;
 }): InquiryLesson | null {
   const text = inboundAsk(input.subject, input.body).slice(0, 500);
   const from = input.from?.trim() || null;
@@ -91,7 +91,11 @@ function overlap(left: Set<string>, right: Set<string>) {
 }
 
 export function lessonVerdict(
-  mail: { from?: string | null; subject?: string | null; body?: string | null },
+  mail: {
+    from?: string | null | undefined;
+    subject?: string | null | undefined;
+    body?: string | null | undefined;
+  },
   lessons: InquiryLesson[],
 ): "accept" | "skip" | "unsure" {
   if (lessons.length === 0) return "unsure";

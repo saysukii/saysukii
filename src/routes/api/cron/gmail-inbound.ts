@@ -31,7 +31,8 @@ async function handleInboundCron(request: Request) {
 }
 
 async function authorizeCron(request: Request) {
-  const { authenticateCronRequest, hasCronSecret } = await import("@/integrations/supabase/cron-auth");
+  const { authenticateCronRequest, hasCronSecret } =
+    await import("@/integrations/supabase/cron-auth");
   if (!hasCronSecret() && process.env["NODE_ENV"] !== "production") return null;
   return authenticateCronRequest(request);
 }

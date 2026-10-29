@@ -3,7 +3,11 @@ import { z } from "zod";
 
 import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
 import { SAY_SUKII_STUDIO_ID, type Json } from "@/integrations/supabase/types";
-import { hydrateInquiryDrafts, type InquiryDrafts, type InquiryPathDraft } from "@/lib/os/inquiry-draft";
+import {
+  hydrateInquiryDrafts,
+  type InquiryDrafts,
+  type InquiryPathDraft,
+} from "@/lib/os/inquiry-draft";
 import { INTEREST_OPTIONS } from "@/lib/os/inquiry-schema";
 
 const copySchema = z.object({
@@ -33,7 +37,9 @@ function lowerDrafts(drafts: z.infer<typeof draftsSchema>): InquiryDrafts {
     const copy: InquiryPathDraft["copy"] = {};
     for (const [id, item] of Object.entries(path.copy)) {
       const options = item.options
-        ? Object.fromEntries(Object.entries(item.options).map(([option, label]) => [option, label.toLowerCase()]))
+        ? Object.fromEntries(
+            Object.entries(item.options).map(([option, label]) => [option, label.toLowerCase()]),
+          )
         : undefined;
       copy[id] = {
         label: (item.label ?? "").toLowerCase(),

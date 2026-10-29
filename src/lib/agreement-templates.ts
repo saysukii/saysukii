@@ -1,4 +1,8 @@
-import { floralAgreementPlain, statementOfWork, type StatementOfWork } from "@/lib/floral-agreement";
+import {
+  floralAgreementPlain,
+  statementOfWork,
+  type StatementOfWork,
+} from "@/lib/floral-agreement";
 
 export type AgreementType = "standard" | "in_kind_barter";
 
@@ -16,7 +20,7 @@ type AgreementContext = {
   totalCents: number;
   depositCents: number;
   proposalNumber: string;
-  statement?: StatementOfWork | null;
+  statement?: StatementOfWork | null | undefined;
 };
 
 function dollars(cents: number): string {

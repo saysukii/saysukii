@@ -8,7 +8,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { BloomWait } from "@/components/portal/StudioLoader";
 import { getDevPreviewClients, getDevPreviewDirectories, PREVIEW_IDS } from "@/lib/dev-preview";
 import { listClients, listDirectories } from "@/lib/os/clients.functions";
-import { addLibraryFile, listStudioFiles, type FileRelation, type StudioFile } from "@/lib/os/files.functions";
+import {
+  addLibraryFile,
+  listStudioFiles,
+  type FileRelation,
+  type StudioFile,
+} from "@/lib/os/files.functions";
 import { fileContentType } from "@/lib/os/inquiry-holds";
 import { clientSlugs } from "@/lib/os/inquiry-desk";
 import { mergePreviewClients } from "@/lib/preview-clients";
@@ -196,11 +201,7 @@ function LibraryPage() {
         <section
           className="studio-library-files"
           aria-label="files"
-          onDragOver={
-            tab === "studio"
-              ? allowDrop
-              : undefined
-          }
+          onDragOver={tab === "studio" ? allowDrop : undefined}
           onDragLeave={tab === "studio" ? () => setOver(false) : undefined}
           onDrop={
             tab === "studio"
@@ -252,7 +253,9 @@ function LibraryPage() {
             </div>
           ) : null}
           {files.isPending ? <p className="studio-empty">gathering…</p> : null}
-          {!files.isPending && visible.length === 0 ? <p className="studio-empty">nothing filed yet.</p> : null}
+          {!files.isPending && visible.length === 0 ? (
+            <p className="studio-empty">nothing filed yet.</p>
+          ) : null}
           {visible.length > 0 ? (
             <div className="studio-directory">
               {visible.map((file) => (
@@ -306,7 +309,11 @@ function fileKind(name: string) {
 }
 
 function libraryPath(name: string) {
-  const cleaned = name.replace(/[^\w.\- ]+/g, "").trim().replace(/\s+/g, "-") || "file";
+  const cleaned =
+    name
+      .replace(/[^\w.\- ]+/g, "")
+      .trim()
+      .replace(/\s+/g, "-") || "file";
   return `library/studio/${Date.now()}-${cleaned}`;
 }
 

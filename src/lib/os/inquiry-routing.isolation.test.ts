@@ -38,6 +38,7 @@ function inbound(id: string, overrides: Partial<InboundMessageRow> = {}): Inboun
     gmail_message_id: `gmail-${id}`,
     gmail_thread_id: `thread-${id}`,
     from_addr: "ada@example.com",
+    from_name: null,
     to_addr: "info@saysukii.com",
     subject: "flowers",
     body: "Hi, I would love flowers for my wedding in Miami this December.",
@@ -233,7 +234,9 @@ describe("decision guards", () => {
   });
 
   it("parses fenced JSON from the model", () => {
-    const parsed = parseModelJson('Sure.\n```json\n{"action":"ignored","reason":"newsletter"}\n```');
+    const parsed = parseModelJson(
+      'Sure.\n```json\n{"action":"ignored","reason":"newsletter"}\n```',
+    );
     assert.deepEqual(parsed, { action: "ignored", reason: "newsletter" });
   });
 });
@@ -243,7 +246,11 @@ describe("match assembly", () => {
     const ada = client("cli-ada");
     const other = client("cli-other", "other@example.com");
     const wedding = inquiry("inq-wedding", ada.id);
-    const closed = inquiry("inq-old", ada.id, { status: "closed", event_type: "private", archived: false });
+    const closed = inquiry("inq-old", ada.id, {
+      status: "closed",
+      event_type: "private",
+      archived: false,
+    });
     const stranger = inquiry("inq-stranger", other.id);
     const matches = assembleMatches(
       { from_addr: "Ada <ada@example.com>", gmail_thread_id: "thread-wedding" },
@@ -256,10 +263,7 @@ describe("match assembly", () => {
         ],
       },
     );
-    assert.deepEqual(
-      matches.map((row) => row.id).sort(),
-      ["inq-old", "inq-wedding"],
-    );
+    assert.deepEqual(matches.map((row) => row.id).sort(), ["inq-old", "inq-wedding"]);
     const threadHit = matches.find((row) => row.id === "inq-wedding");
     assert.deepEqual(threadHit?.match_via, ["thread", "sender"]);
     assert.equal(threadHit?.active, true);
@@ -365,6 +369,38 @@ describe("classify + route engine", () => {
     assert.equal(state.inbound.find((row) => row.id === "inb-reply")?.routing_result, "attached");
   });
 
+  it("files a teammate's reply on the open thread on the studio's side, under their name", async () => {
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("team", {
+          from_addr: "maya@saysukii.com",
+          from_name: "Maya Lin",
+          gmail_thread_id: "thread-wedding",
+          subject: "Re: Let's Connect!",
+          body: "looping in our planner, ana.",
+        }),
+      ],
+      clients: [client("cli-ada")],
+      inquiries: [inquiry("inq-wedding", "cli-ada")],
+      messages: [threadMessage("inq-wedding", "thread-wedding")],
+    });
+
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async () => {
+        throw new Error("a thread reply should not need the model");
+      },
+    });
+
+    assert.equal(result.attached, 1);
+    const added = state.messages.find((row) => row.gmail_message_id === "gmail-team");
+    assert.equal(added?.inquiry_id, "inq-wedding");
+    assert.equal(added?.direction, "outbound");
+    assert.equal(added?.status, "received");
+    assert.equal(added?.author, "Maya Lin");
+  });
+
   it("opens a new candidate when a past client writes about a different event", async () => {
     const { state, store } = createMemoryRoutingStore({
       inbound: [
@@ -375,7 +411,12 @@ describe("classify + route engine", () => {
         }),
       ],
       clients: [client("cli-ada")],
-      inquiries: [inquiry("inq-old-wedding", "cli-ada", { status: "closed", closed_at: "2025-12-20T00:00:00.000Z" })],
+      inquiries: [
+        inquiry("inq-old-wedding", "cli-ada", {
+          status: "closed",
+          closed_at: "2025-12-20T00:00:00.000Z",
+        }),
+      ],
       messages: [threadMessage("inq-old-wedding", "thread-old")],
     });
 
@@ -383,7 +424,10 @@ describe("classify + route engine", () => {
       store,
       now: () => NOW,
       classify: async ({ matches }) => {
-        assert.equal(matches.some((row) => row.id === "inq-old-wedding"), true);
+        assert.equal(
+          matches.some((row) => row.id === "inq-old-wedding"),
+          true,
+        );
         return {
           action: "candidate",
           matched_inquiry_id: "inq-old-wedding",
@@ -417,7 +461,10 @@ describe("classify + route engine", () => {
     assert.equal(isBookDetectionStatus(created!.detection_status), false);
     assert.equal(BOOK_DETECTION_STATUSES.includes(created!.detection_status), false);
     const oldThread = state.messages.filter((row) => row.inquiry_id === "inq-old-wedding");
-    assert.equal(oldThread.some((row) => row.gmail_message_id === "gmail-new-event"), false);
+    assert.equal(
+      oldThread.some((row) => row.gmail_message_id === "gmail-new-event"),
+      false,
+    );
     const newThread = state.messages.filter((row) => row.inquiry_id === created!.id);
     assert.equal(newThread.length, 1);
     assert.equal(newThread[0]?.direction, "inbound");
@@ -633,7 +680,11 @@ describe("classify + route engine", () => {
     };
     const attached = normalizeRoutingDecision(
       heuristicRoutingRaw({
-        message: inbound("reply", { gmail_thread_id: "thread-open", subject: "re: flowers", body: "Tuesday works." }),
+        message: inbound("reply", {
+          gmail_thread_id: "thread-open",
+          subject: "re: flowers",
+          body: "Tuesday works.",
+        }),
         matches: [openMatch],
       }),
       [openMatch],
@@ -647,7 +698,11 @@ describe("classify + route engine", () => {
       subject: "weekly flowers",
       body: "I would love a concierge subscription for my home.",
     });
-    const candidate = normalizeRoutingDecision(heuristicRoutingRaw({ message: fresh, matches: [] }), [], fresh);
+    const candidate = normalizeRoutingDecision(
+      heuristicRoutingRaw({ message: fresh, matches: [] }),
+      [],
+      fresh,
+    );
     assert.equal(candidate.action, "candidate");
     assert.equal(candidate.extraction.event_type, "subscription");
     assert.equal(candidate.extraction.name, "Tai");
@@ -665,9 +720,21 @@ describe("classify + route engine", () => {
       body: "You're invited to join Knight Foundation in Miami for the 20th annual Knight Media Forum.",
     });
     const wedding = inbound("wedding");
-    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: railway, matches: [] }), [], railway).action, "ignored");
-    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: invite, matches: [] }), [], invite).action, "ignored");
-    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: wedding, matches: [] }), [], wedding).action, "candidate");
+    assert.equal(
+      normalizeRoutingDecision(heuristicRoutingRaw({ message: railway, matches: [] }), [], railway)
+        .action,
+      "ignored",
+    );
+    assert.equal(
+      normalizeRoutingDecision(heuristicRoutingRaw({ message: invite, matches: [] }), [], invite)
+        .action,
+      "ignored",
+    );
+    assert.equal(
+      normalizeRoutingDecision(heuristicRoutingRaw({ message: wedding, matches: [] }), [], wedding)
+        .action,
+      "candidate",
+    );
     const quoted = inbound("quoted", {
       from_addr: "wilaire@wilart.com",
       subject: "Re: Exhibition Vinyl and Instructions",
@@ -688,20 +755,51 @@ describe("classify + route engine", () => {
       subject: "Client Trip App",
       body: "Hey Sukii, I built a trip app for travel agencies. It can include flowers on every proposal.",
     });
-    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: quoted, matches: [] }), [], quoted).action, "ignored");
-    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: payment, matches: [] }), [], payment).action, "ignored");
-    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: toolkit, matches: [] }), [], toolkit).action, "ignored");
-    assert.equal(normalizeRoutingDecision(heuristicRoutingRaw({ message: pitch, matches: [] }), [], pitch).action, "ignored");
     assert.equal(
-      belongsInReview({ from: railway.from_addr, subject: railway.subject, body: railway.body, confidence: 0.9 }),
+      normalizeRoutingDecision(heuristicRoutingRaw({ message: quoted, matches: [] }), [], quoted)
+        .action,
+      "ignored",
+    );
+    assert.equal(
+      normalizeRoutingDecision(heuristicRoutingRaw({ message: payment, matches: [] }), [], payment)
+        .action,
+      "ignored",
+    );
+    assert.equal(
+      normalizeRoutingDecision(heuristicRoutingRaw({ message: toolkit, matches: [] }), [], toolkit)
+        .action,
+      "ignored",
+    );
+    assert.equal(
+      normalizeRoutingDecision(heuristicRoutingRaw({ message: pitch, matches: [] }), [], pitch)
+        .action,
+      "ignored",
+    );
+    assert.equal(
+      belongsInReview({
+        from: railway.from_addr,
+        subject: railway.subject,
+        body: railway.body,
+        confidence: 0.9,
+      }),
       false,
     );
     assert.equal(
-      belongsInReview({ from: invite.from_addr, subject: invite.subject, body: invite.body, confidence: 0.6 }),
+      belongsInReview({
+        from: invite.from_addr,
+        subject: invite.subject,
+        body: invite.body,
+        confidence: 0.6,
+      }),
       false,
     );
     assert.equal(
-      belongsInReview({ from: wedding.from_addr, subject: wedding.subject, body: wedding.body, confidence: 0.6 }),
+      belongsInReview({
+        from: wedding.from_addr,
+        subject: wedding.subject,
+        body: wedding.body,
+        confidence: 0.6,
+      }),
       true,
     );
   });
@@ -749,7 +847,10 @@ describe("classify + route engine", () => {
       event_type: "private",
     });
     const { state, store } = createMemoryRoutingStore({
-      clients: [client("cli-rail", "support@railway.app"), client("cli-hotel", "events@delano.com")],
+      clients: [
+        client("cli-rail", "support@railway.app"),
+        client("cli-hotel", "events@delano.com"),
+      ],
       inquiries: [skipped, accepted],
       messages: [
         {
@@ -791,9 +892,17 @@ describe("classify + route engine", () => {
     });
     assert.equal(result.ignored, 1);
     assert.equal(result.candidates, 1);
-    const created = state.inquiries.find((row) => row.origin === "detected" && row.detection_status === "candidate");
+    const created = state.inquiries.find(
+      (row) => row.origin === "detected" && row.detection_status === "candidate",
+    );
     assert.match(created?.message ?? "", /CTulloch/);
-    assert.equal(lessonVerdict({ from: "support@railway.app", subject: "status", body: "ping" }, await store.listLessons()), "skip");
+    assert.equal(
+      lessonVerdict(
+        { from: "support@railway.app", subject: "status", body: "ping" },
+        await store.listLessons(),
+      ),
+      "skip",
+    );
   });
 
   it("calls Anthropic server-side with the prompt and never returns the key", async () => {

@@ -33,7 +33,12 @@ export const PIPELINE_PATH: Array<{
     statuses: ["contacted", "in_conversation"],
     apply: (current) => (current === "new" ? "contacted" : "in_conversation"),
   },
-  { id: "proposal", label: "proposal sent", statuses: ["proposal_sent"], apply: () => "proposal_sent" },
+  {
+    id: "proposal",
+    label: "proposal sent",
+    statuses: ["proposal_sent"],
+    apply: () => "proposal_sent",
+  },
   { id: "booked", label: "booked", statuses: ["booked"], apply: () => "booked" },
 ];
 
@@ -117,7 +122,11 @@ export function confidenceLabel(value: number | null | undefined) {
   return `${Math.round(Number(value) * 100)}%`;
 }
 
-export function sourceExcerpt(subject: string | null | undefined, body: string | null | undefined, limit = 140) {
+export function sourceExcerpt(
+  subject: string | null | undefined,
+  body: string | null | undefined,
+  limit = 140,
+) {
   const text = (body ?? "").replace(/\s+/g, " ").trim();
   const clipped = text.length > limit ? `${text.slice(0, limit).trim()}…` : text;
   if (subject?.trim() && clipped) return `${subject.trim()} — ${clipped}`;
@@ -224,7 +233,8 @@ export function inquiryAnswers(input: {
 
   if (input.source) fields.push({ label: "heard from", value: input.source });
   if (note) {
-    const label = input.event_type === "subscription" ? "anything else" : delivery ? "card" : "vision";
+    const label =
+      input.event_type === "subscription" ? "anything else" : delivery ? "card" : "vision";
     fields.push({ label, value: note, wide: true, lines: true });
   }
   return fields;
@@ -253,7 +263,8 @@ export function inquirySlugs(
   rows: Array<{ id: string; received_at: string; client: { name: string } | null }>,
 ) {
   const sorted = [...rows].sort(
-    (left, right) => left.received_at.localeCompare(right.received_at) || left.id.localeCompare(right.id),
+    (left, right) =>
+      left.received_at.localeCompare(right.received_at) || left.id.localeCompare(right.id),
   );
   const taken = new Set<string>();
   const byId = new Map<string, string>();
@@ -274,7 +285,8 @@ export function inquirySlugs(
 export function clientSlugs(rows: Array<{ id: string; name: string; created_at?: string }>) {
   const sorted = [...rows].sort(
     (left, right) =>
-      (left.created_at ?? "").localeCompare(right.created_at ?? "") || left.id.localeCompare(right.id),
+      (left.created_at ?? "").localeCompare(right.created_at ?? "") ||
+      left.id.localeCompare(right.id),
   );
   const taken = new Set<string>();
   const byId = new Map<string, string>();

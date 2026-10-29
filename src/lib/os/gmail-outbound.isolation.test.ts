@@ -15,7 +15,9 @@ const TOKEN = "ya29.secret-token-never-leak";
 
 describe("Gmail outbound composer", () => {
   it("threads a reply onto the inquiry gmail_thread_id and never exposes the token", async () => {
-    let captured: { url: string; body: Record<string, unknown>; auth: string | null } | null = null;
+    const seen: {
+      captured: { url: string; body: Record<string, unknown>; auth: string | null } | null;
+    } = { captured: null };
     const rfc = buildRfc822({
       from: "info@saysukii.com",
       fromName: "Say Sukii",
@@ -34,7 +36,11 @@ describe("Gmail outbound composer", () => {
     assert.match(rfc, /References: <mid-original@mail.gmail.com>/);
     assert.match(rfc, /multipart\/alternative/);
     const html = Buffer.from(
-      rfc.split("Content-Type: text/html; charset=UTF-8")[1]?.split("--saysukii-letter--")[0]?.replace(/Content-Transfer-Encoding: base64/g, "").replace(/\s+/g, "") ?? "",
+      rfc
+        .split("Content-Type: text/html; charset=UTF-8")[1]
+        ?.split("--saysukii-letter--")[0]
+        ?.replace(/Content-Transfer-Encoding: base64/g, "")
+        .replace(/\s+/g, "") ?? "",
       "base64",
     ).toString("utf8");
     assert.match(html, /Elena — I have the date/);
@@ -50,7 +56,7 @@ describe("Gmail outbound composer", () => {
       inReplyTo: "mid-original@mail.gmail.com",
       accessToken: TOKEN,
       fetchImpl: async (url, init) => {
-        captured = {
+        seen.captured = {
           url: String(url),
           body: JSON.parse(String(init?.body)),
           auth: new Headers(init?.headers).get("Authorization"),
@@ -62,6 +68,7 @@ describe("Gmail outbound composer", () => {
       },
     });
 
+    const captured = seen.captured;
     assert.equal(captured?.url, "https://gmail.googleapis.com/gmail/v1/users/me/messages/send");
     assert.equal(captured?.body["threadId"], "thread-pamm");
     assert.equal(typeof captured?.body["raw"], "string");
@@ -69,6 +76,58 @@ describe("Gmail outbound composer", () => {
     assert.equal(sent.gmail_message_id, "msg-out-1");
     assert.equal(sent.gmail_thread_id, "thread-pamm");
     assert.equal(sendResultContainsSecrets(sent, TOKEN), false);
+  });
+
+  it("attaches files as real parts and sends them through gmail's upload endpoint on the thread", async () => {
+    const pdf = new TextEncoder().encode("%PDF-1.4 ceremony layout");
+    const rfc = buildRfc822({
+      from: "info@saysukii.com",
+      to: "camila@example.com",
+      subject: "Re: flowers",
+      body: "the layout is attached.",
+      attachments: [{ name: "ceremony layout é.pdf", type: "application/pdf", data: pdf }],
+    });
+    assert.match(rfc, /Content-Type: multipart\/mixed; boundary="saysukii-mail"/);
+    assert.match(rfc, /Content-Type: multipart\/alternative; boundary="saysukii-letter"/);
+    assert.match(
+      rfc,
+      /Content-Disposition: attachment; filename="ceremony layout _.pdf"; filename\*=UTF-8''ceremony%20layout%20%C3%A9\.pdf/,
+    );
+    assert.match(
+      rfc,
+      new RegExp(Buffer.from(pdf).toString("base64").slice(0, 20).replace(/[+/]/g, "\\$&")),
+    );
+    assert.match(rfc, /--saysukii-mail--/);
+
+    let captured = { url: "", type: "", body: "" };
+    await sendInquiryEmail({
+      from: "info@saysukii.com",
+      to: "camila@example.com",
+      subject: "Re: flowers",
+      body: "the layout is attached.",
+      threadId: "thread-camila",
+      attachments: [{ name: "layout.pdf", type: "application/pdf", data: pdf }],
+      accessToken: TOKEN,
+      fetchImpl: async (url, init) => {
+        captured = {
+          url: String(url),
+          type: new Headers(init?.headers).get("content-type") ?? "",
+          body: String(init?.body),
+        };
+        return new Response(JSON.stringify({ id: "msg-out-2", threadId: "thread-camila" }), {
+          status: 200,
+        });
+      },
+    });
+    assert.equal(
+      captured.url,
+      "https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=multipart",
+    );
+    assert.match(captured.type, /multipart\/related/);
+    assert.match(captured.body, /\{"threadId":"thread-camila"\}/);
+    assert.match(captured.body, /Content-Type: message\/rfc822/);
+    assert.match(captured.body, /filename="layout.pdf"/);
+    assert.equal(captured.body.includes(TOKEN), false);
   });
 
   it("turns a calendar link into a real link in the html part", () => {
@@ -79,7 +138,11 @@ describe("Gmail outbound composer", () => {
       body: "using my [calendar link](https://inside.saysukii.com/schedule)",
     });
     const html = Buffer.from(
-      rfc.split("Content-Type: text/html; charset=UTF-8")[1]?.split("--saysukii-letter--")[0]?.replace(/Content-Transfer-Encoding: base64/g, "").replace(/\s+/g, "") ?? "",
+      rfc
+        .split("Content-Type: text/html; charset=UTF-8")[1]
+        ?.split("--saysukii-letter--")[0]
+        ?.replace(/Content-Transfer-Encoding: base64/g, "")
+        .replace(/\s+/g, "") ?? "",
       "base64",
     ).toString("utf8");
     assert.match(html, /<a href="https:\/\/inside\.saysukii\.com\/schedule"/);
@@ -111,7 +174,11 @@ describe("Gmail outbound composer", () => {
       body: "ready.\n\n[your proposal](https://inside.saysukii.com/proposal/abc)\n\n[saysukii.com](https://www.saysukii.com)",
     });
     const html = Buffer.from(
-      rfc.split("Content-Type: text/html; charset=UTF-8")[1]?.split("--saysukii-letter--")[0]?.replace(/Content-Transfer-Encoding: base64/g, "").replace(/\s+/g, "") ?? "",
+      rfc
+        .split("Content-Type: text/html; charset=UTF-8")[1]
+        ?.split("--saysukii-letter--")[0]
+        ?.replace(/Content-Transfer-Encoding: base64/g, "")
+        .replace(/\s+/g, "") ?? "",
       "base64",
     ).toString("utf8");
     assert.match(html, /background:#ff4d94/);
@@ -141,7 +208,9 @@ describe("Gmail outbound composer", () => {
       accessToken: TOKEN,
       fetchImpl: async (_url, init) => {
         body = JSON.parse(String(init?.body));
-        return new Response(JSON.stringify({ id: "msg-new", threadId: "thread-new" }), { status: 200 });
+        return new Response(JSON.stringify({ id: "msg-new", threadId: "thread-new" }), {
+          status: 200,
+        });
       },
     });
     assert.equal("threadId" in body, false);

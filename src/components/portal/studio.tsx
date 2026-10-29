@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -23,31 +22,6 @@ export function StudioHeading({
   );
 }
 
-export function StudioViews({
-  to,
-  views,
-  current,
-}: {
-  to: "/clients" | "/settings";
-  views: Array<{ id: string; label: string }>;
-  current: string;
-}) {
-  return (
-    <nav className="studio-views" aria-label="layout versions">
-      {views.map((view) => (
-        <Link
-          key={view.id}
-          to={to}
-          search={{ view: view.id }}
-          className={cn(current === view.id && "is-on")}
-        >
-          {view.label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
 export function StudioChip({
   children,
   tone = "soft",
@@ -58,7 +32,14 @@ export function StudioChip({
   stage?: "new" | "touch" | "proposal" | "booked" | "archived";
 }) {
   return (
-    <span className={cn("studio-chip", stage && `is-${stage}`, tone === "due" && "is-due", tone === "late" && "is-late")}>
+    <span
+      className={cn(
+        "studio-chip",
+        stage && `is-${stage}`,
+        tone === "due" && "is-due",
+        tone === "late" && "is-late",
+      )}
+    >
       {stage ? <i className="studio-pill-dot" aria-hidden="true" /> : null}
       {children}
     </span>

@@ -18,7 +18,10 @@ import {
 } from "@/lib/os/inquiry-steps";
 import { cn } from "@/lib/utils";
 
-type GuideChange = <K extends keyof InquiryFormValues>(field: K, value: InquiryFormValues[K]) => void;
+type GuideChange = <K extends keyof InquiryFormValues>(
+  field: K,
+  value: InquiryFormValues[K],
+) => void;
 
 function canSendInquiry(values: InquiryFormValues) {
   if (values.name.trim().length < 2) return false;
@@ -43,7 +46,10 @@ export function InquiryGuide({
   const drafts = useMemo(() => draftsProp ?? readInquiryDrafts(), [draftsProp]);
   const [values, setValues] = useState<InquiryFormValues>(EMPTY_INQUIRY_DRAFT);
   const [index, setIndex] = useState(0);
-  const steps = useMemo(() => resolveInquirySteps(values.interest, drafts), [values.interest, drafts]);
+  const steps = useMemo(
+    () => resolveInquirySteps(values.interest, drafts),
+    [values.interest, drafts],
+  );
   const step = steps[Math.min(index, Math.max(steps.length - 1, 0))];
 
   useEffect(() => {
@@ -56,7 +62,11 @@ export function InquiryGuide({
 
   const last = step?.kind === "review";
   const complete = step ? isStepComplete(step, values) : false;
-  const ready = last ? canSendInquiry(values) : step?.id === "interest" ? complete : import.meta.env.DEV || complete;
+  const ready = last
+    ? canSendInquiry(values)
+    : step?.id === "interest"
+      ? complete
+      : import.meta.env.DEV || complete;
   const title = step ? personalizeInquiryLabel(step, "") : undefined;
   const help = step ? personalizeInquiryHelp(step, "") : undefined;
 
@@ -69,7 +79,12 @@ export function InquiryGuide({
           ))}
         </div>
         {index > 0 ? (
-          <button type="button" className="auth-text-action" disabled={disabled} onClick={() => setIndex((current) => current - 1)}>
+          <button
+            type="button"
+            className="auth-text-action"
+            disabled={disabled}
+            onClick={() => setIndex((current) => current - 1)}
+          >
             Back
           </button>
         ) : null}
@@ -180,7 +195,11 @@ function Review({ values }: { values: InquiryFormValues }) {
             {values.event_setting ? ` · ${values.event_setting}` : ""}
           </dd>
         </div>
-        <div data-review-stop={!values.venue_text && !values.budget_range && !values.arrangement_size ? "" : undefined}>
+        <div
+          data-review-stop={
+            !values.venue_text && !values.budget_range && !values.arrangement_size ? "" : undefined
+          }
+        >
           <dt>Date</dt>
           <dd>{formatInquiryDate(values) || "—"}</dd>
         </div>
@@ -199,7 +218,11 @@ function Review({ values }: { values: InquiryFormValues }) {
         {values.space ? (
           <div>
             <dt>Space</dt>
-            <dd>{values.space === "other" && values.space_other?.trim() ? `${values.space} — ${values.space_other.trim()}` : values.space}</dd>
+            <dd>
+              {values.space === "other" && values.space_other?.trim()
+                ? `${values.space} — ${values.space_other.trim()}`
+                : values.space}
+            </dd>
           </div>
         ) : null}
         {values.cadence ? (
@@ -244,11 +267,20 @@ function GuideField({
 }) {
   if (step.kind === "choice" || step.kind === "multi") {
     const selected = step.kind === "choice" ? String(values[step.field] ?? "") : "";
-    const chips = step.field === "budget_range" || step.field === "arrangement_size" || step.field === "sources";
+    const chips =
+      step.field === "budget_range" ||
+      step.field === "arrangement_size" ||
+      step.field === "sources";
     return (
       <fieldset className="auth-field inquire-guide-set">
-        {hideLabel ? <legend className="sr-only">{step.label}</legend> : <legend>{step.label}</legend>}
-        <div className={cn("inquire-picks", chips ? "inquire-picks--chips" : "inquire-picks--rows")}>
+        {hideLabel ? (
+          <legend className="sr-only">{step.label}</legend>
+        ) : (
+          <legend>{step.label}</legend>
+        )}
+        <div
+          className={cn("inquire-picks", chips ? "inquire-picks--chips" : "inquire-picks--rows")}
+        >
           {step.options.map((option) => {
             const on =
               step.kind === "choice"
@@ -289,7 +321,8 @@ function GuideField({
                 disabled={disabled}
                 autoFocus
                 onChange={(event) => {
-                  if (step.kind === "choice" && step.otherField) onChange(step.otherField, event.target.value);
+                  if (step.kind === "choice" && step.otherField)
+                    onChange(step.otherField, event.target.value);
                 }}
               />
             </div>
@@ -320,14 +353,17 @@ function GuideField({
               onChange("event_dates", []);
               return;
             }
-            const held = [values.event_date, ...(values.event_dates ?? [])].filter((date): date is string => Boolean(date));
+            const held = [values.event_date, ...(values.event_dates ?? [])].filter(
+              (date): date is string => Boolean(date),
+            );
             if (held.includes(next)) return;
             if (!values.event_date) onChange("event_date", next);
             else onChange("event_dates", [...(values.event_dates ?? []), next]);
           }}
           onTimeChange={(next) => onChange("event_time", next)}
         />
-        {values.interest === "events" && (values.event_date || (values.event_dates?.length ?? 0) > 0) ? (
+        {values.interest === "events" &&
+        (values.event_date || (values.event_dates?.length ?? 0) > 0) ? (
           <div className="inquire-date-list">
             {[values.event_date, ...(values.event_dates ?? [])]
               .filter((date): date is string => Boolean(date))
@@ -342,10 +378,18 @@ function GuideField({
                       onChange("event_dates", rest.slice(1));
                       return;
                     }
-                    onChange("event_dates", (values.event_dates ?? []).filter((item) => item !== date));
+                    onChange(
+                      "event_dates",
+                      (values.event_dates ?? []).filter((item) => item !== date),
+                    );
                   }}
                 >
-                  {formatInquiryDate({ ...values, event_date: date, event_dates: [], event_time: "" }) || date}
+                  {formatInquiryDate({
+                    ...values,
+                    event_date: date,
+                    event_dates: [],
+                    event_time: "",
+                  }) || date}
                   <X aria-hidden="true" strokeWidth={1.5} />
                   <span className="sr-only">remove this date</span>
                 </button>
@@ -418,7 +462,13 @@ function GuideField({
 
   if (step.kind === "text" || step.kind === "email" || step.kind === "tel") {
     return (
-      <ContactField step={step} values={values} disabled={disabled} hideLabel={hideLabel} onChange={onChange} />
+      <ContactField
+        step={step}
+        values={values}
+        disabled={disabled}
+        hideLabel={hideLabel}
+        onChange={onChange}
+      />
     );
   }
 
@@ -434,8 +484,8 @@ function ContactField({
 }: {
   step: Extract<InquiryStep, { kind: "text" | "email" | "tel" }>;
   values: InquiryFormValues;
-  disabled?: boolean;
-  hideLabel?: boolean;
+  disabled?: boolean | undefined;
+  hideLabel?: boolean | undefined;
   onChange: GuideChange;
 }) {
   const [emailChecked, setEmailChecked] = useState(false);
@@ -455,7 +505,15 @@ function ContactField({
         <input
           type={step.kind}
           inputMode={step.kind === "tel" ? "tel" : step.kind === "email" ? "email" : "text"}
-          autoComplete={step.kind === "tel" ? "tel" : step.kind === "email" ? "email" : step.field === "name" ? "name" : "off"}
+          autoComplete={
+            step.kind === "tel"
+              ? "tel"
+              : step.kind === "email"
+                ? "email"
+                : step.field === "name"
+                  ? "name"
+                  : "off"
+          }
           value={raw}
           placeholder={step.placeholder}
           disabled={disabled}

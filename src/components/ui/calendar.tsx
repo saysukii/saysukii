@@ -157,7 +157,7 @@ function CalendarDayButton({
       variant="ghost"
       size="icon"
       data-day={day.date.toLocaleDateString()}
-      data-today={modifiers.today || undefined}
+      data-today={modifiers["today"] || undefined}
       data-selected-single={
         modifiers["selected"] &&
         !modifiers["range_start"] &&

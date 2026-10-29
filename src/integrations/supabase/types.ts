@@ -218,6 +218,30 @@ export type ProposalRow = {
   updated_at: string;
 };
 
+export type InquiryInvoiceStatus = "sent" | "deposit_paid" | "paid" | "canceled";
+
+export type InquiryInvoiceRow = {
+  id: string;
+  inquiry_id: string;
+  number: string;
+  items: Json;
+  subtotal_cents: number;
+  courtesy_cents: number;
+  total_cents: number;
+  due_now_cents: number;
+  pay_in_full: boolean;
+  square_invoice_id: string | null;
+  square_order_id: string | null;
+  public_url: string | null;
+  status: InquiryInvoiceStatus;
+  paid_cents: number;
+  sent_at: string;
+  paid_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ProposalLineItemRow = {
   id: string;
   proposal_id: string;
@@ -347,6 +371,7 @@ export type InquiryMessageRow = {
   status: "draft" | "queued" | "sent" | "received" | "failed";
   created_by: string | null;
   created_at: string;
+  send_payload?: Json | null;
 };
 
 export type EmailIntegrationRow = {
@@ -368,6 +393,7 @@ export type InboundMessageRow = {
   gmail_message_id: string;
   gmail_thread_id: string | null;
   from_addr: string | null;
+  from_name: string | null;
   to_addr: string | null;
   subject: string | null;
   body: string | null;
@@ -527,6 +553,7 @@ export type Database = {
       inspiration_images: Table<InspirationImageRow>;
       email_integration: Table<EmailIntegrationRow>;
       inbound_messages: Table<InboundMessageRow>;
+      inquiry_invoices: Table<InquiryInvoiceRow>;
       inquiry_routing_labels: Table<InquiryRoutingLabelRow>;
       arrangements: Table<ArrangementRow>;
       stems: Table<StemRow>;

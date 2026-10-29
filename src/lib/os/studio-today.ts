@@ -1,7 +1,20 @@
-import type { ClientRow, EventType, InquiryStatus, ProjectRow, TaskRow } from "@/integrations/supabase/types";
+import type {
+  ClientRow,
+  EventType,
+  InquiryStatus,
+  ProjectRow,
+  TaskRow,
+} from "@/integrations/supabase/types";
 import type { InquiryPipelineItem } from "@/lib/os/inquiries.functions";
 import { isBookInquiry } from "@/lib/os/inquiry-detection";
-import { EVENT_LABEL, daysWaiting, nextMove, waitingTone, visionNote, inquiryTime } from "@/lib/os/inquiry-desk";
+import {
+  EVENT_LABEL,
+  daysWaiting,
+  nextMove,
+  waitingTone,
+  visionNote,
+  inquiryTime,
+} from "@/lib/os/inquiry-desk";
 import { studioClock, studioDay } from "@/lib/studio-bookings";
 
 export type TodayAging = "fresh" | "due" | "overdue";
@@ -35,7 +48,7 @@ export type TodayFloorItem = {
   detail: string;
   detailPerson?: string | null;
   kind: DeskKind | "event" | "talk";
-  taskId?: string;
+  taskId?: string | undefined;
   at?: string;
 };
 
@@ -174,7 +187,10 @@ function organizationName(
 ) {
   const key = name.trim().toLowerCase();
   return [...inquiries, ...projects].some(
-    (row) => row.client && row.client.type !== "individual" && row.client.name.trim().toLowerCase() === key,
+    (row) =>
+      row.client &&
+      row.client.type !== "individual" &&
+      row.client.name.trim().toLowerCase() === key,
   );
 }
 
@@ -211,7 +227,9 @@ export function weekFloor(
     });
   }
 
-  const covered = new Set(data.projects.map((project) => `${project.client_id}:${project.event_date}`));
+  const covered = new Set(
+    data.projects.map((project) => `${project.client_id}:${project.event_date}`),
+  );
   for (const inquiry of data.waiting) {
     if (!inquiry.event_date || inquiry.event_date_tbd) continue;
     if (inquiry.event_date < start || inquiry.event_date > end) continue;
@@ -237,7 +255,9 @@ export function weekFloor(
       when: formatFloorWhen(date, today),
       title: talk.name,
       titlePerson: !organizationName(talk.name, data.waiting, data.projects),
-      detail: ["meeting", talk.allDay ? "all day" : studioClock(talk.startsAt)].filter(Boolean).join(" · "),
+      detail: ["meeting", talk.allDay ? "all day" : studioClock(talk.startsAt)]
+        .filter(Boolean)
+        .join(" · "),
       kind: "talk",
       at: talk.startsAt,
     });
@@ -271,7 +291,8 @@ export function weekFloor(
     const rank = (kind: TodayFloorItem["kind"]) => (kind === "talk" ? 0 : kind === "event" ? 1 : 2);
     const byKind = rank(left.kind) - rank(right.kind);
     if (byKind !== 0) return byKind;
-    if (left.kind === "talk" && right.kind === "talk") return (left.at ?? "").localeCompare(right.at ?? "");
+    if (left.kind === "talk" && right.kind === "talk")
+      return (left.at ?? "").localeCompare(right.at ?? "");
     return left.title.localeCompare(right.title);
   });
 }
@@ -316,14 +337,21 @@ function sortOldestFirst(left: TaskRow, right: TaskRow) {
   return left.created_at.localeCompare(right.created_at);
 }
 
-export function glanceBits(inquiry: TodayInquiry) {
+export function glanceBits(
+  inquiry: InquiryPipelineItem & { days_waiting: number; aging: TodayAging },
+) {
   const time = inquiryTime(inquiry.message);
   return {
     next: nextMove(inquiry.status),
     event: EVENT_LABEL[inquiry.event_type],
     date: inquiry.event_date_tbd
       ? "date tbd"
-      : [new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(`${inquiry.event_date}T12:00:00`)), time]
+      : [
+          new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(
+            new Date(`${inquiry.event_date}T12:00:00`),
+          ),
+          time,
+        ]
           .filter(Boolean)
           .join(" · "),
     place: inquiry.venue_text,
@@ -381,7 +409,7 @@ export function deskGlance(task: TodayDeskTask): DeskGlance {
 }
 
 export function assembleStudioToday(input: {
-  inquiries: InquiryPipelineItem[];
+  inquiries: Array<InquiryPipelineItem & { studio_wrote?: boolean }>;
   projects: Array<ProjectRow & { client?: ClientRow | null }>;
   tasks?: TaskRow[];
   appointments?: TodayTalk[];
@@ -406,7 +434,12 @@ export function assembleStudioToday(input: {
     .filter((inquiry) => needsStudio(inquiry.status))
     .map((inquiry) => {
       const days = daysWaiting(inquiry.received_at);
-      return { ...inquiry, days_waiting: days, aging: aging(days) };
+      return {
+        ...inquiry,
+        days_waiting: days,
+        aging: aging(days),
+        studio_wrote: inquiry.studio_wrote ?? false,
+      };
     })
     .sort((left, right) => right.days_waiting - left.days_waiting);
 
@@ -442,7 +475,9 @@ export function assembleStudioToday(input: {
     .map((type) => ({
       type,
       label: EVENT_LABEL[type],
-      count: inquiries.filter((inquiry) => needsStudio(inquiry.status) && inquiry.event_type === type).length,
+      count: inquiries.filter(
+        (inquiry) => needsStudio(inquiry.status) && inquiry.event_type === type,
+      ).length,
     }))
     .filter((item) => item.count > 0)
     .sort((left, right) => right.count - left.count);
@@ -469,9 +504,13 @@ export function assembleStudioToday(input: {
     .map((task) => {
       const kind = deskKind(task);
       const inquiry =
-        task.linked_type === "inquiry" && task.linked_id ? (inquiryById.get(task.linked_id) ?? null) : null;
+        task.linked_type === "inquiry" && task.linked_id
+          ? (inquiryById.get(task.linked_id) ?? null)
+          : null;
       const project =
-        task.linked_type === "project" && task.linked_id ? (projectById.get(task.linked_id) ?? null) : null;
+        task.linked_type === "project" && task.linked_id
+          ? (projectById.get(task.linked_id) ?? null)
+          : null;
       return {
         ...task,
         kind,

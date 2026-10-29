@@ -28,7 +28,9 @@ export function replyTaskTitle(name: string | null | undefined) {
   return `reply to ${trimmed.toLowerCase()}`;
 }
 
-export function inquiryAutoKind(task: Pick<TaskRow, "title" | "trigger_stage">): InquiryAutoKind | null {
+export function inquiryAutoKind(
+  task: Pick<TaskRow, "title" | "trigger_stage">,
+): InquiryAutoKind | null {
   if (task.trigger_stage === "new") return "reply";
   if (task.trigger_stage === "contacted") return "follow_up";
   if (task.trigger_stage === "in_conversation") return "write_proposal";
@@ -57,7 +59,10 @@ function dueAt(from: string | null | undefined, now: Date) {
   return due.toISOString();
 }
 
-function hasReplySinceContact(contactedAt: string | null, lastInboundAt: string | null | undefined) {
+function hasReplySinceContact(
+  contactedAt: string | null,
+  lastInboundAt: string | null | undefined,
+) {
   if (!contactedAt || !lastInboundAt) return false;
   return new Date(lastInboundAt).getTime() > new Date(contactedAt).getTime();
 }
@@ -131,9 +136,7 @@ export function shouldSpawnInquiryAutoTask(
 ) {
   return !existing.some(
     (task) =>
-      task.source === "auto" &&
-      task.status === "done" &&
-      inquiryAutoKind(task) === desired.kind,
+      task.source === "auto" && task.status === "done" && inquiryAutoKind(task) === desired.kind,
   );
 }
 

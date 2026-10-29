@@ -66,12 +66,15 @@ export const Route = createFileRoute("/api/square/webhook")({
 
 async function processCompletedPayment(payment: SquarePayment) {
   if (!payment.order_id) throw new Error("Square payment is missing an order");
+  if (await settleLeadInvoice(payment.order_id)) return;
   const { data: invoice, error: invoiceError } = await supabaseAdmin
     .from("invoices")
     .select("*, proposals(*, clients(name, email))")
     .eq("square_order_id", payment.order_id)
     .maybeSingle();
-  if (invoiceError || !invoice) throw new Error("No Say Sukii invoice matches this Square order");
+  if (invoiceError) throw new Error(invoiceError.message);
+  // a sale at the register or anything else square sends that the studio didn't bill here
+  if (!invoice) return;
 
   const amount = Number(payment.amount_money?.amount ?? invoice.amount_cents);
   const { data: paymentRow, error: paymentError } = await supabaseAdmin
@@ -131,6 +134,31 @@ async function processCompletedPayment(payment: SquarePayment) {
       });
     });
   }
+}
+
+/** A lead's own invoice: ask square where it stands rather than adding payments up, so a repeated event can't count twice. */
+async function settleLeadInvoice(orderId: string) {
+  const { data: row, error } = await supabaseAdmin
+    .from("inquiry_invoices")
+    .select("id, square_invoice_id, inquiry_id")
+    .eq("square_order_id", orderId)
+    .maybeSingle();
+  if (error || !row?.square_invoice_id) return false;
+  const { readSquareInvoice } = await import("@/lib/os/square.server");
+  const square = await readSquareInvoice(row.square_invoice_id);
+  const status =
+    square.status === "PAID" ? "paid" : square.status === "PARTIALLY_PAID" ? "deposit_paid" : null;
+  await supabaseAdmin
+    .from("inquiry_invoices")
+    .update({
+      paid_cents: square.paidCents,
+      ...(status ? { status } : {}),
+      ...(status === "paid" ? { paid_at: new Date().toISOString() } : {}),
+    })
+    .eq("id", row.id);
+  const { refreshInquirySummarySafe } = await import("@/lib/os/inquiry-summary.server");
+  await refreshInquirySummarySafe(supabaseAdmin, row.inquiry_id);
+  return true;
 }
 
 type SquareWebhook = {
