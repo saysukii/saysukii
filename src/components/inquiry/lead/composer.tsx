@@ -491,12 +491,7 @@ export function ThreadComposer({
         file.path ? [{ path: file.path, name: file.name }] : [],
       ),
     };
-    // a letter going now goes straight to the ten-second hold, where undo is the check;
-    // a scheduled one is confirmed first so the time can be read back
-    if (!sendAt) {
-      commitSend(letter);
-      return;
-    }
+    // every letter is read once as the client will see it; send there starts the ten-second hold
     setConfirm(letter);
   }
 
