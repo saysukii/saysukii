@@ -70,7 +70,8 @@ export type InboundMailbox = {
     ids: string[];
     nextPageToken: string | null;
   }>;
-  getMessage(id: string): Promise<GmailApiMessage>;
+  /** null when the message is gone, like a draft that was edited or sent since it was listed */
+  getMessage(id: string): Promise<GmailApiMessage | null>;
 };
 
 export type InboundStore = {
@@ -226,14 +227,17 @@ export async function syncInboundMail(deps: {
   const captured: CapturedInbound[] = [];
   for (const id of freshIds) {
     const raw = await deps.mailbox.getMessage(id);
+    if (!raw) continue;
     if (raw.labelIds && !raw.labelIds.includes("INBOX")) continue;
     const parsed = parseGmailMessage(raw);
     if (parsed) captured.push(parsed);
   }
 
   const inserted = captured.length ? await deps.store.insert(captured) : 0;
-  const profileHistory = await deps.mailbox.profileHistoryId();
-  const nextHistory = profileHistory ?? historyId ?? null;
+  // with more waiting than one run reads, stay where we were so the rest comes in next time
+  const caughtUp = unseen.length <= MAX_NEW_FETCH;
+  const profileHistory = caughtUp ? await deps.mailbox.profileHistoryId() : null;
+  const nextHistory = caughtUp ? (profileHistory ?? historyId ?? null) : cursor.historyId;
   await deps.store.writeCursor({
     historyId: nextHistory,
     lastSyncedAt: now.toISOString(),
@@ -326,6 +330,8 @@ function liveInboundMailbox(): InboundMailbox {
       const params = new URLSearchParams({
         startHistoryId: historyId,
         historyTypes: "messageAdded",
+        // only what lands in the inbox; drafts and sent mail come and go and aren't replies
+        labelId: "INBOX",
         maxResults: String(PAGE_SIZE),
       });
       if (pageToken) params.set("pageToken", pageToken);
@@ -372,7 +378,14 @@ function liveInboundMailbox(): InboundMailbox {
       };
     },
     async getMessage(id) {
-      return gmailGet<GmailApiMessage>(`/messages/${encodeURIComponent(id)}?format=full`);
+      const response = await gmailFetch(`/messages/${encodeURIComponent(id)}?format=full`);
+      // history still lists messages that were deleted after they arrived; skip them, or the sync stalls on them
+      if (response.status === 404) return null;
+      const payload = (await response.json()) as GmailApiMessage & { error?: { message?: string } };
+      if (!response.ok) {
+        throw new Error(payload.error?.message || `Gmail request failed (${response.status})`);
+      }
+      return payload;
     },
   };
 }

@@ -45,7 +45,7 @@ function message(
 
 function fakeMailbox(
   seed: GmailApiMessage[],
-  options?: { historyExpired?: boolean },
+  options?: { historyExpired?: boolean; gone?: string[] },
 ): InboundMailbox & { seed: GmailApiMessage[] } {
   const box = {
     seed,
@@ -57,7 +57,7 @@ function fakeMailbox(
         return { ids: [], historyId: null, nextPageToken: null, expired: true };
       }
       return {
-        ids: box.seed.map((item) => item.id ?? ""),
+        ids: [...box.seed.map((item) => item.id ?? ""), ...(options?.gone ?? [])],
         historyId: `hist-${box.seed.length}`,
         nextPageToken: null,
         expired: false,
@@ -70,6 +70,7 @@ function fakeMailbox(
       };
     },
     async getMessage(id: string) {
+      if (options?.gone?.includes(id)) return null;
       const found = box.seed.find((item) => item.id === id);
       if (!found) throw new Error(`missing ${id}`);
       return found;
@@ -110,6 +111,38 @@ describe("Gmail inbound capture", () => {
     assert.equal(parsed?.from_addr, "ana@planner.example");
     assert.equal(parsed?.from_name, "Ana Ruiz");
     assert.equal(parsed?.to_addr, "info@saysukii.com · cc: camila@example.com, maya@saysukii.com");
+  });
+
+  it("skips a message gmail no longer has and keeps reading the rest", async () => {
+    const store = createMemoryInboundStore();
+    await store.writeCursor({ historyId: "hist-0", lastSyncedAt: null });
+    const mailbox = fakeMailbox([message("reply", { subject: "re: your proposal" })], {
+      gone: ["deleted-draft"],
+    });
+
+    const result = await syncInboundMail({
+      mailbox,
+      store,
+      now: () => new Date("2026-10-29T16:00:00.000Z"),
+    });
+    assert.equal(result.inserted, 1);
+    assert.equal(result.historyId, "hist-1");
+  });
+
+  it("reads a long backlog over several runs without dropping any", async () => {
+    const store = createMemoryInboundStore();
+    await store.writeCursor({ historyId: "hist-start", lastSyncedAt: null });
+    const backlog = Array.from({ length: 60 }, (_, index) => message(`m${index}`));
+    const mailbox = fakeMailbox(backlog);
+    const now = () => new Date("2026-10-29T16:00:00.000Z");
+
+    const first = await syncInboundMail({ mailbox, store, now });
+    assert.equal(first.inserted, 50);
+    assert.equal(first.historyId, "hist-start");
+
+    const second = await syncInboundMail({ mailbox, store, now });
+    assert.equal(second.inserted, 10);
+    assert.equal(second.historyId, "hist-60");
   });
 
   it("captures new inbox mail and de-duplicates by gmail_message_id", async () => {
@@ -153,6 +186,7 @@ describe("Gmail inbound capture", () => {
     assert.deepEqual([...rows].sort(), ["a", "b", "c"]);
     const captured = await Promise.all(["a", "b", "c"].map((id) => mailbox.getMessage(id)));
     for (const item of captured) {
+      assert.ok(item);
       const parsed = parseGmailMessage(item);
       assert.equal(parsed?.gmail_message_id, item.id);
     }
