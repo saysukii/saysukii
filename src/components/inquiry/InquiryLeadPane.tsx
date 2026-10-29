@@ -1586,6 +1586,14 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const composer = (
     <ThreadComposer
       sendAs={sendAs}
+      sender={profile.full_name}
+      subject={
+        threadRef.current.fresh
+          ? threadRef.current.subject
+          : threadRef.current.base && threadRef.current.base !== "conversation"
+            ? `Re: ${threadRef.current.base}`
+            : ""
+      }
       draft={draft}
       setDraft={setDraft}
       pending={post.isPending}

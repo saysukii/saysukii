@@ -183,6 +183,8 @@ export function MailBody({ body, personName }: { body: string; personName?: stri
 
 export function ThreadComposer({
   sendAs,
+  sender,
+  subject,
   draft,
   setDraft,
   pending,
@@ -202,6 +204,9 @@ export function ThreadComposer({
   onKeep,
 }: {
   sendAs: "email" | "note";
+  /** who signs the letter, for the preview before it sends */
+  sender?: string | null | undefined;
+  subject?: string;
   draft: string;
   setDraft: (value: string) => void;
   pending: boolean;
@@ -486,12 +491,7 @@ export function ThreadComposer({
         file.path ? [{ path: file.path, name: file.name }] : [],
       ),
     };
-    // a letter going now goes straight to the ribbon, where undo is the check;
-    // a scheduled one is confirmed first so the time can be read back
-    if (!sendAt) {
-      commitSend(letter);
-      return;
-    }
+    // every letter is read once as the client will see it; send there starts the ribbon
     setConfirm(letter);
   }
 
@@ -800,19 +800,38 @@ export function ThreadComposer({
                   <X aria-hidden="true" />
                 </DialogClose>
               </div>
-              <DialogTitle className="sr-only">confirm this letter</DialogTitle>
+              <DialogTitle className="sr-only">read this letter before it sends</DialogTitle>
               <DialogDescription className="sr-only">
                 {confirm?.sendAt
                   ? "this letter waits until the time you chose."
                   : "after you send, there are 10 seconds to undo."}
               </DialogDescription>
               <div className="studio-task-form">
-                <ContextPreview name={clientName || "this letter"} body={confirm?.body || ""} />
-                {who ? <p className="studio-composer-when">{who}</p> : null}
+                <article className="studio-send-preview">
+                  <header>
+                    <p>
+                      <span>to</span>
+                      {who || clientEmail || clientName || "them"}
+                    </p>
+                    {subject ? (
+                      <p>
+                        <span>subject</span>
+                        {subject}
+                      </p>
+                    ) : null}
+                  </header>
+                  <div className="studio-send-preview-letter">
+                    <MailBody body={confirm?.body || ""} personName={clientName ?? null} />
+                    <MailSignature name={sender || ""} tone="ink" />
+                  </div>
+                </article>
                 {confirm?.sendAt ? (
                   <p className="studio-composer-when">sends {formatSendAt(confirm.sendAt)}</p>
                 ) : null}
-                <div className="studio-ask-foot">
+                <div className="studio-ask-foot is-pair is-spread">
+                  <button type="button" className="studio-ghost" onClick={() => setConfirm(null)}>
+                    keep editing
+                  </button>
                   <button type="button" className="studio-today-go" onClick={() => commitSend()}>
                     {confirm?.sendAt ? "schedule" : "send"}
                   </button>

@@ -16152,3 +16152,48 @@ a.studio-kicker:hover {
   }
 }
 
+/* the letter as the client will see it, read once before the ribbon */
+.studio-send-preview {
+  display: grid;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+  text-align: left;
+}
+
+.studio-send-preview header {
+  display: grid;
+  gap: 4px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(36, 34, 31, 0.08);
+  color: #24221f;
+  font-size: 12.5px;
+}
+
+.studio-send-preview header p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.studio-send-preview header span {
+  display: inline-block;
+  min-width: 56px;
+  color: rgba(36, 34, 31, 0.45);
+}
+
+.studio-send-preview-letter {
+  display: grid;
+  gap: 18px;
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  padding: 16px 16px 18px;
+  color: #24221f;
+  text-transform: none;
+}
+
+.studio-send-preview-letter .studio-mail-body {
+  font-size: 14px;
+  line-height: 1.6;
+}
+

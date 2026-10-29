@@ -710,11 +710,24 @@ function firstRecipient(to: string | null | undefined) {
   return normalizeSenderEmail(direct.split(",")[0]);
 }
 
+// notes the app sends by itself (a booking confirmation, the studio's own notices); the bell covers them
+const AUTOMATED_STUDIO_SUBJECT = /^(you[’']re booked|someone wrote in|a call was booked)\b/i;
+
 /** A letter the studio sent from gmail on a new thread belongs to that client's one open inquiry. */
 async function studioLetterDecision(
   message: InboundMessageRow,
   store: RoutingStore,
 ): Promise<RoutingDecision> {
+  if (AUTOMATED_STUDIO_SUBJECT.test(message.subject?.trim() ?? "")) {
+    return {
+      action: "ignored",
+      matched_inquiry_id: null,
+      is_true_inquiry: false,
+      confidence: 1,
+      reason: "sent by the app on its own",
+      extraction: { ...EMPTY_EXTRACTION },
+    };
+  }
   const recipient = firstRecipient(message.to_addr);
   const theirs =
     recipient && !isStudioSender(recipient)

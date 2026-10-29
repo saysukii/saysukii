@@ -432,6 +432,37 @@ describe("classify + route engine", () => {
     assert.equal(added?.direction, "outbound");
   });
 
+  it("leaves the app's own booking confirmation out of the conversation", async () => {
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("booked", {
+          from_addr: "info@saysukii.com",
+          to_addr: "ada@example.com",
+          gmail_thread_id: "thread-booked",
+          subject: "you’re booked · friday, october 30 at 2:00 pm",
+          body: "thank you for making time.",
+        }),
+      ],
+      clients: [client("cli-ada")],
+      inquiries: [inquiry("inq-wedding", "cli-ada")],
+      messages: [threadMessage("inq-wedding", "thread-wedding")],
+    });
+
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async () => {
+        throw new Error("the app's own note should not need the model");
+      },
+    });
+
+    assert.equal(result.ignored, 1);
+    assert.equal(
+      state.messages.some((row) => row.gmail_message_id === "gmail-booked"),
+      false,
+    );
+  });
+
   it("never turns the studio's own mail into a lead", async () => {
     const { state, store } = createMemoryRoutingStore({
       inbound: [
