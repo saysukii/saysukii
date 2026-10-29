@@ -163,7 +163,7 @@ function ClientDirectoryPage() {
       action={
         <>
           <DirectoryImport
-            hint="columns: name, email, phone, organization, type, source, notes"
+            hint="a csv exported from notion, or columns: name, email, phone, organization, type, source, notes, address"
             onText={onImport}
           />
           {people.length > 0 ? <DirectorySelectToggle selection={selection} /> : null}

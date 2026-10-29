@@ -332,6 +332,9 @@
 .auth-aura {
   position: absolute;
   pointer-events: none;
+}
+
+.auth-scene.is-following .auth-aura {
   will-change: transform;
 }
 
@@ -6317,6 +6320,12 @@ button.studio-metric:hover {
   color: rgba(36, 34, 31, 0.38);
 }
 
+/* add an inquiry: field placeholders read at the size of the option labels */
+.studio-task-modal.is-inquiry .studio-ask-field input::placeholder,
+.studio-task-modal.is-inquiry .studio-ask-field textarea::placeholder {
+  font-size: 12px;
+}
+
 .studio-task-kinds {
   display: flex;
   flex-wrap: wrap;
@@ -9119,6 +9128,24 @@ button.studio-metric:hover {
   padding: 12px 14px;
 }
 
+/* safari draws its own select and ignores the height; this one matches the inputs beside it */
+.studio-client-edit .studio-select {
+  height: 44px;
+  padding-right: 36px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2324221f' stroke-opacity='.5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
+
+/* a record page tints its text boxes; in an edit form the notes match the other fields */
+.studio-home.is-book.is-record .studio-client-edit .studio-textarea {
+  background: rgba(255, 244, 246, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+}
+
 .studio-agenda-mark {
   text-decoration: none;
 }
@@ -9213,13 +9240,14 @@ button.studio-metric:hover {
   background: transparent;
 }
 
-.studio-ledger-work .studio-book-row:hover b {
-  color: #c45d72;
-}
-
 .studio-ledger-work .studio-book-row.is-quiet b,
 .studio-ledger-work .studio-book-row.is-quiet em {
   color: rgba(36, 34, 31, 0.46);
+}
+
+.studio-ledger-work .studio-book-row:hover b,
+.studio-ledger-work .studio-book-row.is-quiet:hover b {
+  color: #ff4d94;
 }
 
 .studio-ledger-work .studio-book-row.is-quiet small {
@@ -10147,6 +10175,7 @@ button.studio-metric:hover {
 
 .studio-composer-editor[data-empty="true"]::before {
   content: attr(data-placeholder);
+  text-transform: lowercase;
   color: var(--auth-muted);
 }
 
@@ -10917,6 +10946,17 @@ button.studio-metric:hover {
   }
 
   .studio-home-list {
+    height: 0;
+    min-height: 100%;
+    max-height: none;
+  }
+
+  /* the week takes the calendar's height and scrolls inside it */
+  .studio-home-stage {
+    align-items: stretch;
+  }
+
+  .studio-home-floor {
     height: 0;
     min-height: 100%;
     max-height: none;
@@ -15730,4 +15770,198 @@ a.studio-kicker:hover {
 
 .studio-mail-wait .studio-ghost {
   margin-left: 8px;
+}
+
+/* placeholders are always lowercase, including any wording written in the form editor */
+::placeholder {
+  text-transform: lowercase;
+}
+
+.studio-client-address {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.studio-client-address .studio-place {
+  color: rgba(36, 34, 31, 0.5);
+  font-size: 11px;
+}
+
+.studio-record-fact {
+  display: grid;
+  gap: 2px;
+}
+
+.studio-ledger-rail .studio-record-fact + .studio-home-label {
+  margin-top: 6px;
+}
+
+.studio-ledger-kind.is-category {
+  color: #ff4d94;
+}
+
+.studio-place.is-pink {
+  color: inherit;
+}
+
+.studio-place.is-pink:hover {
+  color: #ff4d94;
+}
+
+/* in an edit form the place search wears the same field as the inputs beside it */
+.studio-client-edit .inquire-address-input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: rgba(255, 244, 246, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+}
+
+.studio-client-edit .inquire-address-input:focus-within,
+.studio-client-edit .inquire-address-input--open {
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.16);
+}
+
+.studio-client-edit .inquire-address-input input {
+  font-size: 13px;
+}
+
+.studio-place-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.45;
+}
+
+.studio-place-row .studio-ghost {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.studio-place-row:hover .studio-ghost,
+.studio-place-row .studio-ghost:focus-visible {
+  opacity: 1;
+}
+
+/* 404: this month on the books, with the missing page held on today */
+.studio-lost {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  width: 100%;
+  text-align: center;
+  text-transform: lowercase;
+}
+
+.studio-lost-cal {
+  width: min(100%, 360px);
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 248, 249, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+}
+
+.studio-lost-cal-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: rgba(36, 34, 31, 0.52);
+  font-size: 12px;
+}
+
+.studio-lost-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-lost-cal-grid span {
+  display: grid;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 8px;
+  color: rgba(36, 34, 31, 0.36);
+}
+
+.studio-lost-cal-grid .is-weekday {
+  aspect-ratio: auto;
+  padding-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.studio-lost-cal-grid .is-lost {
+  background: #fff;
+  color: #ff4d94;
+  box-shadow: inset 0 0 0 1px #ff4d94;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.studio-lost-say {
+  display: grid;
+  gap: 8px;
+  max-width: 30rem;
+}
+
+.studio-lost-say h1 {
+  margin: 0;
+  color: #24221f;
+  font-size: clamp(26px, 4vw, 38px);
+  font-weight: 300;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.studio-lost-say p {
+  margin: 0;
+  color: rgba(36, 34, 31, 0.52);
+  font-size: 14px;
+  text-wrap: balance;
+}
+
+.studio-lost-go {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.studio-lost-pill,
+.studio-lost-ghost {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.studio-lost-pill {
+  background: #24221f;
+  color: #fff8f9;
+  transition: transform 200ms ease;
+}
+
+.studio-lost-pill:hover {
+  transform: translateY(-1px);
+}
+
+.studio-lost-ghost {
+  color: rgba(36, 34, 31, 0.52);
+  transition: color 160ms ease;
+}
+
+.studio-lost-ghost:hover {
+  color: #ff4d94;
 }

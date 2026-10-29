@@ -44,7 +44,7 @@ export function InquiryDatePicker({
   withTime = true,
   allowPast = false,
   compact = false,
-  placeholder = "Select a date",
+  placeholder = "select a date",
   onChange,
   onTimeChange,
 }: {

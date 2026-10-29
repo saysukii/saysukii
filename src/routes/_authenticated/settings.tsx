@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { StudioChip } from "@/components/portal/studio";
 import { PersonName } from "@/components/studio/PersonName";
-import { supabase } from "@/integrations/supabase/client";
 import {
   readInquiryDrafts,
   resolveInquirySteps,
@@ -32,6 +31,7 @@ import {
   listAdminSettings,
   updateOwnProfile,
 } from "@/lib/os/settings.functions";
+import { sendSignInEmail } from "@/lib/os/sign-in-email.functions";
 import { getDevPreviewSettings } from "@/lib/dev-preview";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
@@ -170,6 +170,7 @@ function SettingsPage() {
   const formTabRef = useRef(formTab);
   formTabRef.current = formTab;
   const saveName = useServerFn(updateOwnProfile);
+  const sendStudioLetter = useServerFn(sendSignInEmail);
   const fetchForms = useServerFn(getInquiryForms);
   const saveForms = useServerFn(saveInquiryForms);
 
@@ -326,12 +327,14 @@ function SettingsPage() {
       return;
     }
     setResetting(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
-      redirectTo: `${window.location.origin}/onboarding?reset=1`,
-    });
-    setResetting(false);
-    if (error) toast.error("we couldn't send the reset email.");
-    else toast.success("password reset sent.");
+    try {
+      await sendStudioLetter({ data: { email: profile.email, kind: "reset" } });
+      toast.success("password reset sent.");
+    } catch {
+      toast.error("we couldn't send the reset email.");
+    } finally {
+      setResetting(false);
+    }
   }
 
   function submitInvite(event: FormEvent<HTMLFormElement>) {

@@ -27,6 +27,7 @@ import type { VenueRow } from "@/integrations/supabase/types";
 import { getDevPreviewDirectories } from "@/lib/dev-preview";
 import { archiveVenue, importVenues, listDirectories, saveVenue } from "@/lib/os/clients.functions";
 import { csvImportNote, readVenueCsv } from "@/lib/os/directory-csv";
+import { withoutCountry } from "@/lib/place-text";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { useDirectorySelection } from "@/lib/use-directory-selection";
 
@@ -200,7 +201,7 @@ function VenueDirectoryPage() {
       action={
         <>
           <DirectoryImport
-            hint="columns: name, address, contact name, contact email, contact phone, load in notes"
+            hint="a csv exported from notion, or columns: name, address, contact name, contact email, contact phone, load in notes, website, capacity"
             onText={onImport}
           />
           <button type="button" className="studio-today-go" onClick={() => setAdding(true)}>
@@ -232,7 +233,7 @@ function VenueDirectoryPage() {
               <>
                 <span>
                   <b>{venue.name}</b>
-                  <em>{venue.address}</em>
+                  <em>{withoutCountry(venue.address) || venue.category || "no location yet"}</em>
                 </span>
                 {venue.contact_name ? (
                   <small>

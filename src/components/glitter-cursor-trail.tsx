@@ -1,4 +1,15 @@
-import { useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
+
+/** Lets a page ask for a calm cursor while it's open; the root hides the trail. */
+export const QuietCursorContext = createContext<(quiet: boolean) => void>(() => {});
+
+export function useQuietCursor() {
+  const setQuiet = useContext(QuietCursorContext);
+  useEffect(() => {
+    setQuiet(true);
+    return () => setQuiet(false);
+  }, [setQuiet]);
+}
 
 type Particle = {
   x: number;
@@ -27,30 +38,25 @@ function pickColor() {
   return GLITTER_COLORS[Math.floor(Math.random() * GLITTER_COLORS.length)]!;
 }
 
-function drawGlitterSparkle(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  size: number,
-  rotation: number,
-  alpha: number,
-  color: string,
-  glow: boolean,
-) {
-  const r = size;
-  const curve = size * 0.28;
+const SPRITE_RADIUS = 12;
 
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-  ctx.globalAlpha = alpha;
+/** Each colour, with and without its glow, is drawn once; frames only stamp these. */
+function sparkleSprite(color: string, glow: boolean, scale: number) {
+  const pad = glow ? SPRITE_RADIUS * 1.6 : 2;
+  const half = SPRITE_RADIUS + pad;
+  const sprite = document.createElement("canvas");
+  sprite.width = sprite.height = Math.ceil(half * 2 * scale);
+  const ctx = sprite.getContext("2d");
+  if (!ctx) return sprite;
+  ctx.scale(scale, scale);
+  ctx.translate(half, half);
+  const r = SPRITE_RADIUS;
+  const curve = r * 0.28;
   ctx.fillStyle = color;
-
   if (glow) {
     ctx.shadowColor = "rgba(255, 255, 255, 0.85)";
-    ctx.shadowBlur = size * 1.4;
+    ctx.shadowBlur = r * 1.4;
   }
-
   ctx.beginPath();
   ctx.moveTo(0, -r);
   ctx.quadraticCurveTo(curve, -curve, r, 0);
@@ -59,7 +65,7 @@ function drawGlitterSparkle(
   ctx.quadraticCurveTo(-curve, -curve, 0, -r);
   ctx.closePath();
   ctx.fill();
-  ctx.restore();
+  return sprite;
 }
 
 export function GlitterCursorTrail() {
@@ -74,31 +80,36 @@ export function GlitterCursorTrail() {
 
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { desynchronized: true });
     if (!ctx) return;
 
+    const scale = Math.min(window.devicePixelRatio || 1, 2);
+    const sprites = new Map<string, HTMLCanvasElement>();
+    const spriteFor = (color: string, glow: boolean) => {
+      const key = `${color}${glow ? "*" : ""}`;
+      let sprite = sprites.get(key);
+      if (!sprite) {
+        sprite = sparkleSprite(color, glow, scale);
+        sprites.set(key, sprite);
+      }
+      return sprite;
+    };
+
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      canvas.width = Math.round(window.innerWidth * scale);
+      canvas.height = Math.round(window.innerHeight * scale);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
     };
     resize();
     window.addEventListener("resize", resize);
 
-    let lastSpawnTime = 0;
-    let pendingX = 0;
-    let pendingY = 0;
-    let hasPending = false;
-
     const spawn = (x: number, y: number, vx: number, vy: number) => {
-      const speed = Math.hypot(vx, vy);
-      const trailX = speed > 0.5 ? x - (vx / speed) * 6 : x;
-      const trailY = speed > 0.5 ? y - (vy / speed) * 6 : y;
       const scatter = 5 + Math.random() * 4;
       const maxLife = 1.1 + Math.random() * 0.5;
-
       particlesRef.current.push({
-        x: trailX + (Math.random() - 0.5) * scatter,
-        y: trailY + (Math.random() - 0.5) * scatter,
+        x: x + (Math.random() - 0.5) * scatter,
+        y: y + (Math.random() - 0.5) * scatter,
         vx: -vx * 0.04 + (Math.random() - 0.5) * 0.18,
         vy: -vy * 0.04 + (Math.random() - 0.5) * 0.18,
         life: maxLife,
@@ -108,77 +119,81 @@ export function GlitterCursorTrail() {
         rotation: Math.random() * Math.PI * 0.5,
         glow: Math.random() < 0.45,
       });
-
       if (particlesRef.current.length > 55) {
         particlesRef.current.splice(0, particlesRef.current.length - 55);
       }
     };
 
-    const onMove = (e: MouseEvent) => {
-      const last = lastPosRef.current;
-      const dx = last ? e.clientX - last.x : 0;
-      const dy = last ? e.clientY - last.y : 0;
-
-      velocityRef.current.x = velocityRef.current.x * 0.55 + dx * 0.45;
-      velocityRef.current.y = velocityRef.current.y * 0.55 + dy * 0.45;
-
-      pendingX = e.clientX;
-      pendingY = e.clientY;
-      hasPending = true;
-      lastPosRef.current = { x: e.clientX, y: e.clientY };
-    };
-
     let raf = 0;
-    let lastTime = performance.now();
+    let lastTime = 0;
+    // distance travelled since the last sparkle, so a fast flick still leaves an even trail
+    let travelled = 0;
 
     const tick = (now: number) => {
-      const dt = Math.min((now - lastTime) / 1000, 0.032);
+      const dt = lastTime ? Math.min((now - lastTime) / 1000, 0.032) : 0.016;
       lastTime = now;
-
-      if (hasPending && now - lastSpawnTime >= 42) {
-        lastSpawnTime = now;
-        spawn(pendingX, pendingY, velocityRef.current.x, velocityRef.current.y);
-        hasPending = false;
-
-        const speed = Math.hypot(velocityRef.current.x, velocityRef.current.y);
-        if (speed > 14 && Math.random() < 0.35) {
-          const lag = 0.35;
-          spawn(
-            pendingX - velocityRef.current.x * lag,
-            pendingY - velocityRef.current.y * lag,
-            velocityRef.current.x,
-            velocityRef.current.y,
-          );
-        }
-      }
-
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       particlesRef.current = particlesRef.current.filter((p) => {
         p.life -= dt;
         if (p.life <= 0) return false;
-
         p.x += p.vx;
         p.y += p.vy;
         p.vx *= 0.985;
         p.vy *= 0.985;
 
         const t = p.life / p.maxLife;
-        const alpha = Math.pow(t, 1.6) * 0.92;
-        const renderSize = p.size * (0.35 + 0.65 * t);
-
-        drawGlitterSparkle(ctx, p.x, p.y, renderSize, p.rotation, alpha, p.color, p.glow);
+        const size = p.size * (0.35 + 0.65 * t);
+        const sprite = spriteFor(p.color, p.glow);
+        const drawn = (sprite.width / scale) * (size / SPRITE_RADIUS);
+        ctx.globalAlpha = Math.pow(t, 1.6) * 0.92;
+        ctx.setTransform(scale, 0, 0, scale, p.x * scale, p.y * scale);
+        ctx.rotate(p.rotation);
+        ctx.drawImage(sprite, -drawn / 2, -drawn / 2, drawn, drawn);
         return true;
       });
 
-      raf = requestAnimationFrame(tick);
+      // nothing left to fade: rest until the pointer moves again
+      if (particlesRef.current.length) raf = requestAnimationFrame(tick);
+      else {
+        raf = 0;
+        lastTime = 0;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
     };
 
-    raf = requestAnimationFrame(tick);
-    window.addEventListener("mousemove", onMove);
+    const onMove = (e: PointerEvent) => {
+      const last = lastPosRef.current;
+      const dx = last ? e.clientX - last.x : 0;
+      const dy = last ? e.clientY - last.y : 0;
+      lastPosRef.current = { x: e.clientX, y: e.clientY };
+      velocityRef.current.x = velocityRef.current.x * 0.55 + dx * 0.45;
+      velocityRef.current.y = velocityRef.current.y * 0.55 + dy * 0.45;
+
+      const step = Math.hypot(dx, dy);
+      travelled += step;
+      // a sparkle every ~14px along the path, laid where the pointer actually went
+      const count = Math.min(3, Math.floor(travelled / 14));
+      for (let i = count; i >= 1; i -= 1) {
+        const back = step ? Math.min(1, ((i - 1) * 14) / step) : 0;
+        spawn(
+          e.clientX - dx * back,
+          e.clientY - dy * back,
+          velocityRef.current.x,
+          velocityRef.current.y,
+        );
+      }
+      if (count) travelled = travelled % 14;
+      if (!last) spawn(e.clientX, e.clientY, 0, 0);
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: true });
 
     return () => {
-      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("pointermove", onMove);
       window.removeEventListener("resize", resize);
       cancelAnimationFrame(raf);
       particlesRef.current = [];
@@ -186,6 +201,10 @@ export function GlitterCursorTrail() {
   }, []);
 
   return (
-    <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-[9999]" aria-hidden />
+    <canvas
+      ref={canvasRef}
+      className="pointer-events-none fixed inset-0 z-[9999] [will-change:transform]"
+      aria-hidden
+    />
   );
 }

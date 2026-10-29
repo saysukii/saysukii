@@ -5,7 +5,6 @@ import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-
 import { archiveTasksForClient } from "@/lib/os/tasks.functions";
 
 const projectStatus = z.enum(["pre_production", "production", "post_production", "archived"]);
-const orderStatus = z.enum(["draft", "ordered", "received"]);
 
 export const listProjects = createServerFn({ method: "GET" })
   .middleware([requireStudioAuth])
@@ -88,13 +87,7 @@ export const getProject = createServerFn({ method: "GET" })
     if (!projectResult.data) throw new Error("Project not found");
     const project = projectResult.data;
 
-    const [arrangements, order, files, venue] = await Promise.all([
-      context.supabase
-        .from("project_arrangements")
-        .select("*")
-        .eq("project_id", data.id)
-        .order("created_at"),
-      context.supabase.from("orders").select("*").eq("project_id", data.id).maybeSingle(),
+    const [files, venue] = await Promise.all([
       context.supabase
         .from("files")
         .select("*")
@@ -109,50 +102,8 @@ export const getProject = createServerFn({ method: "GET" })
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
     ]);
-    for (const result of [arrangements, order, files, venue]) {
+    for (const result of [files, venue]) {
       if (result.error) throw new Error(result.error.message);
-    }
-
-    const orderItems = order.data
-      ? await context.supabase
-          .from("order_items")
-          .select("*")
-          .eq("order_id", order.data.id)
-          .order("created_at")
-      : { data: [], error: null };
-    if (orderItems.error) throw new Error(orderItems.error.message);
-
-    const stemIds = [
-      ...new Set((orderItems.data ?? []).flatMap((item) => (item.stem_id ? [item.stem_id] : []))),
-    ];
-    const stemResult =
-      stemIds.length > 0
-        ? await context.supabase
-            .from("stems")
-            .select("id, common_name, variety, color, unit, vendor_id")
-            .in("id", stemIds)
-        : { data: [], error: null };
-    if (stemResult.error) throw new Error(stemResult.error.message);
-    const stemById = new Map((stemResult.data ?? []).map((stem) => [stem.id, stem]));
-
-    let vendorById = new Map<
-      string,
-      { id: string; name: string; type: string; ordering_method: string | null }
-    >();
-    if (context.profile.role === "admin") {
-      const vendorIds = [
-        ...new Set(
-          (orderItems.data ?? []).flatMap((item) => (item.vendor_id ? [item.vendor_id] : [])),
-        ),
-      ];
-      if (vendorIds.length > 0) {
-        const vendors = await context.supabase
-          .from("vendors")
-          .select("id, name, type, ordering_method")
-          .in("id", vendorIds);
-        if (vendors.error) throw new Error(vendors.error.message);
-        vendorById = new Map((vendors.data ?? []).map((vendor) => [vendor.id, vendor]));
-      }
     }
 
     const projectFiles = await Promise.all(
@@ -253,20 +204,7 @@ export const getProject = createServerFn({ method: "GET" })
       role: context.profile.role,
       project: safeProject,
       venue: venue.data,
-      arrangements: arrangements.data ?? [],
       files: projectFiles,
-      order: order.data,
-      order_items: (orderItems.data ?? []).map((item) => {
-        const stem = item.stem_id ? (stemById.get(item.stem_id) ?? null) : null;
-        return {
-          ...item,
-          stem,
-          vendor:
-            context.profile.role === "admin" && item.vendor_id
-              ? (vendorById.get(item.vendor_id) ?? null)
-              : null,
-        };
-      }),
       admin: adminContext,
     };
   });
@@ -306,34 +244,4 @@ export const updateProject = createServerFn({ method: "POST" })
       await archiveTasksForClient(context.supabase, row.client_id);
     }
     return row;
-  });
-
-export const setOrderStatus = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .validator((input: unknown) =>
-    z.object({ id: z.string().uuid(), status: orderStatus }).parse(input),
-  )
-  .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.supabase
-      .from("orders")
-      .update({ status: data.status })
-      .eq("id", data.id)
-      .select("*")
-      .single();
-    if (error) throw new Error(error.message);
-    return row;
-  });
-
-export const setOrderItemReceived = createServerFn({ method: "POST" })
-  .middleware([requireStudioAuth])
-  .validator((input: unknown) =>
-    z.object({ id: z.string().uuid(), received: z.boolean() }).parse(input),
-  )
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.rpc("set_order_item_received", {
-      p_order_item_id: data.id,
-      p_received: data.received,
-    });
-    if (error) throw new Error(error.message);
-    return { ok: true };
   });

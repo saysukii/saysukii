@@ -3,7 +3,7 @@ import { type ReactNode } from "react";
 import { PersonName } from "@/components/studio/PersonName";
 import { clientReplyText, mailPieces } from "@/lib/os/mail-reply";
 import type { InquiryMessageRow } from "@/integrations/supabase/types";
-import { proposalLink } from "@/lib/proposal-link";
+import { proposalOrigin } from "@/lib/proposal-link";
 import { formatDateNumeric } from "@/lib/money";
 import { initials } from "@/lib/os/inquiry-desk";
 
@@ -341,9 +341,14 @@ export function mailParty(message: InquiryMessageRow, clientName: string | null 
   };
 }
 
-export function proposalOpenHref(token: string, href: string, clientName?: string | null) {
+/** Opens a proposal from a letter on the studio's address (or this machine while developing). */
+export function proposalOpenHref(href: string) {
   if (typeof window === "undefined") return href;
-  return proposalLink(window.location.origin, token, clientName);
+  try {
+    return `${proposalOrigin()}${new URL(href).pathname}`;
+  } catch {
+    return href;
+  }
 }
 
 export const INVOICE_STATUS: Record<string, string> = {

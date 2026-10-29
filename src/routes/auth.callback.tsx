@@ -63,6 +63,11 @@ function AuthCallbackPage() {
         if (cancelled) return;
 
         window.history.replaceState({}, "", "/auth/callback");
+        // a password reset goes on to choosing the new password
+        if (type === "recovery") {
+          await router.navigate({ to: "/onboarding", search: { reset: true } });
+          return;
+        }
         setMessage("Opening the studio…");
         markLoginBloom();
         await router.navigate({ to: "/dashboard" });

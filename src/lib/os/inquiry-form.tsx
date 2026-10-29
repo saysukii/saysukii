@@ -204,7 +204,7 @@ export function InquiryForm({
               withTime={false}
               value={eventDate}
               disabled={disabled || dateTbd}
-              placeholder="Select a date"
+              placeholder="select a date"
               onChange={(next) => {
                 setEventDate(next);
                 setDateTbd(false);
@@ -243,7 +243,7 @@ export function InquiryForm({
             <StudioDrawerSelect
               label="Budget range"
               value={budgetRange}
-              placeholder="Select a range"
+              placeholder="select a range"
               options={BUDGET_RANGES}
               disabled={disabled}
               onChange={(next) => {

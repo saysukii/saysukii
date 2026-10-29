@@ -180,7 +180,7 @@ export function ViewedReceipt({
   viewedAtByToken: Record<string, string>;
 }) {
   const viewed = proposalCards(text)
-    .cards.map((card) => viewedAtByToken[card.token])
+    .cards.map((card) => viewedAtByToken[card.key])
     .filter((value): value is string => Boolean(value))
     .sort()
     .at(-1);
@@ -272,7 +272,7 @@ export function MailFace({
                         <MailFile
                           key={card.href}
                           name="proposal.pdf"
-                          href={proposalOpenHref(card.token, card.href, clientName)}
+                          href={proposalOpenHref(card.href)}
                         />
                       ))}
                     </div>

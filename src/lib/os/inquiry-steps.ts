@@ -65,7 +65,7 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
       kind: "text",
       field: "name",
       label: "What’s your name?",
-      placeholder: "Type your full name",
+      placeholder: "type your full name",
       required: true,
     },
     {
@@ -167,7 +167,7 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
         kind: "textarea",
         field: "message",
         label: "Tell us about the vision.",
-        placeholder: "Mood, flowers, scale — or a link to references.",
+        placeholder: "mood, flowers, scale — or a link to references.",
         required: true,
         hint: visionHint,
       },
@@ -200,7 +200,7 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
         kind: "textarea",
         field: "message",
         label: "please share a little about the vision",
-        placeholder: "A feeling, a few varieties, or a link.",
+        placeholder: "a feeling, a few varieties, or a link.",
         required: true,
         hint: visionHint,
       },
@@ -240,7 +240,7 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
         kind: "text",
         field: "recipient",
         label: "what is the recipient's name?",
-        placeholder: "Recipient name",
+        placeholder: "recipient name",
         required: true,
       },
       {
@@ -325,7 +325,7 @@ export function buildInquirySteps(interest: InquiryFormValues["interest"]): Inqu
         kind: "textarea",
         field: "message",
         label: "please Tell us about the vision.",
-        placeholder: "A feeling, a few varieties, or a link.",
+        placeholder: "a feeling, a few varieties, or a link.",
         required: true,
         hint: visionHint,
       },
@@ -360,7 +360,7 @@ export const FALLBACK_INQUIRY_STEP: InquiryStep = {
   kind: "text",
   field: "name",
   label: "What’s your name?",
-  placeholder: "Type your full name",
+  placeholder: "type your full name",
   required: true,
 };
 

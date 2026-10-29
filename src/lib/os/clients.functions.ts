@@ -24,7 +24,10 @@ const clientInput = z.object({
 const venueInput = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(200),
-  address: z.string().trim().min(1).max(500),
+  address: z.string().trim().max(500),
+  category: nullableText(120),
+  website: nullableText(500),
+  capacity: nullableText(60),
   contact_name: nullableText(160),
   contact_email: z.string().trim().email().max(320).nullable().optional().or(z.literal("")),
   contact_phone: nullableText(50),
@@ -39,6 +42,7 @@ const vendorInput = z.object({
   contact_email: z.string().trim().email().max(320).nullable().optional().or(z.literal("")),
   contact_phone: nullableText(50),
   ordering_method: nullableText(5000),
+  address: nullableText(500),
 });
 
 const archiveInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(1000) });
@@ -177,6 +181,20 @@ export const saveClient = createServerFn({ method: "POST" })
     return row;
   });
 
+export const setClientAddress = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) =>
+    z.object({ id: z.string().uuid(), address: z.string().trim().max(500) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("clients")
+      .update({ address: optional(data.address) })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
 const importClientInput = z
   .array(
     z.object({
@@ -187,6 +205,7 @@ const importClientInput = z
       type: clientType,
       source: nullableText(160),
       notes: nullableText(5000),
+      address: nullableText(500),
     }),
   )
   .max(500);
@@ -195,11 +214,14 @@ const importVenueInput = z
   .array(
     z.object({
       name: z.string().trim().min(1).max(200),
-      address: z.string().trim().min(1).max(500),
+      address: z.string().trim().max(500),
       contact_name: nullableText(160),
       contact_email: z.string().trim().email().max(320).nullable().optional().or(z.literal("")),
       contact_phone: nullableText(50),
       load_in_notes: nullableText(5000),
+      category: nullableText(120),
+      website: nullableText(500),
+      capacity: nullableText(60),
     }),
   )
   .max(500);
@@ -213,6 +235,7 @@ const importVendorInput = z
       contact_email: z.string().trim().email().max(320).nullable().optional().or(z.literal("")),
       contact_phone: nullableText(50),
       ordering_method: nullableText(5000),
+      address: nullableText(500),
     }),
   )
   .max(500);
@@ -244,6 +267,7 @@ export const importClients = createServerFn({ method: "POST" })
         type: row.type,
         source: optional(row.source) ?? "csv",
         notes: optional(row.notes),
+        address: optional(row.address),
       })),
     );
     if (error) throw new Error(error.message);
@@ -285,6 +309,9 @@ export const saveVenue = createServerFn({ method: "POST" })
       contact_email: optional(data.contact_email),
       contact_phone: optional(data.contact_phone),
       load_in_notes: optional(data.load_in_notes),
+      ...(data.category !== undefined ? { category: optional(data.category) } : {}),
+      ...(data.website !== undefined ? { website: optional(data.website) } : {}),
+      ...(data.capacity !== undefined ? { capacity: optional(data.capacity) } : {}),
     };
     const query = data.id
       ? context.supabase.from("venues").update(payload).eq("id", data.id).select("*").single()
@@ -317,6 +344,7 @@ export const saveVendor = createServerFn({ method: "POST" })
       contact_email: optional(data.contact_email),
       contact_phone: optional(data.contact_phone),
       ordering_method: optional(data.ordering_method),
+      ...(data.address !== undefined ? { address: optional(data.address) } : {}),
     };
     const query = data.id
       ? context.supabase.from("vendors").update(payload).eq("id", data.id).select("*").single()
@@ -363,6 +391,9 @@ export const importVenues = createServerFn({ method: "POST" })
         contact_email: optional(row.contact_email),
         contact_phone: optional(row.contact_phone),
         load_in_notes: optional(row.load_in_notes),
+        category: optional(row.category),
+        website: optional(row.website),
+        capacity: optional(row.capacity),
       })),
     );
     if (error) throw new Error(error.message);
@@ -394,6 +425,7 @@ export const importVendors = createServerFn({ method: "POST" })
         contact_email: optional(row.contact_email),
         contact_phone: optional(row.contact_phone),
         ordering_method: optional(row.ordering_method),
+        address: optional(row.address),
       })),
     );
     if (error) throw new Error(error.message);

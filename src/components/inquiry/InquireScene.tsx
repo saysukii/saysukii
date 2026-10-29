@@ -80,6 +80,7 @@ export function InquireScene({
         "auth-scene auth-scene--pearl auth-scene--login",
         `inquire-scene--${tone}`,
         scroll && "auth-scene--scroll",
+        !scroll && tone !== "pearl" && "is-following",
       )}
     >
       <div className="auth-scene-wash" aria-hidden="true">

@@ -1,11 +1,13 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, Eye, EyeOff, Sparkles } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Wordmark } from "@/components/portal/bits";
 import { markLoginBloom } from "@/components/portal/StudioLoader";
+import { sendSignInEmail } from "@/lib/os/sign-in-email.functions";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -34,6 +36,7 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sendStudioLetter = useServerFn(sendSignInEmail);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -82,12 +85,7 @@ function AuthPage() {
     if (!email.trim()) return;
     setBusy(true);
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
-      });
-      if (error) throw error;
+      await sendStudioLetter({ data: { email: email.trim(), kind: "link" } });
       toast.success("Your studio link is on its way.");
     } catch {
       toast.error("We couldn't send that link. Check the email and try again.");
@@ -101,14 +99,12 @@ function AuthPage() {
       toast("Enter your email first.");
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/onboarding?reset=1`,
-    });
-    if (error) {
+    try {
+      await sendStudioLetter({ data: { email: email.trim(), kind: "reset" } });
+      toast.success("Password reset sent.");
+    } catch {
       toast.error("We couldn't send the reset email.");
-      return;
     }
-    toast.success("Password reset sent.");
   }
 
   return (

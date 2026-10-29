@@ -13,7 +13,7 @@ export type DrawerSelectOption<T extends string = string> = {
 export function StudioDrawerSelect<T extends string>({
   label,
   value,
-  placeholder = "Select",
+  placeholder = "select",
   options,
   disabled = false,
   onChange,

@@ -1320,7 +1320,7 @@ export function AddInquiry({
     >
       <DialogContent
         overlayClassName="studio-task-veil"
-        className="studio-task-modal is-ask"
+        className="studio-task-modal is-ask is-inquiry"
         hideClose
       >
         <div className="studio-task-head">

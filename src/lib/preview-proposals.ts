@@ -1,5 +1,6 @@
 import { buildAgreementContent } from "@/lib/agreement-templates";
 import type { StatementOfWork } from "@/lib/floral-agreement";
+import { proposalSlug } from "@/lib/proposal-link";
 
 export type PreviewProposal = {
   token: string;
@@ -67,6 +68,14 @@ function readNotes(): ChangeNote[] {
 
 export function previewProposalForInquiry(inquiryId: string) {
   return Object.values(readMap()).find((item) => item.inquiryId === inquiryId) ?? null;
+}
+
+/** A preview link carries the client's name, like the real ones; this finds the proposal it means. */
+export function previewTokenFor(key: string) {
+  if (key.startsWith("preview_")) return key;
+  const found = Object.values(readMap()).find((item) => proposalSlug(item.clientName) === key);
+  if (found) return found.token;
+  return key === proposalSlug(fentyDemo().clientName) ? FENTY_DEMO : null;
 }
 
 export function readPreviewProposal(token: string) {

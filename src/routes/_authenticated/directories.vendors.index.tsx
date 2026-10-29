@@ -219,7 +219,7 @@ function VendorDirectoryPage() {
       action={
         <>
           <DirectoryImport
-            hint="columns: name, type, contact name, contact email, contact phone, ordering method"
+            hint="a csv exported from notion, or columns: name, type, contact name, contact email, contact phone, ordering method, location"
             onText={onImport}
           />
           <button type="button" className="studio-today-go" onClick={() => setAdding(true)}>
@@ -252,6 +252,7 @@ function VendorDirectoryPage() {
                   <b>{vendor.name}</b>
                   <em>
                     {vendor.ordering_method ||
+                      vendor.address?.split(",")[0] ||
                       vendor.contact_email ||
                       (vendor.contact_name ? (
                         <PersonName name={vendor.contact_name} />

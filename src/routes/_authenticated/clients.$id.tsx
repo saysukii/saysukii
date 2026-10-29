@@ -5,9 +5,12 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import type { ClientType } from "@/integrations/supabase/types";
+import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
 import { shownName, isPersonType } from "@/components/studio/PersonName";
+import { PlaceLink } from "@/components/studio/PlaceLink";
+import { EditablePlace, RecordEmail } from "@/components/portal/DirectoryRecord";
 import { formatDate } from "@/lib/money";
-import { archiveClient, getClient, saveClient } from "@/lib/os/clients.functions";
+import { archiveClient, getClient, saveClient, setClientAddress } from "@/lib/os/clients.functions";
 import { getDevPreviewClient, getDevPreviewInquiryWorkspace } from "@/lib/dev-preview";
 import { getInquiryWorkspace } from "@/lib/os/inquiries.functions";
 import {
@@ -99,6 +102,26 @@ function ClientDetailPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const storeAddress = useServerFn(setClientAddress);
+  const savedAddress = data?.client && "address" in data.client ? (data.client.address ?? "") : "";
+  const keepAddress = useMutation({
+    mutationFn: async (next: string) => {
+      if (devPreview) {
+        toast.message("preview mode — address not saved");
+        return;
+      }
+      const id = data?.client?.id;
+      if (!id) throw new Error("this client could not be opened.");
+      await storeAddress({ data: { id, address: next } });
+    },
+    onSuccess: async () => {
+      if (devPreview) return;
+      toast.success("address saved");
+      await queryClient.invalidateQueries({ queryKey: ["os", "client"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const archive = useMutation({
     mutationFn: () => {
       if (devPreview) {
@@ -177,7 +200,7 @@ function ClientDetailPage() {
               </Link>
             ) : null}
           </div>
-          <p className="studio-ledger-kind">{client.type.replaceAll("_", " ")}</p>
+          <p className="studio-ledger-kind is-category">{client.type.replaceAll("_", " ")}</p>
         </header>
 
         {line ? <p className="studio-ledger-line">{line}</p> : null}
@@ -321,8 +344,14 @@ function ClientDetailPage() {
 
           <aside className="studio-ledger-rail">
             <p className="studio-home-label">contact</p>
-            <p>{client.email}</p>
+            <RecordEmail email={client.email} />
             {phone ? <p>{phone}</p> : null}
+            <EditablePlace
+              value={savedAddress}
+              label="address"
+              placeholder="add an address"
+              onSave={(next) => keepAddress.mutate(next)}
+            />
             {organization ? (
               <>
                 <p className="studio-home-label">organization</p>

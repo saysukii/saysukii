@@ -13,7 +13,13 @@ import type {
 } from "@/integrations/supabase/types";
 import { buildAgreementContent } from "@/lib/agreement-templates";
 import { invoiceTitle } from "@/lib/invoice-title";
-import { proposalLink } from "@/lib/proposal-link";
+import {
+  freeProposalSlug,
+  isProposalSlug,
+  PROPOSAL_ORIGIN,
+  proposalLink,
+  proposalSlug,
+} from "@/lib/proposal-link";
 import {
   courtesyFromNotes,
   floralPackageName,
@@ -33,7 +39,6 @@ import { sendStudioNotice, studioNotificationEmail } from "@/lib/os/email.server
 import { refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
 
 const lineItemInput = z.object({
-  arrangement_id: z.string().uuid().nullable().optional(),
   kind: z.enum(["arrangement", "labor", "delivery", "install", "breakdown", "custom"]),
   label: z.string().trim().min(1).max(200),
   description: z.string().trim().max(800).nullable().optional(),
@@ -67,32 +72,6 @@ export const listProposals = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data ?? [];
-  });
-
-export const proposalBuilderData = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async ({ context }) => {
-    const [clients, inquiries, arrangements, venues] = await Promise.all([
-      context.supabase.from("clients").select("*").eq("archived", false).order("name"),
-      context.supabase
-        .from("inquiries")
-        .select("*, clients(name, email)")
-        .eq("archived", false)
-        .in("status", ["new", "contacted", "in_conversation"])
-        .in("detection_status", BOOK_DETECTION_STATUSES)
-        .order("received_at"),
-      context.supabase.from("arrangements").select("*").eq("active", true).order("name"),
-      context.supabase.from("venues").select("*").eq("archived", false).order("name"),
-    ]);
-    for (const result of [clients, inquiries, arrangements, venues]) {
-      if (result.error) throw new Error(result.error.message);
-    }
-    return {
-      clients: clients.data ?? [],
-      inquiries: inquiries.data ?? [],
-      arrangements: arrangements.data ?? [],
-      venues: venues.data ?? [],
-    };
   });
 
 export const getProposal = createServerFn({ method: "GET" })
@@ -181,7 +160,6 @@ export const saveProposal = createServerFn({ method: "POST" })
 
     const rows = data.line_items.map((item, index) => ({
       proposal_id: proposalId,
-      arrangement_id: item.arrangement_id ?? null,
       kind: item.kind,
       label: item.label,
       description: item.description || null,
@@ -242,7 +220,7 @@ export const importProposalPdf = createServerFn({ method: "POST" })
 
     const existing = await context.supabase
       .from("proposals")
-      .select("id, number, status, access_token, pdf_path, notes")
+      .select("id, number, status, access_token, slug, pdf_path, notes")
       .eq("inquiry_id", inquiry.id)
       .eq("archived", false)
       .maybeSingle();
@@ -322,6 +300,13 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
 
+    const { data: owner } = await supabaseAdmin
+      .from("clients")
+      .select("name")
+      .eq("id", inquiry.client_id)
+      .maybeSingle();
+    const slug = await ensureProposalSlug(proposalId, owner?.name ?? "", existing.data?.slug);
+
     const pdfPath =
       pdfBytes || copyFrom
         ? `${proposalId}/proposal-${number}.pdf`
@@ -379,6 +364,8 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       id: proposalId,
       number,
       token: tokenValue,
+      slug,
+      url: proposalLink(publicOrigin(), slug),
       total_cents: data.total_cents,
       deposit_amount_cents: deposit,
       invoice_number: invoiceNumber,
@@ -389,44 +376,95 @@ export const importProposalPdf = createServerFn({ method: "POST" })
 export const sendProposal = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => shareBundle(await loadProposalBundleById(data.id)));
+
+/** Copying the link counts as sending it, so the client can approve or ask for changes. */
+export const shareProposal = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) => z.object({ inquiry_id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
-    const bundle = await loadProposalBundleById(data.id);
-    if (!bundle.proposal.pdf_path) throw new Error("Import the proposal PDF before sending.");
-    if (!["draft", "sent", "viewed"].includes(bundle.proposal.status)) {
-      throw new Error("This proposal can no longer be sent.");
-    }
+    const { data: row, error } = await supabaseAdmin
+      .from("proposals")
+      .select("id")
+      .eq("inquiry_id", data.inquiry_id)
+      .eq("archived", false)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) throw new Error("Import the proposal PDF before sharing.");
+    return shareBundle(await loadProposalBundleById(row.id));
+  });
 
-    let tokenValue = bundle.proposal.access_token;
-    if (!tokenValue) {
-      const created = createPublicToken();
-      tokenValue = created.token;
-      const { error } = await supabaseAdmin
-        .from("proposals")
-        .update({
-          access_token: tokenValue,
-          access_token_hash: created.hash,
-          access_token_prefix: created.prefix,
-        })
-        .eq("id", bundle.proposal.id);
-      if (error) throw new Error(error.message);
-    }
+async function shareBundle(bundle: ProposalBundle) {
+  if (!bundle.proposal.pdf_path) throw new Error("Import the proposal PDF before sending.");
+  if (!["draft", "sent", "viewed"].includes(bundle.proposal.status)) {
+    throw new Error("This proposal can no longer be sent.");
+  }
 
-    if (bundle.proposal.status === "draft") {
-      const sentAt = new Date().toISOString();
-      const { error } = await supabaseAdmin
-        .from("proposals")
-        .update({ status: "sent", sent_at: sentAt })
-        .eq("id", bundle.proposal.id);
-      if (error) throw new Error(error.message);
-      await supabaseAdmin
-        .from("inquiries")
-        .update({ status: "proposal_sent", proposal_sent_at: sentAt })
-        .eq("id", bundle.proposal.inquiry_id);
-      await syncInquiryAutoTaskFor(supabaseAdmin, bundle.proposal.inquiry_id);
-      await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
-    }
+  let tokenValue = bundle.proposal.access_token;
+  if (!tokenValue) {
+    const created = createPublicToken();
+    tokenValue = created.token;
+    const { error } = await supabaseAdmin
+      .from("proposals")
+      .update({
+        access_token: tokenValue,
+        access_token_hash: created.hash,
+        access_token_prefix: created.prefix,
+      })
+      .eq("id", bundle.proposal.id);
+    if (error) throw new Error(error.message);
+  }
 
-    return { url: proposalLink(appUrl(), tokenValue, bundle.client.name) };
+  if (bundle.proposal.status === "draft") {
+    const sentAt = new Date().toISOString();
+    const { error } = await supabaseAdmin
+      .from("proposals")
+      .update({ status: "sent", sent_at: sentAt })
+      .eq("id", bundle.proposal.id);
+    if (error) throw new Error(error.message);
+    await supabaseAdmin
+      .from("inquiries")
+      .update({ status: "proposal_sent", proposal_sent_at: sentAt })
+      .eq("id", bundle.proposal.inquiry_id);
+    await syncInquiryAutoTaskFor(supabaseAdmin, bundle.proposal.inquiry_id);
+    await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
+  }
+
+  const slug = await ensureProposalSlug(
+    bundle.proposal.id,
+    bundle.client.name,
+    bundle.proposal.slug,
+  );
+  return { url: proposalLink(publicOrigin(), slug) };
+}
+
+/** inside.saysukii.com/maya-chen → the proposal it opens. */
+export const findProposalBySlug = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.object({ slug: z.string().trim().min(1).max(120) }).parse(input))
+  .handler(async ({ data }) => {
+    if (!isProposalSlug(data.slug)) return { token: null };
+    const { data: row, error } = await supabaseAdmin
+      .from("proposals")
+      .select("access_token")
+      .eq("slug", data.slug)
+      .eq("archived", false)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return { token: row?.access_token ?? null };
+  });
+
+/** An older /proposal/<token> link → the client's name, so it can move to the new address. */
+export const findProposalSlug = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.object({ token: z.string().min(32) }).parse(input))
+  .handler(async ({ data }) => {
+    const bundle = await loadProposalBundleByToken(data.token).catch(() => null);
+    if (!bundle) return { slug: null };
+    const slug = await ensureProposalSlug(
+      bundle.proposal.id,
+      bundle.client.name,
+      bundle.proposal.slug,
+    );
+    return { slug };
   });
 
 export const getPublicProposal = createServerFn({ method: "GET" })
@@ -962,4 +1000,35 @@ async function uploadDocument(path: string, bytes: Uint8Array) {
 
 function appUrl() {
   return (process.env["APP_URL"] ?? "http://localhost:8080").replace(/\/$/, "");
+}
+
+/** Proposal links always go out on inside.saysukii.com, except while developing locally. */
+function publicOrigin() {
+  return import.meta.env.DEV ? appUrl() : PROPOSAL_ORIGIN;
+}
+
+/** Gives a proposal its name address the first time it's shared, and keeps it after that. */
+async function ensureProposalSlug(
+  proposalId: string,
+  clientName: string,
+  current?: string | null,
+): Promise<string> {
+  if (current) return current;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data: rows, error } = await supabaseAdmin
+      .from("proposals")
+      .select("slug")
+      .like("slug", `${proposalSlug(clientName)}%`);
+    if (error) throw new Error(error.message);
+    const taken = new Set((rows ?? []).map((row) => row.slug));
+    const slug = freeProposalSlug(clientName, (candidate) => taken.has(candidate));
+    const { error: saveError } = await supabaseAdmin
+      .from("proposals")
+      .update({ slug })
+      .eq("id", proposalId);
+    if (!saveError) return slug;
+    // someone took the same name a moment ago; look again
+    if (!/duplicate|unique/i.test(saveError.message)) throw new Error(saveError.message);
+  }
+  throw new Error("Could not give this proposal its link.");
 }

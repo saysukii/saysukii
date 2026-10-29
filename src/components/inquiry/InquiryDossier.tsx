@@ -118,7 +118,7 @@ export function InquiryDossier({
               {item.kind === "textarea" ? (
                 <textarea
                   value={values.message}
-                  placeholder="Write in the margin…"
+                  placeholder="write in the margin…"
                   disabled={disabled}
                   rows={active ? 4 : 2}
                   onFocus={() => setStepId(item.id)}
@@ -133,7 +133,7 @@ export function InquiryDossier({
                     withTime={false}
                     value={values.event_date}
                     disabled={disabled || values.event_date_tbd}
-                    placeholder="Select a date"
+                    placeholder="select a date"
                     onChange={(next) => {
                       setStepId(item.id);
                       change("event_date", next);

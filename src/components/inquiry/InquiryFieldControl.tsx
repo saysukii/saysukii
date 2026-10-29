@@ -85,7 +85,7 @@ export function InquiryFieldControl({
       <FloridaAddressPicker
         value={values.venue_text}
         disabled={Boolean(disabled)}
-        placeholder={step.placeholder ?? "Search a Florida address"}
+        placeholder={step.placeholder ?? "search a florida address"}
         onChange={(next) => onChange("venue_text", next)}
       />
     );

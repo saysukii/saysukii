@@ -112,7 +112,7 @@ export function InquiryAtelier({
             className="wall-line"
             type={step.kind === "email" ? "email" : step.kind === "tel" ? "tel" : "text"}
             value={String(values[step.field] ?? "")}
-            placeholder="Write on the wall"
+            placeholder="write on the wall"
             disabled={disabled}
             autoFocus
             onChange={(event) => change(step.field, event.target.value)}
@@ -123,7 +123,7 @@ export function InquiryAtelier({
           <textarea
             className="wall-line wall-line--long"
             value={values.message}
-            placeholder="Write on the wall"
+            placeholder="write on the wall"
             disabled={disabled}
             rows={4}
             onChange={(event) => change("message", event.target.value)}
@@ -137,7 +137,7 @@ export function InquiryAtelier({
               withTime={false}
               value={values.event_date}
               disabled={disabled || values.event_date_tbd}
-              placeholder="Select a date"
+              placeholder="select a date"
               onChange={(next) => {
                 change("event_date", next);
                 change("event_date_tbd", false);

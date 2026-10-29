@@ -213,7 +213,7 @@ export function InquiryThread({
                 withTime={false}
                 value={values.event_date}
                 disabled={disabled || values.event_date_tbd}
-                placeholder="Select a date"
+                placeholder="select a date"
                 onChange={(next) => {
                   change("event_date", next);
                   change("event_date_tbd", false);
@@ -238,7 +238,7 @@ export function InquiryThread({
                 <textarea
                   rows={1}
                   value={draft}
-                  placeholder="iMessage"
+                  placeholder="imessage"
                   disabled={disabled}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={onComposerKey}
@@ -247,7 +247,7 @@ export function InquiryThread({
                 <input
                   type={step.kind === "email" ? "email" : step.kind === "tel" ? "tel" : "text"}
                   value={draft}
-                  placeholder="iMessage"
+                  placeholder="imessage"
                   disabled={disabled}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={onComposerKey}

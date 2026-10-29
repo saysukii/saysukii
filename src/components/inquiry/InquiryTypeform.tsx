@@ -66,7 +66,7 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
       kind: "text",
       field: "name",
       label: "What’s your name?",
-      placeholder: "Type your full name",
+      placeholder: "type your full name",
       required: true,
     },
     {
@@ -121,7 +121,7 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
     kind: "address",
     field: "venue_text",
     label: "Where will it take place?",
-    placeholder: "Search Florida venues and addresses",
+    placeholder: "search florida venues and addresses",
     required: false,
     optional: true,
   };
@@ -131,7 +131,7 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
     kind: "textarea",
     field: "message",
     label: "Tell us about the vision.",
-    placeholder: "Mood, flowers, scale — or a link to references.",
+    placeholder: "mood, flowers, scale — or a link to references.",
     required: true,
   };
 
@@ -210,7 +210,7 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
         kind: "address",
         field: "venue_text",
         label: "Where should we deliver?",
-        placeholder: "Search a Florida address",
+        placeholder: "search a florida address",
         required: true,
         hint: "Delivery is +$25–$40 in Miami-Dade and Broward.",
       },
@@ -219,7 +219,7 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
         kind: "text",
         field: "recipient",
         label: "Who is it for?",
-        placeholder: "Recipient name",
+        placeholder: "recipient name",
         required: true,
       },
       {
@@ -227,7 +227,7 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
         kind: "textarea",
         field: "message",
         label: "Any notes for the arrangement?",
-        placeholder: "Occasion, colors, flowers, or a short card message.",
+        placeholder: "occasion, colors, flowers, or a short card message.",
         required: true,
       },
       ...sourceAndReview,
@@ -243,14 +243,14 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
         kind: "address",
         field: "venue_text",
         label: "Where should we deliver?",
-        placeholder: "Search a Florida address",
+        placeholder: "search a florida address",
         required: false,
         optional: true,
       },
       {
         ...vision,
         label: "What are you hoping for?",
-        placeholder: "Cadence, colors, vibe — whatever helps.",
+        placeholder: "cadence, colors, vibe — whatever helps.",
       },
       ...sourceAndReview,
     ];
@@ -282,7 +282,7 @@ const FALLBACK_STEP: Step = {
   kind: "text",
   field: "name",
   label: "What’s your name?",
-  placeholder: "Type your full name",
+  placeholder: "type your full name",
   required: true,
 };
 

@@ -1,40 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
-  Link,
   createRootRouteWithContext,
   useRouter,
   useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
-import { GlitterCursorTrail } from "@/components/glitter-cursor-trail";
+import { GlitterCursorTrail, QuietCursorContext } from "@/components/glitter-cursor-trail";
+import { NotOnTheBooks } from "@/components/studio/NotOnTheBooks";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
-
-function NotFoundComponent() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow-[0_14px_34px_rgba(75,61,66,0.14)] transition-transform hover:-translate-y-0.5"
-          >
-            Go home
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
@@ -118,7 +96,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   }),
   shellComponent: RootShell,
   component: RootComponent,
-  notFoundComponent: NotFoundComponent,
+  notFoundComponent: NotOnTheBooks,
   errorComponent: ErrorComponent,
 });
 
@@ -144,13 +122,20 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const showGlitter = pathname !== "/auth" && !pathname.startsWith("/auth/");
+  // a page like the 404 can ask for a calm cursor while it's open
+  const [quietPage, setQuietPage] = useState(false);
+  // sign-in and the public inquiry form stay calm, without the trail
+  const showGlitter =
+    !quietPage &&
+    !["/auth", "/inquire"].some((quiet) => pathname === quiet || pathname.startsWith(`${quiet}/`));
 
   return (
     <QueryClientProvider client={queryClient}>
       {showGlitter ? <GlitterCursorTrail /> : null}
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <QuietCursorContext.Provider value={setQuietPage}>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </QuietCursorContext.Provider>
       <Toaster />
     </QueryClientProvider>
   );

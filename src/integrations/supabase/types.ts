@@ -12,9 +12,6 @@ export type EventType =
   | "subscription"
   | "other";
 export type ClientType = "individual" | "brand" | "corporate" | "venue_partner";
-export type ArrangementType =
-  "installation" | "arrangement" | "reception" | "bridal" | "delivery" | "other";
-export type StemUnit = "stem" | "bunch" | "plant";
 export type ProposalStatus = "draft" | "sent" | "shared" | "viewed" | "accepted" | "declined";
 export type StudioIntegrationStatus = "connected" | "disconnected" | "error";
 export type MeetingMatchStatus = "matched" | "needs_confirm" | "unmatched";
@@ -23,7 +20,6 @@ export const SAY_SUKII_STUDIO_ID = "00000000-0000-4000-8000-000000000010";
 export type ProposalItemKind =
   "arrangement" | "labor" | "delivery" | "install" | "breakdown" | "custom";
 export type ProjectStatus = "pre_production" | "production" | "post_production" | "archived";
-export type OrderStatus = "draft" | "ordered" | "received";
 export type InvoiceStatus = "unpaid" | "paid" | "void";
 export type PaymentStatus = "pending" | "completed" | "failed" | "refunded";
 export type TaskLinkedType = "inquiry" | "project" | "none";
@@ -75,6 +71,7 @@ export type ClientRow = {
   type: ClientType;
   source: string | null;
   notes: string | null;
+  address?: string | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -88,6 +85,9 @@ export type VenueRow = {
   contact_email: string | null;
   contact_phone: string | null;
   load_in_notes: string | null;
+  category?: string | null;
+  website?: string | null;
+  capacity?: string | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -101,6 +101,7 @@ export type VendorRow = {
   contact_email: string | null;
   contact_phone: string | null;
   ordering_method: string | null;
+  address?: string | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -137,51 +138,6 @@ export type InquiryRow = {
   summary_generated_at: string | null;
 };
 
-export type ArrangementRow = {
-  id: string;
-  name: string;
-  type: ArrangementType;
-  description: string | null;
-  price_cents: number;
-  image_path: string | null;
-  default_recipe_id: string | null;
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type StemRow = {
-  id: string;
-  common_name: string;
-  variety: string | null;
-  color: string;
-  unit: StemUnit;
-  vendor_id: string | null;
-  last_known_cost_cents: number | null;
-  active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type RecipeRow = {
-  id: string;
-  arrangement_id: string;
-  project_id: string | null;
-  name: string;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type RecipeStemRow = {
-  id: string;
-  recipe_id: string;
-  stem_id: string;
-  color: string;
-  quantity: number;
-  created_at: string;
-};
-
 export type ProposalRow = {
   id: string;
   number: string;
@@ -203,8 +159,8 @@ export type ProposalRow = {
   access_token_hash: string | null;
   access_token_prefix: string | null;
   access_token: string | null;
+  slug?: string | null;
   pdf_path: string | null;
-  canva_design_id: string | null;
   export_pdf_ref: string | null;
   sent_at: string | null;
   shared_at: string | null;
@@ -245,7 +201,6 @@ export type InquiryInvoiceRow = {
 export type ProposalLineItemRow = {
   id: string;
   proposal_id: string;
-  arrangement_id: string | null;
   kind: ProposalItemKind;
   label: string;
   description: string | null;
@@ -308,39 +263,6 @@ export type ProjectRow = {
   notes: string | null;
   google_event_id: string | null;
   archived: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ProjectArrangementRow = {
-  id: string;
-  project_id: string;
-  arrangement_id: string | null;
-  proposal_line_item_id: string | null;
-  label: string;
-  quantity: number;
-  recipe_id: string | null;
-  created_at: string;
-};
-
-export type OrderRow = {
-  id: string;
-  project_id: string;
-  status: OrderStatus;
-  created_at: string;
-  updated_at: string;
-};
-
-export type OrderItemRow = {
-  id: string;
-  order_id: string;
-  stem_id: string | null;
-  color: string | null;
-  quantity: number;
-  unit: StemUnit | null;
-  vendor_id: string | null;
-  received: boolean;
-  manual_label: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -418,19 +340,6 @@ export type InternalNoteRow = {
   author: string;
   body: string;
   created_at: string;
-};
-
-export type CanvaIntegrationRow = {
-  id: string;
-  studio_id: string;
-  encrypted_access_token: string | null;
-  encrypted_refresh_token: string | null;
-  token_expires_at: string | null;
-  account: string | null;
-  status: StudioIntegrationStatus;
-  connected_at: string | null;
-  created_at: string;
-  updated_at: string;
 };
 
 export type GranolaIntegrationRow = {
@@ -546,7 +455,6 @@ export type Database = {
       inquiries: Table<InquiryRow>;
       inquiry_messages: Table<InquiryMessageRow>;
       internal_notes: Table<InternalNoteRow>;
-      canva_integration: Table<CanvaIntegrationRow>;
       granola_integration: Table<GranolaIntegrationRow>;
       meetings: Table<MeetingRow>;
       appointments: Table<AppointmentRow>;
@@ -555,19 +463,12 @@ export type Database = {
       inbound_messages: Table<InboundMessageRow>;
       inquiry_invoices: Table<InquiryInvoiceRow>;
       inquiry_routing_labels: Table<InquiryRoutingLabelRow>;
-      arrangements: Table<ArrangementRow>;
-      stems: Table<StemRow>;
-      recipes: Table<RecipeRow>;
-      recipe_stems: Table<RecipeStemRow>;
       proposals: Table<ProposalRow>;
       proposal_line_items: Table<ProposalLineItemRow>;
       agreements: Table<AgreementRow>;
       invoices: Table<InvoiceRow>;
       payments: Table<PaymentRow>;
       projects: Table<ProjectRow>;
-      project_arrangements: Table<ProjectArrangementRow>;
-      orders: Table<OrderRow>;
-      order_items: Table<OrderItemRow>;
       files: Table<FileRow>;
       integration_connections: Table<IntegrationConnectionRow>;
       integration_events: Table<IntegrationEventRow>;
@@ -581,10 +482,6 @@ export type Database = {
       current_user_role: { Args: Record<string, never>; Returns: AppRole | null };
       is_admin: { Args: Record<string, never>; Returns: boolean };
       is_studio_member: { Args: Record<string, never>; Returns: boolean };
-      set_order_item_received: {
-        Args: { p_order_item_id: string; p_received: boolean };
-        Returns: undefined;
-      };
       complete_own_profile: {
         Args: { p_full_name: string };
         Returns: undefined;
@@ -599,12 +496,9 @@ export type Database = {
       inquiry_status: InquiryStatus;
       event_type: EventType;
       client_type: ClientType;
-      arrangement_type: ArrangementType;
-      stem_unit: StemUnit;
       proposal_status: ProposalStatus;
       proposal_item_kind: ProposalItemKind;
       project_status: ProjectStatus;
-      order_status: OrderStatus;
       invoice_status: InvoiceStatus;
       payment_status: PaymentStatus;
       task_linked_type: TaskLinkedType;

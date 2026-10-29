@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PersonName, isPersonType } from "@/components/studio/PersonName";
+import { PlaceLink } from "@/components/studio/PlaceLink";
 import {
   fileContentType,
   inquiryHoldDates,
@@ -47,6 +48,7 @@ import {
 import {
   markPreviewProposalSent,
   previewProposalForInquiry,
+  previewTokenFor,
   readPreviewProposal,
   savePreviewProposal,
   updatePreviewProposalTerms,
@@ -68,8 +70,10 @@ import {
   ensureProposalLink,
   formatDollarInput,
   proposalCards,
+  PROPOSAL_ORIGIN,
   proposalLink,
-  proposalToken,
+  proposalOrigin,
+  proposalSlug,
   readFileDataUrl,
 } from "@/lib/proposal-link";
 import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
@@ -108,7 +112,7 @@ import {
   updateInquiryMoment,
   updateInquiryNote,
 } from "@/lib/os/inquiries.functions";
-import { importProposalPdf } from "@/lib/os/proposals.functions";
+import { importProposalPdf, shareProposal } from "@/lib/os/proposals.functions";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
 import {
@@ -140,33 +144,6 @@ import {
 
 type Focus = "conversation" | "proposal" | "invoice" | "files" | "note";
 export type LeadSurface = "full" | "job" | "mail" | "notes" | "activity" | "rail";
-
-function prefersAppleMaps() {
-  const agent = navigator.userAgent;
-  if (/iPhone|iPad|iPod/.test(agent)) return true;
-  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
-  return /Macintosh/.test(agent);
-}
-
-function mapsHref(place: string) {
-  const query = encodeURIComponent(place);
-  return prefersAppleMaps()
-    ? `https://maps.apple.com/?q=${query}`
-    : `https://www.google.com/maps/search/?api=1&query=${query}`;
-}
-
-function PlaceLink({ place, children }: { place: string; children?: ReactNode }) {
-  const google = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place)}`;
-  const [href, setHref] = useState(google);
-  useEffect(() => {
-    setHref(mapsHref(place));
-  }, [place]);
-  return (
-    <a className="studio-place" href={href} target="_blank" rel="noreferrer">
-      {children ?? place}
-    </a>
-  );
-}
 
 function MomentEdit({
   label,
@@ -329,6 +306,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const reviseNote = useServerFn(updateInquiryNote);
   const dropNote = useServerFn(deleteInquiryNote);
   const importProposal = useServerFn(importProposalPdf);
+  const shareProposalLink = useServerFn(shareProposal);
   const saveFile = useServerFn(attachInquiryFile);
   const dropFile = useServerFn(removeInquiryFile);
   const updateStatus = useServerFn(setInquiryStatus);
@@ -369,6 +347,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const [openable, setOpenable] = useState<Record<string, string>>({});
   const [fileOver, setFileOver] = useState(false);
   const [proposalHref, setProposalHref] = useState<string | null>(null);
+  // the proposal's own token; the link the client sees carries their name
+  const proposalKey = useRef<string | null>(null);
   const [proposalFile, setProposalFile] = useState<File | null>(null);
   const importedFile = useRef<File | null>(null);
   const localProposalUrl = useMemo(
@@ -421,6 +401,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     setProposalFile(null);
     setProposalName("");
     setProposalHref(null);
+    proposalKey.current = null;
     setProposalAmount("");
     setProposalCourtesy("");
     setProposalPay("deposit");
@@ -461,7 +442,17 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         : null) ??
       preview?.token ??
       null;
-    if (token) setProposalHref(proposalLink(window.location.origin, token, data.client?.name));
+    const slug =
+      (stored && "slug" in stored && typeof stored.slug === "string" ? stored.slug : null) ??
+      (preview && preview.token === token ? proposalSlug(preview.clientName) : null);
+    if (token) {
+      proposalKey.current = token;
+      setProposalHref(
+        slug
+          ? proposalLink(proposalOrigin(), slug)
+          : `${proposalOrigin()}/proposal/${encodeURIComponent(token)}`,
+      );
+    }
     const pdfUrl =
       stored && "pdf_url" in stored && typeof stored.pdf_url === "string" ? stored.pdf_url : "";
     const pdfPath =
@@ -516,7 +507,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
 
   useEffect(() => {
     if (!workSeeded.current) return;
-    const token = proposalToken(proposalHref ?? "");
+    const token = proposalKey.current ?? "";
     if (!token.startsWith("preview_")) return;
     const cents = dollarsToCents(proposalAmount);
     const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
@@ -532,11 +523,16 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         "access_token" in item && typeof item.access_token === "string" ? item.access_token : "";
       const viewed =
         "viewed_at" in item && typeof item.viewed_at === "string" ? item.viewed_at : "";
+      const slug = "slug" in item && typeof item.slug === "string" ? item.slug : "";
       if (token && viewed) views[token] = viewed;
+      if (slug && viewed) views[slug] = viewed;
     }
     if (data && typeof window !== "undefined") {
       const preview = previewProposalForInquiry(data.inquiry.id);
-      if (preview?.token && preview.viewedAt) views[preview.token] = preview.viewedAt;
+      if (preview?.token && preview.viewedAt) {
+        views[preview.token] = preview.viewedAt;
+        views[proposalSlug(preview.clientName)] = preview.viewedAt;
+      }
     }
     return views;
   }, [data]);
@@ -680,7 +676,10 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         : threadRef.current;
       if (asChannel === "email" && !people.to.length) throw new Error("add an email.");
       if (devPreview) {
-        for (const card of proposalCards(text).cards) markPreviewProposalSent(card.token);
+        for (const card of proposalCards(text).cards) {
+          const token = previewTokenFor(card.key);
+          if (token) markPreviewProposalSent(token);
+        }
         if (asChannel === "email" && thread.fresh && !thread.subject) {
           throw new Error("add a subject for the new conversation.");
         }
@@ -1147,7 +1146,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     place: inquiry.venue_text,
     job: EVENT_LABEL[inquiry.event_type],
   };
-  async function importCanva(
+  async function importProposalFile(
     file: File,
     totalCents: number,
     depositPercent: number,
@@ -1174,7 +1173,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         fileName: file.name,
         work: statement,
       });
-      const href = proposalLink(window.location.origin, saved.token, client?.name);
+      const href = proposalLink(proposalOrigin(), proposalSlug(saved.clientName));
+      proposalKey.current = saved.token;
       setProposalHref(href);
       importedFile.current = file;
       return href;
@@ -1196,7 +1196,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         pdf_path: incoming,
       },
     });
-    const href = proposalLink(window.location.origin, result.token, client?.name);
+    const href = proposalLink(proposalOrigin(), result.slug);
+    proposalKey.current = result.token;
     setProposalHref(href);
     importedFile.current = file;
     if (result.pdf_path) keptPdfPath.current = result.pdf_path;
@@ -1223,11 +1224,11 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     void (async () => {
       try {
         if (proposalFile && proposalFile !== importedFile.current) {
-          await importCanva(proposalFile, net, deposit, work, courtesy);
+          await importProposalFile(proposalFile, net, deposit, work, courtesy);
           return;
         }
         if (devPreview) {
-          const token = proposalToken(proposalHref ?? "");
+          const token = proposalKey.current ?? "";
           if (token.startsWith("preview_"))
             updatePreviewProposalTerms(token, net, deposit, work, courtesy);
           return;
@@ -1292,7 +1293,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     const accepted = stored?.status === "accepted";
     const href =
       fileChanged && proposalFile && !accepted
-        ? await importCanva(proposalFile, cents, deposit, work, courtesy)
+        ? await importProposalFile(proposalFile, cents, deposit, work, courtesy)
         : proposalHref;
     if (!href) throw new Error("drop the proposal.");
     if (!devPreview && !fileChanged && stored?.pdf_path && !accepted) {
@@ -1308,8 +1309,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         },
       });
     }
-    if (!proposalFile && href.includes("/proposal/preview_")) {
-      updatePreviewProposalTerms(proposalToken(href), cents, deposit, work, courtesy);
+    const key = proposalKey.current ?? "";
+    if (!proposalFile && key.startsWith("preview_")) {
+      updatePreviewProposalTerms(key, cents, deposit, work, courtesy);
     }
     return href;
   }
@@ -1325,6 +1327,21 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     }, 2200);
   }
 
+  /** A copied link is a shared one: the client can approve it or ask for changes. */
+  function markShared() {
+    const key = proposalKey.current ?? "";
+    if (key.startsWith("preview_")) {
+      markPreviewProposalSent(key);
+      return;
+    }
+    if (devPreview || !key) return;
+    void shareProposalLink({ data: { inquiry_id: inquiryId } })
+      .then(() => queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] }))
+      .catch((error: unknown) =>
+        setProposalError(problemText(error, "the link copied, but the proposal isn't marked sent")),
+      );
+  }
+
   async function copyProposal() {
     setProposalError("");
     const fileChanged = Boolean(proposalFile && proposalFile !== importedFile.current);
@@ -1334,8 +1351,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         setProposalError("could not copy the link");
         return;
       }
-      const token = proposalToken(proposalHref);
-      if (token.startsWith("preview_")) markPreviewProposalSent(token);
+      markShared();
       markCopied();
       proposalDirty.current = true;
       keepProposal.current();
@@ -1347,8 +1363,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       const href = await pending;
       const copied = await writeClipboard(href);
       if (!copied) throw new Error("could not copy the link");
-      const token = proposalToken(href);
-      if (token.startsWith("preview_")) markPreviewProposalSent(token);
+      markShared();
       markCopied();
     } catch (error) {
       setProposalError(problemText(error, "could not copy the link"));
@@ -1367,7 +1382,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       URL.revokeObjectURL(url);
       return;
     }
-    const token = proposalToken(proposalHref ?? "");
+    const token = proposalKey.current ?? "";
     const stored = token ? readPreviewProposal(token) : null;
     if (stored?.pdfDataUrl) {
       const anchor = document.createElement("a");
@@ -1537,7 +1552,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const proposalLetterBody = proposalTemplate
     ? ensureProposalLink(
         applyTemplate(proposalTemplate.body, client?.name, EVENT_LABEL[inquiry.event_type]),
-        proposalHref || "https://inside.saysukii.com/proposal/preview",
+        proposalHref || `${PROPOSAL_ORIGIN}/${proposalSlug(client?.name ?? "")}`,
       )
     : "";
 
@@ -2398,9 +2413,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                       }
                       const href = proposalHref;
                       const write = navigator.clipboard?.writeText?.(href);
-                      const token = proposalToken(href);
-                      if (token.startsWith("preview_")) markPreviewProposalSent(token);
                       setProposalError("");
+                      markShared();
                       if (!write) {
                         if (copyText(href)) markCopied();
                         else setProposalError("could not copy the link");
@@ -2494,8 +2508,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 fileUrl={localProposalUrl || keptPdfUrl}
                 invoiceNumber={savedInvoiceTitle}
                 stored={
-                  proposalHref?.includes("/proposal/preview_")
-                    ? readPreviewProposal(proposalToken(proposalHref))
+                  proposalKey.current?.startsWith("preview_")
+                    ? readPreviewProposal(proposalKey.current)
                     : null
                 }
               />

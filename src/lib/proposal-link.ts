@@ -1,33 +1,85 @@
-const PROPOSAL_LINK =
-  /\[([^\]\n]+)\]\((https?:\/\/[^)\s]*\/proposal\/([A-Za-z0-9_-]+)(?:#[^)\s]*)?)\)/g;
+/** Proposals always live on the studio's own address, by the client's name. */
+export const PROPOSAL_ORIGIN = "https://inside.saysukii.com";
 
-export function clientHash(name: string) {
+// first-level pages a client's name can't take
+const TAKEN_PATHS = new Set([
+  "api",
+  "auth",
+  "book",
+  "calendar",
+  "clients",
+  "dashboard",
+  "directories",
+  "email-preview",
+  "inquire",
+  "library",
+  "loading",
+  "onboarding",
+  "pipeline",
+  "proposal",
+  "schedule",
+  "settings",
+  "shelf",
+]);
+
+const OUR_HOSTS = /^(inside\.saysukii\.com|localhost|127\.0\.0\.1)$/;
+
+const PROPOSAL_LINK =
+  /\[([^\]\n]+)\]\((https?:\/\/([^)\s/:]+)(?::\d+)?\/(?:proposal\/([A-Za-z0-9_-]+)|([a-z0-9]+(?:-[a-z0-9]+)*))\/?(?:#[^)\s]*)?)\)/g;
+
+/** maya chen → maya-chen */
+export function proposalSlug(name: string) {
   const slug = name
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return slug || "client";
 }
 
-export function proposalLink(origin: string, token: string, clientName?: string | null) {
-  const base = `${origin.replace(/\/$/, "")}/proposal/${token}`;
-  const hash = clientName?.trim() ? clientHash(clientName) : "";
-  return hash ? `${base}#${hash}` : base;
+/** The name, or the name with -2, -3 when it's already taken. */
+export function freeProposalSlug(name: string, taken: (slug: string) => boolean) {
+  const base = proposalSlug(name);
+  for (let n = 1; ; n += 1) {
+    const slug = n === 1 ? base : `${base}-${n}`;
+    if (!TAKEN_PATHS.has(slug) && !taken(slug)) return slug;
+  }
 }
 
-export function proposalToken(value: string) {
-  const raw = value.split("/proposal/").pop() ?? value;
-  return raw.split(/[?#]/)[0] ?? "";
+export function isProposalSlug(value: string) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && !TAKEN_PATHS.has(value);
+}
+
+export function proposalLink(origin: string, slug: string) {
+  return `${origin.replace(/\/$/, "")}/${slug}`;
+}
+
+/** Where a proposal link points: the studio's address, or this machine while developing. */
+export function proposalOrigin() {
+  if (import.meta.env.DEV && typeof window !== "undefined") return window.location.origin;
+  return PROPOSAL_ORIGIN;
+}
+
+/** The token or name a proposal link carries, or null when the link isn't a proposal. */
+function cardKey(host: string, token: string | undefined, slug: string | undefined) {
+  if (token) return token;
+  if (slug && OUR_HOSTS.test(host) && isProposalSlug(slug)) return slug;
+  return null;
 }
 
 export function proposalCards(body: string) {
-  const cards: { label: string; href: string; token: string }[] = [];
+  const cards: { label: string; href: string; key: string }[] = [];
   const text = body
-    .replace(PROPOSAL_LINK, (_match, label: string, href: string, token: string) => {
-      cards.push({ label, href, token });
-      return "";
-    })
+    .replace(
+      PROPOSAL_LINK,
+      (match, label: string, href: string, host: string, token?: string, slug?: string) => {
+        const key = cardKey(host, token, slug);
+        if (!key) return match;
+        cards.push({ label, href, key });
+        return "";
+      },
+    )
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return { text, cards };
@@ -40,7 +92,11 @@ export function ensureProposalLink(body: string, href: string) {
 }
 
 export function letterWithProposalUrl(body: string) {
-  return body.replace(PROPOSAL_LINK, (_match, label: string, href: string) => `${label}\n${href}`);
+  return body.replace(
+    PROPOSAL_LINK,
+    (match, label: string, href: string, host: string, token?: string, slug?: string) =>
+      cardKey(host, token, slug) ? `${label}\n${href}` : match,
+  );
 }
 
 export function dollarsToCents(value: string) {

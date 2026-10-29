@@ -1,4 +1,5 @@
 import type { ClientType, VendorRow } from "@/integrations/supabase/types";
+import { withoutCountry } from "@/lib/place-text";
 
 const CLIENT_TYPES = ["individual", "brand", "corporate", "venue_partner"] as const;
 const VENDOR_TYPES = ["warehouse", "wholesaler", "rental", "other"] as const;
@@ -11,6 +12,7 @@ export type ClientCsvRow = {
   type: ClientType;
   source: string | null;
   notes: string | null;
+  address: string | null;
 };
 
 export type VenueCsvRow = {
@@ -20,6 +22,9 @@ export type VenueCsvRow = {
   contact_email: string | null;
   contact_phone: string | null;
   load_in_notes: string | null;
+  category: string | null;
+  website: string | null;
+  capacity: string | null;
 };
 
 export type VendorCsvRow = {
@@ -29,6 +34,7 @@ export type VendorCsvRow = {
   contact_email: string | null;
   contact_phone: string | null;
   ordering_method: string | null;
+  address: string | null;
 };
 
 type CsvField = {
@@ -43,35 +49,45 @@ type CsvRead<T> = {
   error?: string;
 };
 
+// aliases cover the studio's own sheets and a notion export ("full name", "phone number", "location", "category")
+const PHONE = ["phone", "phone number", "phone #", "telephone", "mobile", "cell"];
+const ADDRESS = ["address", "location", "place", "street address", "mailing address"];
+
 const clientFields: CsvField[] = [
   { key: "name", aliases: ["name", "client", "client name", "full name"], required: true },
-  { key: "email", aliases: ["email", "e-mail", "client email"], required: true },
-  { key: "phone", aliases: ["phone", "telephone", "mobile"] },
+  { key: "email", aliases: ["email", "e-mail", "email address", "client email"], required: true },
+  { key: "phone", aliases: PHONE },
   { key: "organization", aliases: ["organization", "organisation", "company", "org"] },
   { key: "type", aliases: ["type", "client type"] },
   { key: "source", aliases: ["source"] },
   { key: "notes", aliases: ["notes", "note"] },
+  { key: "address", aliases: ADDRESS },
 ];
 
 const venueFields: CsvField[] = [
   { key: "name", aliases: ["name", "venue", "venue name"], required: true },
-  { key: "address", aliases: ["address"], required: true },
+  { key: "address", aliases: [...ADDRESS, "venue address"] },
   { key: "contact_name", aliases: ["contact name", "contact_name", "contact"] },
   { key: "contact_email", aliases: ["contact email", "contact_email", "email"] },
-  { key: "contact_phone", aliases: ["contact phone", "contact_phone", "phone"] },
+  { key: "contact_phone", aliases: ["contact phone", "contact_phone", ...PHONE] },
   { key: "load_in_notes", aliases: ["load in notes", "load_in_notes", "load-in notes", "notes"] },
+  { key: "category", aliases: ["category", "type", "venue type"] },
+  { key: "website", aliases: ["website", "url", "site"] },
+  { key: "capacity", aliases: ["capacity", "guest capacity"] },
 ];
 
 const vendorFields: CsvField[] = [
   { key: "name", aliases: ["name", "vendor", "vendor name"], required: true },
-  { key: "type", aliases: ["type", "vendor type"] },
+  { key: "type", aliases: ["type", "vendor type", "category"] },
   { key: "contact_name", aliases: ["contact name", "contact_name", "contact"] },
   { key: "contact_email", aliases: ["contact email", "contact_email", "email"] },
-  { key: "contact_phone", aliases: ["contact phone", "contact_phone", "phone"] },
+  { key: "contact_phone", aliases: ["contact phone", "contact_phone", ...PHONE] },
   {
     key: "ordering_method",
     aliases: ["ordering method", "ordering_method", "ordering", "how to order"],
   },
+  { key: "notes", aliases: ["notes", "note"] },
+  { key: "address", aliases: ADDRESS },
 ];
 
 export function readClientCsv(text: string): CsvRead<ClientCsvRow> {
@@ -92,6 +108,7 @@ export function readClientCsv(text: string): CsvRead<ClientCsvRow> {
         type,
         source: optionalText(cells["source"], 160) ?? "csv",
         notes: optionalText(cells["notes"], 5000),
+        address: optionalText(withoutCountry(cells["address"]), 500),
       },
     };
   });
@@ -100,9 +117,9 @@ export function readClientCsv(text: string): CsvRead<ClientCsvRow> {
 export function readVenueCsv(text: string): CsvRead<VenueCsvRow> {
   return readCsv(text, venueFields, (cells, line) => {
     const name = requiredText(cells["name"], 200);
-    const address = requiredText(cells["address"], 500);
     if (!name) return { error: `row ${line} needs a name` };
-    if (!address) return { error: `row ${line} needs an address` };
+    // a venue without a location still comes in; the address can be added on its page
+    const address = requiredText(withoutCountry(cells["address"]), 500);
     const contactEmail = optionalText(cells["contact_email"], 320);
     if (contactEmail && !contactEmail.includes("@"))
       return { error: `row ${line} contact email is not an email` };
@@ -114,6 +131,9 @@ export function readVenueCsv(text: string): CsvRead<VenueCsvRow> {
         contact_email: contactEmail,
         contact_phone: optionalText(cells["contact_phone"], 50),
         load_in_notes: optionalText(cells["load_in_notes"], 5000),
+        category: optionalText(cells["category"], 120),
+        website: optionalText(cells["website"], 500),
+        capacity: optionalText(cells["capacity"], 60),
       },
     };
   });
@@ -123,9 +143,7 @@ export function readVendorCsv(text: string): CsvRead<VendorCsvRow> {
   return readCsv(text, vendorFields, (cells, line) => {
     const name = requiredText(cells["name"], 200);
     if (!name) return { error: `row ${line} needs a name` };
-    const type = enumValue(cells["type"], VENDOR_TYPES, "other");
-    if (!type)
-      return { error: `row ${line} type should be warehouse, wholesaler, rental, or other` };
+    const type = vendorKind(cells["type"]);
     const contactEmail = optionalText(cells["contact_email"], 320);
     if (contactEmail && !contactEmail.includes("@"))
       return { error: `row ${line} contact email is not an email` };
@@ -136,7 +154,12 @@ export function readVendorCsv(text: string): CsvRead<VendorCsvRow> {
         contact_name: optionalText(cells["contact_name"], 160),
         contact_email: contactEmail,
         contact_phone: optionalText(cells["contact_phone"], 50),
-        ordering_method: optionalText(cells["ordering_method"], 5000),
+        ordering_method: noteWith(cells["ordering_method"], [
+          cells["notes"],
+          // a category that isn't one of the four kinds stays readable on the vendor
+          type === "other" && cells["type"]?.trim() ? `category: ${cells["type"].trim()}` : "",
+        ]),
+        address: optionalText(withoutCountry(cells["address"]), 500),
       },
     };
   });
@@ -235,6 +258,23 @@ function parseCsv(text: string) {
 
 function normalizeHeader(value: string) {
   return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
+/** Notion categories ("florals", "rentals") read as one of the four vendor kinds. */
+function vendorKind(value: string | undefined): VendorRow["type"] {
+  const exact = enumValue(value, VENDOR_TYPES, "other");
+  if (exact) return exact;
+  const text = (value ?? "").toLowerCase();
+  if (/flor|flower|bloom|grower|wholesale|market|greens|plant/.test(text)) return "wholesaler";
+  if (/rent|linen|furniture|tabletop|decor|glass|candle/.test(text)) return "rental";
+  if (/warehouse|storage|supply|supplies|hardgood/.test(text)) return "warehouse";
+  return "other";
+}
+
+/** Joins a note with the extra columns that have no field of their own, one per line. */
+function noteWith(note: string | undefined, extras: Array<string | undefined>) {
+  const lines = [note, ...extras].map((value) => value?.trim() ?? "").filter(Boolean);
+  return lines.length ? lines.join("\n").slice(0, 5000) : null;
 }
 
 function requiredText(value: string | undefined, max: number) {
