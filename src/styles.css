@@ -16310,3 +16310,96 @@ a.studio-kicker:hover {
   text-underline-offset: 2px;
 }
 
+/* an inquiry that didn't open: its outline holds the place while the page tries again */
+.studio-lead-miss {
+  display: grid;
+  gap: 14px;
+  max-width: 640px;
+}
+
+.studio-lead-miss-outline {
+  display: grid;
+  gap: 10px;
+}
+
+.studio-lead-miss-outline i {
+  display: block;
+  height: 14px;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0.4)
+  );
+  background-size: 200% 100%;
+  animation: studio-lead-shimmer 1.6s ease-in-out infinite;
+}
+
+.studio-lead-miss-outline i:nth-child(1) {
+  width: 55%;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.studio-lead-miss-outline i:nth-child(2) {
+  width: 90%;
+}
+
+.studio-lead-miss-outline i:nth-child(3) {
+  width: 72%;
+}
+
+.studio-lead-miss-try {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+}
+
+.studio-lead-miss-try em {
+  color: #ff4d94;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-lead-miss-track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(255, 77, 148, 0.14);
+}
+
+.studio-lead-miss-track b {
+  display: block;
+  height: 100%;
+  background: #ff4d94;
+  transform-origin: left;
+  animation: studio-ribbon-drain linear forwards;
+}
+
+.studio-lead-miss-note {
+  margin: 0;
+  color: rgba(36, 34, 31, 0.52);
+  font-size: 13px;
+}
+
+@keyframes studio-lead-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-lead-miss-outline i {
+    animation: none;
+  }
+}
+

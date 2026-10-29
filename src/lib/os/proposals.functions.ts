@@ -588,6 +588,17 @@ export const getPublicProposal = createServerFn({ method: "GET" })
         .eq("proposal_id", bundle.proposal.id)
         .maybeSingle(),
     ]);
+    // signed before square was connected (or square was down): make the deposit link now
+    let paymentLink = invoice?.square_payment_link ?? null;
+    if (
+      !paymentLink &&
+      process.env["SQUARE_LOCATION_ID"] &&
+      agreement?.signed_name &&
+      invoice?.status !== "paid" &&
+      bundle.proposal.deposit_amount_cents > 0
+    ) {
+      paymentLink = await ensureDepositInvoice(bundle).catch(() => null);
+    }
     return {
       proposal: publicProposal(bundle.proposal),
       client: { name: bundle.client.name, email: bundle.client.email, phone: bundle.client.phone },
@@ -615,7 +626,7 @@ export const getPublicProposal = createServerFn({ method: "GET" })
             number: invoiceTitle(invoice.number),
             amountCents: invoice.amount_cents,
             status: invoice.status,
-            paymentLink: invoice.square_payment_link,
+            paymentLink,
           }
         : null,
     };

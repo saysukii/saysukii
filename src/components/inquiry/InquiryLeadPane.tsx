@@ -1000,16 +1000,10 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     );
   }
 
-  if (isError || !data?.inquiry) {
-    return (
-      <>
-        <RecordHello title="client record" note="this lead could not be opened." />
-        <p className="studio-pearl-note">this lead could not be opened.</p>
-      </>
-    );
-  }
+  if (isError || !data?.inquiry) return <LeadMiss id={id} />;
 
   const { inquiry, client, files, gmailConnected, source_message } = data;
+  clearLeadRetry(id);
   const sentInvoices: SentInvoice[] = [
     ...previewInvoices,
     ...("invoices" in data && Array.isArray(data.invoices) ? (data.invoices as SentInvoice[]) : []),
@@ -3024,4 +3018,110 @@ function SendRibbon({ line, onUndo }: { line: string; onUndo: () => void }) {
       </div>
     </div>
   );
+}
+
+const LEAD_RETRY_KEY = "say-sukii-lead-retry";
+const LEAD_RETRY_SECONDS = 5;
+
+/**
+ * An inquiry that didn't open. Usually the studio was just updated while this tab was open,
+ * so the page reloads itself once; if that doesn't help, it says so and offers a way through.
+ */
+function LeadMiss({ id }: { id: string }) {
+  const [tried, setTried] = useState<boolean | null>(null);
+  const [left, setLeft] = useState(LEAD_RETRY_SECONDS);
+
+  useEffect(() => {
+    let already = false;
+    try {
+      already = sessionStorage.getItem(LEAD_RETRY_KEY) === id;
+    } catch {
+      already = false;
+    }
+    setTried(already);
+    if (already) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const remaining = LEAD_RETRY_SECONDS - Math.floor((Date.now() - started) / 1000);
+      setLeft(Math.max(0, remaining));
+      if (remaining <= 0) {
+        window.clearInterval(timer);
+        reloadOnce(id);
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [id]);
+
+  if (tried === null) return null;
+
+  if (!tried) {
+    return (
+      <div className="studio-lead-miss">
+        <div className="studio-lead-miss-outline" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </div>
+        <div className="studio-lead-miss-try" role="status">
+          <span>
+            trying again in <em>{left}</em>
+          </span>
+          <button type="button" className="studio-ghost" onClick={() => reloadOnce(id)}>
+            reload now
+          </button>
+        </div>
+        <div className="studio-lead-miss-track" aria-hidden="true">
+          <b style={{ animationDuration: `${LEAD_RETRY_SECONDS}s` }} />
+        </div>
+        <p className="studio-lead-miss-note">it opens on its own once the page catches up.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="studio-lead-miss">
+      <RecordHello title="this inquiry" note="it didn't open just now." />
+      <section className="studio-module is-summary">
+        <p className="studio-home-label">
+          <span className="studio-summary-mark" aria-hidden="true" />
+          <span>summary</span>
+        </p>
+        <p>
+          this inquiry didn't open, even after a fresh start. nothing is lost: its letters,
+          proposal, and notes are all still on it.
+        </p>
+        <p className="studio-summary-next">
+          <span>next</span>
+          reload once more. if it still won't open, the studio can look into it.
+        </p>
+      </section>
+      <div className="studio-ask-foot is-pair">
+        <button type="button" className="studio-today-go" onClick={() => reloadOnce(id)}>
+          reload
+        </button>
+        <Link to="/pipeline" className="studio-ghost">
+          back to inquiries
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function reloadOnce(id: string) {
+  try {
+    sessionStorage.setItem(LEAD_RETRY_KEY, id);
+  } catch {
+    // without storage the reload still happens; the fallback just won't know it was tried
+  }
+  window.location.reload();
+}
+
+function clearLeadRetry(id: string) {
+  try {
+    if (typeof window !== "undefined" && sessionStorage.getItem(LEAD_RETRY_KEY) === id) {
+      sessionStorage.removeItem(LEAD_RETRY_KEY);
+    }
+  } catch {
+    // nothing to clear
+  }
 }
