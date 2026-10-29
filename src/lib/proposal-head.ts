@@ -2,9 +2,10 @@
 export function proposalHead() {
   return {
     meta: [
-      { title: "your proposal · say sukii" },
+      { title: "say sukii proposal" },
       { name: "description", content: "a floral design proposal prepared for you by say sukii." },
-      { property: "og:title", content: "your proposal · say sukii" },
+      { property: "og:title", content: "say sukii proposal" },
+      { name: "twitter:title", content: "say sukii proposal" },
       {
         property: "og:description",
         content: "a floral design proposal prepared for you by say sukii.",

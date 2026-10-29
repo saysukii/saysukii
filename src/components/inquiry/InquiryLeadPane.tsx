@@ -1282,7 +1282,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         if (saved.pdf_path) keptPdfPath.current = saved.pdf_path;
         void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
       } catch (error) {
-        proposalDirty.current = true;
+        // say what went wrong once; the next change or copy tries again, not an endless retry
         setProposalError(problemText(error, "could not keep the proposal"));
       } finally {
         savingProposal.current = false;
@@ -1392,10 +1392,24 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       return;
     }
     const pending = readyProposalHref();
+    // start the copy inside the click, so safari still allows it once the link is ready
+    const held =
+      typeof ClipboardItem !== "undefined" && navigator.clipboard?.write
+        ? navigator.clipboard
+            .write([
+              new ClipboardItem({
+                "text/plain": pending.then((href) => new Blob([href], { type: "text/plain" })),
+              }),
+            ])
+            .then(
+              () => true,
+              () => false,
+            )
+        : null;
     setProposalBusy(true);
     try {
       const href = await pending;
-      const copied = await writeClipboard(href);
+      const copied = (held && (await held)) || (await writeClipboard(href));
       if (!copied) throw new Error("could not copy the link");
       markShared();
       markCopied();
@@ -2475,7 +2489,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 >
                   <button
                     type="button"
-                    disabled={proposalBusy}
+                    disabled={proposalBusy && !proposalHref}
                     onClick={() => {
                       if (!proposalHref) {
                         void copyProposal();

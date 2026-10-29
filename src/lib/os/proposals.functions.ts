@@ -220,14 +220,49 @@ export const importProposalPdf = createServerFn({ method: "POST" })
     if (inquiryResult.error) throw new Error(inquiryResult.error.message);
     const inquiry = inquiryResult.data;
 
+    // an inquiry holds one proposal; a cleared one is archived and reopened here
     const existing = await context.supabase
       .from("proposals")
-      .select("id, number, status, access_token, slug, pdf_path, notes")
+      .select("id, number, status, access_token, slug, pdf_path, notes, archived")
       .eq("inquiry_id", inquiry.id)
-      .eq("archived", false)
       .maybeSingle();
     if (existing.error) throw new Error(existing.error.message);
-    if (existing.data?.status === "accepted") throw new Error("This proposal is already accepted.");
+    if (existing.data?.status === "accepted" && !existing.data.archived)
+      throw new Error("This proposal is already accepted.");
+    if (existing.data?.archived) {
+      // reopened fresh: a new private link (the cleared one stays dead), nothing sent or viewed
+      const fresh = createPublicToken();
+      const { error: reopenError } = await supabaseAdmin
+        .from("proposals")
+        .update({
+          archived: false,
+          status: "draft",
+          sent_at: null,
+          viewed_at: null,
+          accepted_at: null,
+          declined_at: null,
+          declined_reason: null,
+          slug: null,
+          access_token: fresh.token,
+          access_token_hash: fresh.hash,
+          access_token_prefix: fresh.prefix,
+        })
+        .eq("id", existing.data.id);
+      if (reopenError) throw new Error(reopenError.message);
+      // an unpaid deposit link was for the old amount; a new one is made when the client signs
+      await supabaseAdmin
+        .from("invoices")
+        .update({ square_payment_link: null, square_order_id: null })
+        .eq("proposal_id", existing.data.id)
+        .neq("status", "paid");
+      existing.data = {
+        ...existing.data,
+        archived: false,
+        status: "draft",
+        slug: null,
+        access_token: fresh.token,
+      };
+    }
 
     let pdfBytes: Buffer | null = null;
     let copyFrom: string | null = null;
