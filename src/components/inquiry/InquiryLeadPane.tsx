@@ -50,6 +50,7 @@ import {
   previewProposalForInquiry,
   previewTokenFor,
   readPreviewProposal,
+  clearPreviewProposal,
   savePreviewProposal,
   updatePreviewProposalTerms,
 } from "@/lib/preview-proposals";
@@ -112,7 +113,7 @@ import {
   updateInquiryMoment,
   updateInquiryNote,
 } from "@/lib/os/inquiries.functions";
-import { importProposalPdf, shareProposal } from "@/lib/os/proposals.functions";
+import { clearProposal, importProposalPdf, shareProposal } from "@/lib/os/proposals.functions";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
 import {
@@ -307,6 +308,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const dropNote = useServerFn(deleteInquiryNote);
   const importProposal = useServerFn(importProposalPdf);
   const shareProposalLink = useServerFn(shareProposal);
+  const clearProposalFn = useServerFn(clearProposal);
+  const [confirmClear, setConfirmClear] = useState(false);
   const saveFile = useServerFn(attachInquiryFile);
   const dropFile = useServerFn(removeInquiryFile);
   const updateStatus = useServerFn(setInquiryStatus);
@@ -395,6 +398,13 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     proposalSeeded.current = false;
     workSeeded.current = false;
     proposalDirty.current = false;
+    emptyProposal();
+    setMoreTo([]);
+    setCopyTo([]);
+  }, [data?.inquiry.id]);
+
+  /** The proposal panel back to its first, empty state. */
+  function emptyProposal() {
     importedFile.current = null;
     keptPdfPath.current = "";
     setKeptPdfUrl("");
@@ -406,9 +416,26 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     setProposalCourtesy("");
     setProposalPay("deposit");
     setProposalError("");
-    setMoreTo([]);
-    setCopyTo([]);
-  }, [data?.inquiry.id]);
+  }
+
+  const clearOffer = useMutation({
+    mutationFn: async () => {
+      if (devPreview) {
+        clearPreviewProposal(inquiryId);
+        return { cleared: true };
+      }
+      return clearProposalFn({ data: { inquiry_id: inquiryId } });
+    },
+    onSuccess: () => {
+      setConfirmClear(false);
+      emptyProposal();
+      proposalSeeded.current = true;
+      void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
+      void queryClient.invalidateQueries({ queryKey: ["inquiry-pipeline"] });
+      toast.success("proposal cleared");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   useEffect(() => {
     if (!proposalDirty.current) return;
@@ -775,32 +802,32 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const sendHold = useRef<{ timer: number; run: () => void } | null>(null);
+  const sendHold = useRef<{ timer: number; run: () => void; undo: () => void } | null>(null);
+  const [holding, setHolding] = useState<{ id: number; line: string } | null>(null);
 
+  /** Every letter waits ten seconds under the ribbon, so a slip can be caught before it leaves. */
   function queueLetter(run: () => void, restore?: () => void, who?: string | null) {
     if (sendHold.current) {
       window.clearTimeout(sendHold.current.timer);
       sendHold.current.run();
     }
     const timer = window.setTimeout(() => {
-      if (sendHold.current?.timer === timer) sendHold.current = null;
+      if (sendHold.current?.timer !== timer) return;
+      sendHold.current = null;
+      setHolding(null);
       run();
-    }, 10_000);
-    sendHold.current = { timer, run };
-    toast.message("sending", {
-      description: who ? `to ${firstName(who)}` : "the letter",
-      duration: 10_000,
-      action: {
-        label: "undo",
-        onClick: () => {
-          if (sendHold.current?.timer !== timer) return;
-          window.clearTimeout(timer);
-          sendHold.current = null;
-          restore?.();
-          toast.message("held");
-        },
-      },
-    });
+    }, SEND_HOLD_MS);
+    const undo = () => {
+      if (sendHold.current?.timer !== timer) return;
+      window.clearTimeout(timer);
+      sendHold.current = null;
+      setHolding(null);
+      restore?.();
+    };
+    sendHold.current = { timer, run, undo };
+    const line =
+      sendAs === "note" ? "keeping the note" : who ? `sending to ${firstName(who)}` : "sending";
+    setHolding({ id: timer, line });
   }
 
   useEffect(() => {
@@ -1598,6 +1625,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       onKeep={(files) => Promise.all(files.map((file) => keepStudioFile(file)))}
     />
   );
+  const sendRibbon = holding ? (
+    <SendRibbon key={holding.id} line={holding.line} onUndo={() => sendHold.current?.undo()} />
+  ) : null;
 
   return (
     <div
@@ -2121,7 +2151,12 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               )}
             </div>
           ) : null}
-          {showSideThread ? composer : null}
+          {showSideThread ? (
+            <>
+              {composer}
+              {sendRibbon}
+            </>
+          ) : null}
           <div className="studio-mail-scroll" ref={mailScroll}>
             {sendAs === "note" ? (
               <NoteList
@@ -2155,7 +2190,12 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               />
             )}
           </div>
-          {showSideThread ? null : composer}
+          {showSideThread ? null : (
+            <>
+              {composer}
+              {sendRibbon}
+            </>
+          )}
         </section>
       ) : null}
 
@@ -2374,13 +2414,25 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             ) : null}
             <div className={cn("studio-ask-foot", profile.role === "admin" && "is-spread")}>
               {profile.role === "admin" ? (
-                <button
-                  type="button"
-                  className="studio-proposal-preview"
-                  onClick={() => setPacketOpen(true)}
-                >
-                  preview
-                </button>
+                <span className="studio-proposal-tools">
+                  <button
+                    type="button"
+                    className="studio-proposal-preview"
+                    onClick={() => setPacketOpen(true)}
+                  >
+                    preview
+                  </button>
+                  {proposalName || proposalHref ? (
+                    <button
+                      type="button"
+                      className="studio-proposal-preview"
+                      disabled={clearOffer.isPending}
+                      onClick={() => setConfirmClear(true)}
+                    >
+                      clear
+                    </button>
+                  ) : null}
+                </span>
               ) : null}
               <Popover open={shareMenu} onOpenChange={setShareMenu}>
                 <PopoverTrigger asChild>
@@ -2461,6 +2513,46 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               </Popover>
             </div>
           </div>
+          <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
+            <DialogContent
+              overlayClassName="studio-task-veil"
+              className="studio-task-modal is-ask is-confirm is-soft"
+              hideClose
+            >
+              <div className="studio-task-head">
+                <DialogClose className="studio-task-close" aria-label="Close">
+                  <X aria-hidden="true" />
+                </DialogClose>
+              </div>
+              <DialogTitle className="sr-only">clear this proposal</DialogTitle>
+              <DialogDescription className="sr-only">
+                confirm before the proposal comes off this inquiry.
+              </DialogDescription>
+              <div className="studio-task-form">
+                <p className="studio-review-confirm">
+                  clear this proposal? its link stops working, and you can start a new one.
+                </p>
+                <div className="studio-ask-foot is-pair is-spread">
+                  <button
+                    type="button"
+                    className="studio-ghost"
+                    disabled={clearOffer.isPending}
+                    onClick={() => setConfirmClear(false)}
+                  >
+                    keep it
+                  </button>
+                  <button
+                    type="button"
+                    className="studio-today-go"
+                    disabled={clearOffer.isPending}
+                    onClick={() => clearOffer.mutate()}
+                  >
+                    {clearOffer.isPending ? "clearing…" : "clear"}
+                  </button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Dialog open={packetOpen} onOpenChange={setPacketOpen}>
             <DialogContent
               overlayClassName="studio-task-veil"
@@ -2868,6 +2960,35 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
           archive this inquiry
         </button>
       ) : null}
+    </div>
+  );
+}
+
+const SEND_HOLD_MS = 10_000;
+
+/** The ten seconds after send: a pink line drains under the letter, with undo beside it. */
+function SendRibbon({ line, onUndo }: { line: string; onUndo: () => void }) {
+  const [left, setLeft] = useState(SEND_HOLD_MS / 1000);
+  useEffect(() => {
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      setLeft(Math.max(0, Math.ceil((SEND_HOLD_MS - (Date.now() - started)) / 1000)));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <div className="studio-send-ribbon" role="status">
+      <div className="studio-send-ribbon-row">
+        <span>
+          {line} in <em>{left}</em>
+        </span>
+        <button type="button" className="studio-send-undo" onClick={onUndo}>
+          undo
+        </button>
+      </div>
+      <div className="studio-send-ribbon-track" aria-hidden="true">
+        <i style={{ animationDuration: `${SEND_HOLD_MS}ms` }} />
+      </div>
     </div>
   );
 }

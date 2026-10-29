@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Resend } from "resend";
 
 import type { EventType } from "@/integrations/supabase/types";
-import { emailOrigin, renderSaySukiiEmail } from "@/lib/os/email-layout";
+import { renderSaySukiiEmail, studioLinkOrigin } from "@/lib/os/email-layout";
 import { studioNotificationEmail } from "@/lib/os/email.server";
 import { encodeGmailRaw } from "@/lib/os/gmail-outbound.server";
 import { EVENT_LABEL, recordSlug } from "@/lib/os/inquiry-desk";
@@ -11,6 +11,8 @@ import { EVENT_LABEL, recordSlug } from "@/lib/os/inquiry-desk";
 const STUDIO_INBOX = "info@saysukii.com";
 
 type InquiryEmailDetails = {
+  /** opens this exact inquiry, even for a client who has written before */
+  inquiryId?: string;
   clientName: string;
   email: string;
   eventDate: string | null;
@@ -32,19 +34,21 @@ function inquiryKind(value: string) {
 }
 
 function studioOrigin(origin?: string) {
-  const base = (origin ?? emailOrigin()).replace(/\/$/, "");
-  if (base.includes("localhost") || base.includes("127.0.0.1"))
-    return "https://inside.saysukii.com";
-  return base;
+  if (origin && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
+    return origin.replace(/\/$/, "");
+  }
+  return studioLinkOrigin().replace(/\/$/, "");
+}
+
+function inquiryLink(details: InquiryEmailDetails, origin?: string) {
+  const record = details.inquiryId ?? recordSlug(details.clientName);
+  return `${studioOrigin(origin)}/pipeline/${record}`;
 }
 
 export function inquiryReceivedHtml(details: InquiryEmailDetails, origin?: string) {
   const kind = inquiryKind(details.eventType);
-  const requested = (origin ?? emailOrigin()).replace(/\/$/, "");
-  const links = studioOrigin(requested);
-  const assets = origin ? requested : links;
   return renderSaySukiiEmail({
-    origin: assets,
+    ...(origin ? { origin } : {}),
     eyebrow: "new inquiry",
     headline: "someone wrote in",
     body: `a new ${kind} inquiry just arrived.`,
@@ -56,14 +60,13 @@ export function inquiryReceivedHtml(details: InquiryEmailDetails, origin?: strin
     ],
     button: {
       label: "open the inquiry",
-      url: `${links}/pipeline/${recordSlug(details.clientName)}`,
+      url: inquiryLink(details, origin),
     },
   });
 }
 
 function inquiryReceivedText(details: InquiryEmailDetails, origin?: string) {
   const kind = inquiryKind(details.eventType);
-  const base = studioOrigin(origin);
   return [
     "someone wrote in",
     `a new ${kind} inquiry just arrived.`,
@@ -71,7 +74,7 @@ function inquiryReceivedText(details: InquiryEmailDetails, origin?: string) {
     `email: ${details.email}`,
     `date: ${inquiryDate(details.eventDate)}`,
     `place: ${details.venue?.trim() || "to be decided"}`,
-    `open it: ${base}/pipeline/${recordSlug(details.clientName)}`,
+    `open it: ${inquiryLink(details, origin)}`,
   ].join("\n");
 }
 

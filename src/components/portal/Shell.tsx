@@ -26,6 +26,7 @@ import { PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
 import { listFreshArrivals, syncStudioInbox } from "@/lib/os/inquiries.functions";
+import { listFreshBookings } from "@/lib/os/bookings.functions";
 import { listRecentIssues } from "@/lib/os/settings.functions";
 import { getDevPreviewSettings } from "@/lib/dev-preview";
 import { PREVIEW_ARRIVALS_KEY } from "@/lib/preview-arrivals";
@@ -107,6 +108,19 @@ function usePageRise() {
   return mainRef;
 }
 
+function bookedWhen(startsAt: string) {
+  return new Date(startsAt)
+    .toLocaleString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/New_York",
+    })
+    .toLowerCase();
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const mainRef = usePageRise();
@@ -115,6 +129,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, profile, devPreview } = useRouteContext({ from: "/_authenticated" });
   const arrivals = useServerFn(listFreshArrivals);
+  const bookings = useServerFn(listFreshBookings);
   const syncInbox = useServerFn(syncStudioInbox);
   const recentIssues = useServerFn(listRecentIssues);
   const queryClient = useQueryClient();
@@ -158,10 +173,16 @@ export function Shell({ children }: { children: ReactNode }) {
       }
     }
     void readInbox();
-    const timer = window.setInterval(() => void readInbox(), 120_000);
+    // replies show within half a minute while the studio is open, and right away on coming back
+    const timer = window.setInterval(() => void readInbox(), 30_000);
+    const onReturn = () => {
+      if (document.visibilityState === "visible") void readInbox();
+    };
+    document.addEventListener("visibilitychange", onReturn);
     return () => {
       stop = true;
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onReturn);
     };
   }, [devPreview, profile.role, queryClient, syncInbox]);
 
@@ -181,6 +202,16 @@ export function Shell({ children }: { children: ReactNode }) {
             href: `/pipeline/${recordSlug(row.name)}`,
           });
         }
+        const booked = await bookings();
+        if (stop) return;
+        for (const row of booked) {
+          pushNotice({
+            id: `booking-${row.id}`,
+            title: `${firstName(row.guest_name)} booked a call`,
+            body: bookedWhen(row.starts_at),
+            href: "/calendar",
+          });
+        }
       } catch {
         // the book can be quiet if the studio cannot reach it
       }
@@ -191,7 +222,7 @@ export function Shell({ children }: { children: ReactNode }) {
       stop = true;
       window.clearInterval(timer);
     };
-  }, [arrivals, devPreview, profile.role]);
+  }, [arrivals, bookings, devPreview, profile.role]);
 
   useEffect(() => {
     if (profile.role !== "admin") return;

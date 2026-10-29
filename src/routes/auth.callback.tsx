@@ -6,6 +6,7 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { Wordmark } from "@/components/portal/bits";
 import { markLoginBloom } from "@/components/portal/StudioLoader";
 import { supabase } from "@/integrations/supabase/client";
+import { afterSignIn } from "@/lib/after-sign-in";
 
 export const Route = createFileRoute("/auth/callback")({
   ssr: false,
@@ -70,7 +71,7 @@ function AuthCallbackPage() {
         }
         setMessage("Opening the studio…");
         markLoginBloom();
-        await router.navigate({ to: "/dashboard" });
+        await router.navigate({ href: afterSignIn(query.get("next")) });
       } catch {
         if (cancelled) return;
         toast.error("This sign-in link is invalid or expired.");

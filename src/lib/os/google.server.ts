@@ -264,23 +264,18 @@ export async function createConsultationEvent(input: {
           },
         }),
   };
-  const invited = await insertCalendarEvent(accessToken, calendarId, body, true);
-  if (invited.ok) return invited.id;
+  const invited = await insertCalendarEvent(accessToken, calendarId, body);
+  if (invited.ok) return { id: invited.id, joinUrl: invited.joinUrl };
   const { attendees: _attendees, ...studioOnly } = body;
-  const parked = await insertCalendarEvent(accessToken, calendarId, studioOnly, false);
+  const parked = await insertCalendarEvent(accessToken, calendarId, studioOnly);
   if (!parked.ok)
     throw new Error(parked.message || invited.message || "Google Calendar request failed");
-  return parked.id;
+  return { id: parked.id, joinUrl: parked.joinUrl };
 }
 
-async function insertCalendarEvent(
-  accessToken: string,
-  calendarId: string,
-  body: object,
-  invite: boolean,
-) {
-  const params = new URLSearchParams({ conferenceDataVersion: "1" });
-  if (invite) params.set("sendUpdates", "all");
+async function insertCalendarEvent(accessToken: string, calendarId: string, body: object) {
+  // the guest is on the event, but google sends nothing: the studio's own letter is the one confirmation
+  const params = new URLSearchParams({ conferenceDataVersion: "1", sendUpdates: "none" });
   const response = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?${params}`,
     {
@@ -292,8 +287,17 @@ async function insertCalendarEvent(
       body: JSON.stringify(body),
     },
   );
-  const event = (await response.json()) as { id?: string; error?: { message?: string } };
-  return { ok: response.ok, id: event.id ?? null, message: event.error?.message };
+  const event = (await response.json()) as {
+    id?: string;
+    hangoutLink?: string;
+    error?: { message?: string };
+  };
+  return {
+    ok: response.ok,
+    id: event.id ?? null,
+    joinUrl: event.hangoutLink ?? null,
+    message: event.error?.message,
+  };
 }
 
 function eventWindow(event: GoogleEvent): CalendarWindow | null {

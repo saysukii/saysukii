@@ -13,6 +13,7 @@ export type SaySukiiEmail = {
   facts?: EmailFact[];
   button?: { label: string; url: string; color?: string };
   note?: string;
+  /** where the logo loads from; only the email preview page changes it */
   origin?: string;
 };
 
@@ -24,12 +25,20 @@ export function escapeEmail(value: string) {
     .replaceAll('"', "&quot;");
 }
 
+// images have to load for anyone, and vercel's preview addresses sit behind a sign-in
+const EMAIL_ASSET_ORIGIN = "https://inside.saysukii.com";
+
+/** Links in the studio's own notices always open the studio itself, wherever the note was sent from. */
+export function studioLinkOrigin() {
+  return import.meta.env.DEV ? emailOrigin() : EMAIL_ASSET_ORIGIN;
+}
+
 export function emailOrigin() {
   return (process.env["APP_URL"] ?? "http://localhost:8080").replace(/\/$/, "");
 }
 
 export function renderSaySukiiEmail(input: SaySukiiEmail) {
-  const origin = (input.origin ?? emailOrigin()).replace(/\/$/, "");
+  const origin = (input.origin ?? EMAIL_ASSET_ORIGIN).replace(/\/$/, "");
   const facts = (input.facts ?? []).filter((fact) => fact.value.trim());
   const detail = facts.length
     ? `<tr><td style="padding-bottom:28px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="background-color:#FFF8F9;border-radius:12px;padding:18px 20px;">${factsTable(facts)}</td></tr></table></td></tr>`

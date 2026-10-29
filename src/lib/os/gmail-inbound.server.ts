@@ -57,6 +57,7 @@ export type InboundMailbox = {
   listHistory(
     historyId: string,
     pageToken?: string,
+    labelId?: string,
   ): Promise<{
     ids: string[];
     historyId: string | null;
@@ -228,7 +229,7 @@ export async function syncInboundMail(deps: {
   for (const id of freshIds) {
     const raw = await deps.mailbox.getMessage(id);
     if (!raw) continue;
-    if (raw.labelIds && !raw.labelIds.includes("INBOX")) continue;
+    if (raw.labelIds && !CAPTURED_LABELS.some((label) => raw.labelIds?.includes(label))) continue;
     const parsed = parseGmailMessage(raw);
     if (parsed) captured.push(parsed);
   }
@@ -253,19 +254,22 @@ export async function syncInboundMail(deps: {
   };
 }
 
+// what clients send, and what the studio sends straight from gmail
+const CAPTURED_LABELS = ["INBOX", "SENT"];
+
 async function collectHistoryIds(mailbox: InboundMailbox, startHistoryId: string) {
   const ids: string[] = [];
-  let pageToken: string | undefined;
   let historyId: string | null = startHistoryId;
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const result = pageToken
-      ? await mailbox.listHistory(startHistoryId, pageToken)
-      : await mailbox.listHistory(startHistoryId);
-    if (result.expired) return { ids: [], historyId: null, expired: true as const };
-    ids.push(...result.ids);
-    historyId = result.historyId ?? historyId;
-    if (!result.nextPageToken) break;
-    pageToken = result.nextPageToken;
+  for (const label of CAPTURED_LABELS) {
+    let pageToken: string | undefined;
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const result = await mailbox.listHistory(startHistoryId, pageToken, label);
+      if (result.expired) return { ids: [], historyId: null, expired: true as const };
+      ids.push(...result.ids);
+      historyId = result.historyId ?? historyId;
+      if (!result.nextPageToken) break;
+      pageToken = result.nextPageToken;
+    }
   }
   return { ids, historyId, expired: false as const };
 }
@@ -273,7 +277,7 @@ async function collectHistoryIds(mailbox: InboundMailbox, startHistoryId: string
 async function collectInboxIds(mailbox: InboundMailbox, lookbackDays: number) {
   const ids: string[] = [];
   let pageToken: string | undefined;
-  const query = `in:inbox newer_than:${lookbackDays}d`;
+  const query = `{in:inbox in:sent} newer_than:${lookbackDays}d`;
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const result = pageToken
       ? await mailbox.listInbox(query, pageToken)
@@ -326,12 +330,12 @@ function liveInboundMailbox(): InboundMailbox {
       const payload = await gmailGet<{ historyId?: string }>("/profile");
       return payload.historyId ?? null;
     },
-    async listHistory(historyId, pageToken) {
+    async listHistory(historyId, pageToken, labelId) {
       const params = new URLSearchParams({
         startHistoryId: historyId,
         historyTypes: "messageAdded",
-        // only what lands in the inbox; drafts and sent mail come and go and aren't replies
-        labelId: "INBOX",
+        // drafts come and go; only what lands in a label we read is asked for
+        ...(labelId ? { labelId } : {}),
         maxResults: String(PAGE_SIZE),
       });
       if (pageToken) params.set("pageToken", pageToken);
@@ -409,8 +413,12 @@ function liveInboundStore(): InboundStore {
       return readLocalCursor();
     },
     async writeCursor(cursor) {
+      // the server's own folder is read-only on vercel; the local file is only for running without supabase
+      if (supabaseConfigured()) {
+        await writeSupabaseCursor(cursor);
+        return;
+      }
       await writeLocalCursor(cursor);
-      await writeSupabaseCursor(cursor);
     },
   };
 }

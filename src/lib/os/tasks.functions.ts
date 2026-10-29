@@ -193,6 +193,19 @@ export async function syncInquiryAutoTasks(
       now,
     );
   }
+  // an inquiry that was deleted, archived, or left the book has nothing left to reply to
+  const listed = new Set(inquiries.map((inquiry) => inquiry.id));
+  await retireAutoTasks(
+    client,
+    existing.filter(
+      (task) =>
+        task.source === "auto" &&
+        task.status === "open" &&
+        task.linked_type === "inquiry" &&
+        Boolean(task.linked_id) &&
+        !listed.has(task.linked_id as string),
+    ),
+  );
 }
 
 export const listTasks = createServerFn({ method: "GET" })

@@ -82,6 +82,14 @@ export function readPreviewProposal(token: string) {
   return readMap()[token] ?? null;
 }
 
+export function clearPreviewProposal(inquiryId: string) {
+  const map = readMap();
+  for (const [token, item] of Object.entries(map)) {
+    if (item.inquiryId === inquiryId && item.status !== "accepted") delete map[token];
+  }
+  writeMap(map);
+}
+
 export function savePreviewProposal(input: {
   inquiryId: string;
   clientName: string;

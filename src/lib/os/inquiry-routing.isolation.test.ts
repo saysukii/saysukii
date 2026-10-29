@@ -401,6 +401,62 @@ describe("classify + route engine", () => {
     assert.equal(added?.author, "Maya Lin");
   });
 
+  it("files a letter sent from gmail on a new thread with the client it went to", async () => {
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("from-gmail", {
+          from_addr: "info@saysukii.com",
+          from_name: "Sukii",
+          to_addr: "Ada <ada@example.com>",
+          gmail_thread_id: "thread-fresh",
+          subject: "a few ideas for december",
+          body: "here are three palettes to consider.",
+        }),
+      ],
+      clients: [client("cli-ada")],
+      inquiries: [inquiry("inq-wedding", "cli-ada")],
+      messages: [threadMessage("inq-wedding", "thread-wedding")],
+    });
+
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async () => {
+        throw new Error("the studio's own letter should not need the model");
+      },
+    });
+
+    assert.equal(result.attached, 1);
+    const added = state.messages.find((row) => row.gmail_message_id === "gmail-from-gmail");
+    assert.equal(added?.inquiry_id, "inq-wedding");
+    assert.equal(added?.direction, "outbound");
+  });
+
+  it("never turns the studio's own mail into a lead", async () => {
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("studio-note", {
+          from_addr: "info@saysukii.com",
+          to_addr: "someone@elsewhere.com",
+          subject: "flowers for your wedding",
+          body: "Hi, I would love to do flowers for your wedding in Miami this December.",
+        }),
+      ],
+    });
+
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async () => {
+        throw new Error("the studio's own letter should not need the model");
+      },
+    });
+
+    assert.equal(result.ignored, 1);
+    assert.equal(result.candidates, 0);
+    assert.equal(state.inquiries.length, 0);
+  });
+
   it("opens a new candidate when a past client writes about a different event", async () => {
     const { state, store } = createMemoryRoutingStore({
       inbound: [

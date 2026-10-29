@@ -1036,6 +1036,8 @@ export function getDevPreviewPipeline() {
   return rows.map((inquiry) => ({
     ...inquiry,
     studio_wrote: previewStudioWrote(inquiry.id),
+    // the wedding sample shows a client who wrote back and is waiting on the studio
+    awaiting_reply: inquiry.id === PREVIEW_IDS.inquiryWedding,
     slug: slugs.get(inquiry.id) ?? inquiry.id,
     source_peek: previewReviewMail(inquiry.id),
   }));

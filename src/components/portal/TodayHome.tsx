@@ -356,13 +356,8 @@ export function TodayHome({
     () =>
       live
         .filter((task) => isDeskTask(task, today) && !retired.includes(task.id))
-        .sort((left, right) => {
-          const byDue = (left.due_at ?? left.created_at).localeCompare(
-            right.due_at ?? right.created_at,
-          );
-          if (byDue !== 0) return byDue;
-          return left.created_at.localeCompare(right.created_at);
-        })
+        // newest task on top, oldest at the bottom
+        .sort((left, right) => right.created_at.localeCompare(left.created_at))
         .map((task) => toDeskTask(task, data.waiting, data.projects)),
     [data.projects, data.waiting, live, retired, today],
   );
@@ -597,7 +592,7 @@ export function TodayHome({
           <p>
             {desk.length === 0
               ? "the desk is clear. good place to be."
-              : `${desk.length} ${desk.length === 1 ? "thing" : "things"} still need you — oldest first.`}
+              : `${desk.length} ${desk.length === 1 ? "thing" : "things"} still need you — newest first.`}
           </p>
         </div>
         <div className="studio-home-hello-go">

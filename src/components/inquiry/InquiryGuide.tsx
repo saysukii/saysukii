@@ -67,6 +67,18 @@ export function InquiryGuide({
     : step?.id === "interest"
       ? complete
       : import.meta.env.DEV || complete;
+  /** Enter moves on, like the continue button; the last step waits for a click to send. */
+  function onEnter(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a")) return;
+    // in the notes box Enter is a new line; cmd/ctrl + enter moves on
+    if (target.closest("textarea") && !(event.metaKey || event.ctrlKey)) return;
+    if (last || disabled || !ready) return;
+    event.preventDefault();
+    setIndex((current) => current + 1);
+  }
+
   const title = step ? personalizeInquiryLabel(step, "") : undefined;
   const help = step ? personalizeInquiryHelp(step, "") : undefined;
 
@@ -90,7 +102,7 @@ export function InquiryGuide({
         ) : null}
       </div>
 
-      <div className="auth-form inquire-form">
+      <div className="auth-form inquire-form" onKeyDown={onEnter}>
         <div className="auth-panel-heading inquire-heading">
           <h2>{title}</h2>
           {help ? <p className="inquire-step-note">{help}</p> : null}

@@ -5,7 +5,7 @@ import { DEV_PREVIEW_PROFILE, DEV_PREVIEW_USER, isDevPreviewEnabled } from "@/li
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     if (isDevPreviewEnabled()) {
       return {
         user: DEV_PREVIEW_USER,
@@ -28,7 +28,8 @@ export const Route = createFileRoute("/_authenticated")({
     }
 
     if (data.user) await supabase.auth.signOut();
-    throw redirect({ to: "/auth" });
+    // after signing in, carry on to the page that was asked for
+    throw redirect({ to: "/auth", search: { next: location.href } });
   },
   component: () => (
     <Shell>

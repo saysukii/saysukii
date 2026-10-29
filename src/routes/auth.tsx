@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
+import { z } from "zod";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, Eye, EyeOff, Sparkles } from "lucide-react";
@@ -8,8 +9,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Wordmark } from "@/components/portal/bits";
 import { markLoginBloom } from "@/components/portal/StudioLoader";
 import { sendSignInEmail } from "@/lib/os/sign-in-email.functions";
+import { afterSignIn } from "@/lib/after-sign-in";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: z.object({ next: z.string().optional() }),
   head: () => ({
     meta: [
       { title: "Say Sukii OS" },
@@ -36,6 +39,13 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { next } = Route.useSearch();
+
+  function callbackUrl() {
+    const url = new URL("/auth/callback", window.location.origin);
+    if (next) url.searchParams.set("next", afterSignIn(next));
+    return url.toString();
+  }
   const sendStudioLetter = useServerFn(sendSignInEmail);
 
   async function submit(event: React.FormEvent) {
@@ -60,7 +70,7 @@ function AuthPage() {
         throw new Error("Access denied");
       }
       markLoginBloom();
-      await router.navigate({ to: "/dashboard" });
+      await router.navigate({ href: afterSignIn(next) });
     } catch {
       toast.error("This account does not have access to the studio.");
     } finally {
@@ -72,7 +82,7 @@ function AuthPage() {
     setBusy(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl() },
     });
     if (error) {
       setBusy(false);
@@ -85,7 +95,9 @@ function AuthPage() {
     if (!email.trim()) return;
     setBusy(true);
     try {
-      await sendStudioLetter({ data: { email: email.trim(), kind: "link" } });
+      await sendStudioLetter({
+        data: { email: email.trim(), kind: "link", ...(next ? { next: afterSignIn(next) } : {}) },
+      });
       toast.success("Your studio link is on its way.");
     } catch {
       toast.error("We couldn't send that link. Check the email and try again.");

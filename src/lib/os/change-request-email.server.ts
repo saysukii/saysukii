@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-import { emailOrigin, renderSaySukiiEmail } from "@/lib/os/email-layout";
+import { renderSaySukiiEmail, studioLinkOrigin } from "@/lib/os/email-layout";
 import { studioNotificationEmail } from "@/lib/os/email.server";
 
 export type ChangeRequestMail = {
@@ -25,9 +25,9 @@ function momentDate(value: string | null) {
 }
 
 export function changeRequestHtml(input: ChangeRequestMail, origin?: string) {
-  const base = origin ?? emailOrigin();
+  const base = origin ?? studioLinkOrigin();
   return renderSaySukiiEmail({
-    origin: base,
+    ...(origin ? { origin } : {}),
     eyebrow: "the moment",
     eyebrowColor: "#C45D72",
     headline: "a change was requested",

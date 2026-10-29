@@ -438,6 +438,41 @@ async function shareBundle(bundle: ProposalBundle) {
   return { url: proposalLink(publicOrigin(), slug) };
 }
 
+/**
+ * Takes the proposal off an inquiry so the studio can start again: its link stops working and
+ * the client's name is free for the next one. An approved proposal stays.
+ */
+export const clearProposal = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) => z.object({ inquiry_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const { data: row, error } = await supabaseAdmin
+      .from("proposals")
+      .select("id, status")
+      .eq("inquiry_id", data.inquiry_id)
+      .eq("archived", false)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!row) return { cleared: false };
+    if (row.status === "accepted") {
+      throw new Error("this proposal was approved, so it stays.");
+    }
+    const { error: clearError } = await supabaseAdmin
+      .from("proposals")
+      .update({ archived: true, slug: null })
+      .eq("id", row.id);
+    if (clearError) throw new Error(clearError.message);
+    // with no proposal out, the inquiry goes back to the conversation
+    await supabaseAdmin
+      .from("inquiries")
+      .update({ status: "in_conversation", proposal_sent_at: null })
+      .eq("id", data.inquiry_id)
+      .eq("status", "proposal_sent");
+    await syncInquiryAutoTaskFor(supabaseAdmin, data.inquiry_id);
+    await refreshInquirySummarySafe(supabaseAdmin, data.inquiry_id);
+    return { cleared: true };
+  });
+
 /** inside.saysukii.com/maya-chen → the proposal it opens. */
 export const findProposalBySlug = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ slug: z.string().trim().min(1).max(120) }).parse(input))

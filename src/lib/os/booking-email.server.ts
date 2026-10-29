@@ -9,6 +9,8 @@ export type BookingMail = {
   note: string;
   durationMinutes: number;
   meeting?: "meet" | "phone";
+  /** the google meet link, when the calendar made one */
+  joinUrl?: string | null;
 };
 
 const ZONE = "America/New_York";
@@ -61,12 +63,13 @@ function placeLabel(input: Pick<BookingMail, "meeting">) {
   return input.meeting === "phone" ? "phone call" : "google meeting";
 }
 
-function noteLines(input: Pick<BookingMail, "note" | "durationMinutes" | "meeting">) {
+function noteLines(input: Pick<BookingMail, "note" | "durationMinutes" | "meeting" | "joinUrl">) {
   return [
     "thank you for making time. looking forward to connecting with you soon! <3",
     "if this is an event or wedding -- in our initial consultation, we will discuss your overall vision and needs to follow up with an accurate proposal quote.",
     "please have any inspiration images you have readily available for our meeting. you may also email them to info@saysukii.com.",
     `${input.durationMinutes} minutes · ${placeLabel(input)}`,
+    input.joinUrl ? `join: ${input.joinUrl}` : "",
     input.note.trim(),
   ].filter(Boolean);
 }
@@ -87,6 +90,7 @@ export function meetingIcs(input: BookingMail) {
     `DTEND:${stamp(end)}`,
     "SUMMARY:let's talk with say sukii",
     `DESCRIPTION:${icsText(noteLines(input).join("\n"))}`,
+    ...(input.joinUrl ? [`LOCATION:${icsText(input.joinUrl)}`, `URL:${input.joinUrl}`] : []),
     "ORGANIZER;CN=Say Sukii:mailto:info@saysukii.com",
     `ATTENDEE;CN=${icsText(input.name)};RSVP=TRUE:mailto:${input.email}`,
     "END:VEVENT",
@@ -127,6 +131,7 @@ export function bookingHtml(input: BookingMail, origin?: string) {
     facts: [
       { label: "when", value: bookingWhen(input.startsAt) },
       { label: "length", value: `${input.durationMinutes} minutes · ${placeLabel(input)}` },
+      ...(input.joinUrl ? [{ label: "join", value: input.joinUrl }] : []),
       ...(note ? [{ label: "note", value: note }] : []),
     ],
     button: {
@@ -244,4 +249,37 @@ export async function sendBookingEmail(input: BookingMail) {
     console.error("[booking] confirmation email was not sent", error);
     return { sent: false as const };
   }
+}
+
+/** The studio's own note that a call was booked, sent to the notification address. */
+export async function sendBookingNotice(input: BookingMail) {
+  const { sendStudioNotice } = await import("@/lib/os/email.server");
+  const when = bookingWhen(input.startsAt);
+  const note = input.note.trim();
+  return sendStudioNotice({
+    subject: `a call was booked · ${input.name}`,
+    text: [
+      "a call was booked",
+      `${input.name} · ${input.email}`,
+      when,
+      `${input.durationMinutes} minutes · ${placeLabel(input)}`,
+      input.joinUrl ? `join: ${input.joinUrl}` : "",
+      note ? `note: ${note}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    html: renderSaySukiiEmail({
+      eyebrow: "let's talk",
+      headline: "a call was booked",
+      body: `${input.name} booked a time to talk.`,
+      facts: [
+        { label: "who", value: input.name },
+        { label: "email", value: input.email },
+        { label: "when", value: when },
+        { label: "length", value: `${input.durationMinutes} minutes · ${placeLabel(input)}` },
+        ...(input.joinUrl ? [{ label: "join", value: input.joinUrl }] : []),
+        ...(note ? [{ label: "note", value: note }] : []),
+      ],
+    }),
+  });
 }

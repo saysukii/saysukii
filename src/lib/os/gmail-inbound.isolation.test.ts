@@ -207,14 +207,23 @@ describe("Gmail inbound capture", () => {
     assert.equal(encoded.includes("access_token"), false);
   });
 
-  it("does not capture mail that left the inbox", async () => {
+  it("captures inbox mail and what the studio sent from gmail, but not drafts or archived mail", async () => {
     const store = createMemoryInboundStore();
     const sent = message("sent-1", { subject: "our reply" });
     sent.labelIds = ["SENT"];
-    const mailbox = fakeMailbox([sent, message("in-1", { subject: "new inquiry" })]);
+    const draft = message("draft-1", { subject: "half a thought" });
+    draft.labelIds = ["DRAFT"];
+    const archived = message("old-1", { subject: "filed away" });
+    archived.labelIds = ["CATEGORY_UPDATES"];
+    const mailbox = fakeMailbox([
+      sent,
+      draft,
+      archived,
+      message("in-1", { subject: "new inquiry" }),
+    ]);
     const result = await syncInboundMail({ mailbox, store });
-    assert.equal(result.inserted, 1);
-    const kept = await store.existingIds(["sent-1", "in-1"]);
-    assert.deepEqual([...kept], ["in-1"]);
+    assert.equal(result.inserted, 2);
+    const kept = await store.existingIds(["sent-1", "draft-1", "old-1", "in-1"]);
+    assert.deepEqual([...kept].sort(), ["in-1", "sent-1"]);
   });
 });

@@ -705,6 +705,43 @@ export function orderUnprocessedInbound(
   });
 }
 
+function firstRecipient(to: string | null | undefined) {
+  const direct = (to ?? "").split(" · ")[0] ?? "";
+  return normalizeSenderEmail(direct.split(",")[0]);
+}
+
+/** A letter the studio sent from gmail on a new thread belongs to that client's one open inquiry. */
+async function studioLetterDecision(
+  message: InboundMessageRow,
+  store: RoutingStore,
+): Promise<RoutingDecision> {
+  const recipient = firstRecipient(message.to_addr);
+  const theirs =
+    recipient && !isStudioSender(recipient)
+      ? (
+          await store.findMatches({ ...message, from_addr: recipient, gmail_thread_id: null })
+        ).filter((row) => row.active && row.match_via.includes("sender"))
+      : [];
+  if (theirs.length === 1 && theirs[0]) {
+    return {
+      action: "attached",
+      matched_inquiry_id: theirs[0].id,
+      is_true_inquiry: true,
+      confidence: 0.9,
+      reason: "the studio wrote to this client from gmail",
+      extraction: { ...EMPTY_EXTRACTION, email: normalizeSenderEmail(message.from_addr) },
+    };
+  }
+  return {
+    action: "ignored",
+    matched_inquiry_id: null,
+    is_true_inquiry: false,
+    confidence: 1,
+    reason: "sent from the studio",
+    extraction: { ...EMPTY_EXTRACTION },
+  };
+}
+
 export function activeThreadReply(
   message: Pick<InboundMessageRow, "from_addr" | "from_name">,
   matches: InquiryMatch[],
@@ -770,6 +807,13 @@ export async function routeUnprocessedInbound(deps: {
       const threadReply = activeThreadReply(message, matches);
       if (threadReply) {
         const action = await applyDecision(message, threadReply, deps.store, now());
+        tally(result, action);
+        continue;
+      }
+      // the studio wrote from gmail: file it with the client it went to, and never make it a lead
+      if (isStudioSender(email)) {
+        const decision = await studioLetterDecision(message, deps.store);
+        const action = await applyDecision(message, decision, deps.store, now());
         tally(result, action);
         continue;
       }
@@ -945,8 +989,15 @@ export async function runGmailInboundRouting(deps?: {
   const classify =
     deps?.classify ??
     (process.env["ANTHROPIC_API_KEY"]
-      ? (input: { message: InboundMessageRow; matches: InquiryMatch[] }) =>
-          classifyWithAnthropic(input)
+      ? // if claude can't answer, the house rules still sort the mail, so nothing waits forever
+        async (input: { message: InboundMessageRow; matches: InquiryMatch[] }) =>
+          classifyWithAnthropic(input).catch((error: unknown) => {
+            console.error(
+              "[gmail-route] claude could not sort a message, using the house rules:",
+              error instanceof Error ? error.message : error,
+            );
+            return heuristicRoutingRaw(input);
+          })
       : async (input: { message: InboundMessageRow; matches: InquiryMatch[] }) =>
           heuristicRoutingRaw(input));
   const routed: {
@@ -1040,7 +1091,7 @@ async function loadInquiryLessonsFromSupabase() {
   }
 }
 
-function liveRoutingStore(): RoutingStore {
+export function liveRoutingStore(): RoutingStore {
   return {
     async listUnprocessed(limit) {
       const fromDb = await listUnprocessedFromSupabase(limit);
@@ -1096,8 +1147,8 @@ function liveRoutingStore(): RoutingStore {
     },
     async markRouted(input) {
       const fromDb = await markRoutedSupabase(input);
-      await patchLocalInbound(input);
       if (fromDb) return;
+      await patchLocalInbound(input);
     },
     async logNegative(row) {
       const fromDb = await insertLabelSupabase(row);

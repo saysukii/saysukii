@@ -1,9 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { afterSignIn } from "@/lib/after-sign-in";
+
 const signInEmailSchema = z.object({
   email: z.string().trim().email().max(320),
   kind: z.enum(["link", "reset"]),
+  /** a studio page to open once signed in */
+  next: z.string().trim().max(500).optional(),
 });
 
 const LETTER = {
@@ -74,6 +78,7 @@ export const sendSignInEmail = createServerFn({ method: "POST" })
     const url = new URL("/auth/callback", origin);
     url.searchParams.set("token_hash", link.properties.hashed_token);
     url.searchParams.set("type", data.kind === "link" ? "email" : "recovery");
+    if (data.kind === "link" && data.next) url.searchParams.set("next", afterSignIn(data.next));
 
     const sent = await sendStudioEmail({
       to: email,
@@ -87,7 +92,6 @@ export const sendSignInEmail = createServerFn({ method: "POST" })
         body: letter.body,
         button: { label: letter.button, url: url.toString() },
         note: "didn't ask for this? you can let it be. nothing changes until the link is opened.",
-        origin,
       }),
     });
     if (sent.skipped) throw new Error("Studio email isn't set up yet.");

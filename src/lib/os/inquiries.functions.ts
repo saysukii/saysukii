@@ -318,6 +318,7 @@ export const submitPublicInquiry = createServerFn({ method: "POST" })
     const inquiry = await createInquiryWithClient(supabaseAdmin, data, null);
     const { sendInquiryReceivedEmail } = await import("@/lib/os/inquiry-email.server");
     await sendInquiryReceivedEmail({
+      inquiryId: inquiry.id,
       clientName: data.name,
       email: data.email.toLowerCase(),
       eventDate: inquiry.event_date,
@@ -365,9 +366,44 @@ export const createAdminInquiry = createServerFn({ method: "POST" })
 
 export const listInquiryPipeline = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .handler(async ({ context }) =>
-    listInquiriesWithClients(context.supabase, DESK_DETECTION_STATUSES, { withClosed: true }),
-  );
+  .handler(async ({ context }) => {
+    const rows = await listInquiriesWithClients(context.supabase, DESK_DETECTION_STATUSES, {
+      withClosed: true,
+    });
+    const waiting = await awaitingStudioReply(
+      context.supabase,
+      rows.map((row) => row.id),
+    );
+    return rows.map((row) => ({ ...row, awaiting_reply: waiting.has(row.id) }));
+  });
+
+/**
+ * Inquiries where the client wrote back after the studio last did: the latest email on the
+ * thread is theirs, and the studio has written at least once (a brand-new inquiry is just new).
+ */
+async function awaitingStudioReply(client: StudioClient, inquiryIds: string[]) {
+  const waiting = new Set<string>();
+  for (let i = 0; i < inquiryIds.length; i += 100) {
+    const { data, error } = await client
+      .from("inquiry_messages")
+      .select("inquiry_id, direction, sent_at")
+      .in("inquiry_id", inquiryIds.slice(i, i + 100))
+      .eq("channel", "email")
+      .in("status", ["sent", "received"])
+      .order("sent_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    const latest = new Map<string, string>();
+    const studioWrote = new Set<string>();
+    for (const row of data ?? []) {
+      latest.set(row.inquiry_id, row.direction);
+      if (row.direction === "outbound") studioWrote.add(row.inquiry_id);
+    }
+    for (const [id, direction] of latest) {
+      if (direction === "inbound" && studioWrote.has(id)) waiting.add(id);
+    }
+  }
+  return waiting;
+}
 
 export const getInquiryDashboard = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
@@ -594,7 +630,10 @@ export const syncStudioInbox = createServerFn({ method: "POST" })
     }
   });
 
-export type InquiryPipelineItem = Awaited<ReturnType<typeof listInquiriesWithClients>>[number];
+export type InquiryPipelineItem = Awaited<ReturnType<typeof listInquiriesWithClients>>[number] & {
+  /** the client wrote back after the studio last did (the inquiries page sets this) */
+  awaiting_reply?: boolean;
+};
 export type InquiryEventType = EventType;
 
 const floridaAddressSearch = z.object({

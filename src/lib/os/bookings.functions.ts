@@ -57,11 +57,12 @@ export const bookAppointment = createServerFn({ method: "POST" })
     const durationMinutes = settings?.durationMinutes ?? 30;
     const meeting = settings?.meeting ?? "meet";
     const { createConsultationEvent } = await import("@/lib/os/google.server");
-    const googleEventId = await createConsultationEvent({
+    const googleEvent = await createConsultationEvent({
       ...data,
       durationMinutes,
       meeting,
     }).catch(() => null);
+    const googleEventId = googleEvent?.id ?? null;
     let savedId: string | null = null;
     let saveError = "";
     try {
@@ -81,17 +82,35 @@ export const bookAppointment = createServerFn({ method: "POST" })
     } catch (error) {
       saveError = error instanceof Error ? error.message : "booking was not saved";
     }
-    const { sendBookingEmail } = await import("@/lib/os/booking-email.server");
-    await sendBookingEmail({
+    const { sendBookingEmail, sendBookingNotice } = await import("@/lib/os/booking-email.server");
+    const mail = {
       startsAt: data.startsAt,
       name: data.name,
       email: data.email,
       note: data.note,
       durationMinutes,
       meeting,
-    });
+      joinUrl: googleEvent?.joinUrl ?? null,
+    };
+    // the guest's confirmation, and the studio's note that someone booked
+    await Promise.all([sendBookingEmail(mail), sendBookingNotice(mail).catch(() => null)]);
     if (saveError && !googleEventId) throw new Error(saveError);
     return { id: savedId ?? googleEventId, googleEventId };
+  });
+
+/** Calls booked in the last day, for the studio's bell. */
+export const listFreshBookings = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }) => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await context.supabase
+      .from("appointments")
+      .select("id, guest_name, starts_at")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    if (error) throw new Error(error.message);
+    return data ?? [];
   });
 
 export const listStudioCalendarEvents = createServerFn({ method: "GET" }).handler(async () => {
