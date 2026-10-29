@@ -956,7 +956,14 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const invoiceDueCents =
     invoiceDraft.pay === "full" ? invoiceTotalCents : Math.round(invoiceTotalCents / 2);
 
-  const replyAll = replyAllPeople(threadedMessages, data?.client?.email);
+  // a new conversation (a template, a fresh subject) starts with everyone from the latest email,
+  // so a planner on cc isn't dropped; anyone can still be removed
+  const replyAll = replyAllPeople(
+    threadedMessages.length
+      ? threadedMessages
+      : visibleMessages.filter((item) => item.channel === "email"),
+    data?.client?.email,
+  );
   const replyKey = `${replyAll.to.join(",")}|${replyAll.cc.join(",")}`;
   useEffect(() => {
     const [to = "", cc = ""] = replyKey.split("|");
