@@ -177,7 +177,12 @@ async function sendInvoiceReceipt(
     totalCents: row.total_cents,
     booking: false,
     addOn: true,
-    occasion: floralPackageName(inquiry.event_type).toLowerCase(),
+    // what the add-on was: "bud vases", or "bud vases + candles + delivery"
+    occasion:
+      items
+        .map((item) => item.name?.trim())
+        .filter(Boolean)
+        .join(" + ") || floralPackageName(inquiry.event_type).toLowerCase(),
     eventDate: inquiry.event_date,
     paidAt,
     inquiryId: inquiry.id,
