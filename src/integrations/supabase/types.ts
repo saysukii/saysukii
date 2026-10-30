@@ -176,6 +176,15 @@ export type ProposalRow = {
   updated_at: string;
 };
 
+export type EmailTemplateRow = {
+  id: string;
+  subject: string;
+  headline: string;
+  body: string;
+  updated_by: string | null;
+  updated_at: string;
+};
+
 export type InquiryInvoiceStatus = "sent" | "deposit_paid" | "paid" | "canceled";
 
 export type InquiryInvoiceRow = {
@@ -464,6 +473,7 @@ export type Database = {
       email_integration: Table<EmailIntegrationRow>;
       inbound_messages: Table<InboundMessageRow>;
       inquiry_invoices: Table<InquiryInvoiceRow>;
+      email_templates: Table<EmailTemplateRow>;
       inquiry_routing_labels: Table<InquiryRoutingLabelRow>;
       proposals: Table<ProposalRow>;
       proposal_line_items: Table<ProposalLineItemRow>;

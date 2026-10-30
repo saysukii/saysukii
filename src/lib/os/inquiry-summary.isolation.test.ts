@@ -358,9 +358,59 @@ describe("inquiry summary situations", () => {
     assert.equal(accepted.facts.situation, "proposal_accepted");
     assert.match(
       accepted.text,
-      /camila accepted the \$18,400 proposal on sep 15\. the deposit isn't paid yet\./,
+      /camila accepted the \$18,400 proposal on sep 15 but hasn't signed the agreement yet\./,
     );
-    assert.match(accepted.text, /check in about the deposit, then mark it booked once it's paid/);
+    assert.match(accepted.text, /nudge them to sign the agreement, then the deposit/);
+
+    const signed = read({
+      status: "proposal_sent",
+      messages: thread,
+      proposals: [
+        {
+          status: "accepted",
+          created_at: at(-20),
+          accepted_at: at(-1),
+          signed_at: at(-1),
+          total_cents: 1_840_000,
+        },
+      ],
+    });
+    assert.equal(signed.facts.situation, "proposal_signed");
+    assert.match(
+      signed.text,
+      /camila accepted the \$18,400 proposal and signed the agreement on sep 15\. the deposit isn't paid yet\./,
+    );
+    assert.match(signed.text, /check in about the deposit, it books them the moment it's paid/);
+  });
+
+  it("signed and paid: the deposit books them, and paying in full says so", () => {
+    const thread = [form(-30), studio(-28)];
+    const signedProposal = {
+      status: "accepted",
+      created_at: at(-20),
+      accepted_at: at(-2),
+      signed_at: at(-2),
+      total_cents: 1_840_000,
+    };
+    const deposit = read({
+      status: "proposal_sent",
+      messages: thread,
+      proposals: [{ ...signedProposal, paid_cents: 920_000, paid_at: at(-1) }],
+    });
+    assert.equal(deposit.facts.situation, "booked");
+    assert.match(
+      deposit.text,
+      /camila signed and paid the \$9,200 deposit on sep 15\. they're booked for a wedding on mar 14, 2027 at the w hotel, with \$9,200 due feb 12, 2027\./,
+    );
+    assert.match(deposit.text, /the balance reminders go out on their own/);
+
+    const full = read({
+      status: "booked",
+      messages: thread,
+      proposals: [{ ...signedProposal, paid_cents: 1_840_000, paid_at: at(-1) }],
+    });
+    assert.equal(full.facts.situation, "booked");
+    assert.match(full.text, /camila signed and paid in full on sep 15\. they're booked for/);
   });
 
   it("booked: unpaid deposit, held date, event soon, and event past", () => {

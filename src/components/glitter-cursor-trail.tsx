@@ -38,10 +38,10 @@ function pickColor() {
   return GLITTER_COLORS[Math.floor(Math.random() * GLITTER_COLORS.length)]!;
 }
 
-const SPRITE_RADIUS = 12;
+export const SPRITE_RADIUS = 12;
 
 /** Each colour, with and without its glow, is drawn once; frames only stamp these. */
-function sparkleSprite(color: string, glow: boolean, scale: number) {
+export function sparkleSprite(color: string, glow: boolean, scale: number) {
   const pad = glow ? SPRITE_RADIUS * 1.6 : 2;
   const half = SPRITE_RADIUS + pad;
   const sprite = document.createElement("canvas");

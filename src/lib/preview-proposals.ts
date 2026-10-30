@@ -32,6 +32,8 @@ export type PreviewProposal = {
   courtesyCents?: number;
   courtesyNote?: string | null;
   sentAt?: string | null;
+  acceptedAt?: string | null;
+  paidAt?: string | null;
 };
 
 type ChangeNote = {
@@ -45,10 +47,12 @@ type ChangeNote = {
 const PROPOSALS_KEY = "say-sukii-preview-proposals";
 const NOTES_KEY = "say-sukii-preview-change-notes";
 
+// preview proposals live in this browser, shared by every tab, so the inquiry in one tab
+// follows the proposal moving in another
 function readMap(): Record<string, PreviewProposal> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = sessionStorage.getItem(PROPOSALS_KEY);
+    const raw = localStorage.getItem(PROPOSALS_KEY);
     return raw ? (JSON.parse(raw) as Record<string, PreviewProposal>) : {};
   } catch {
     return {};
@@ -56,13 +60,27 @@ function readMap(): Record<string, PreviewProposal> {
 }
 
 function writeMap(map: Record<string, PreviewProposal>) {
-  sessionStorage.setItem(PROPOSALS_KEY, JSON.stringify(map));
+  try {
+    localStorage.setItem(PROPOSALS_KEY, JSON.stringify(map));
+  } catch {
+    // a private window can refuse storage; the preview then lasts only as long as the page
+  }
+}
+
+/** Calls back when a preview proposal changes in another tab. Returns the way to stop listening. */
+export function onPreviewProposalsChange(callback: () => void) {
+  if (typeof window === "undefined") return () => {};
+  const listen = (event: StorageEvent) => {
+    if (event.key === PROPOSALS_KEY) callback();
+  };
+  window.addEventListener("storage", listen);
+  return () => window.removeEventListener("storage", listen);
 }
 
 function readNotes(): ChangeNote[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = sessionStorage.getItem(NOTES_KEY);
+    const raw = localStorage.getItem(NOTES_KEY);
     return raw ? (JSON.parse(raw) as ChangeNote[]) : [];
   } catch {
     return [];
@@ -176,19 +194,26 @@ export function markPreviewProposalSent(token: string) {
 }
 
 const FENTY_DEMO = "preview_fentybeauty091726";
-const FENTY_FRESH = "client-details";
+const FENTY_FRESH = "shared-tabs";
+/** the local fenty beauty inquiry this demo belongs to, so its summary follows the demo */
+export const FENTY_DEMO_INQUIRY = "20000000-0000-4000-8000-000000000031";
+
+/** the fenty demo as it stands in this tab: fresh until someone opens and moves through it */
+export function fentyDemoProposal() {
+  return readMap()[FENTY_DEMO] ?? fentyDemo();
+}
 
 function fentyDemo(): PreviewProposal {
   return {
     token: FENTY_DEMO,
-    inquiryId: "fenty-beauty",
+    inquiryId: FENTY_DEMO_INQUIRY,
     clientName: "Fenty Beauty",
     contactName: null,
     // sample details, so the agreement's client section reads the way a real one does
     clientPhone: "(305) 555-0142",
     clientEmail: "events@fentybeauty.com",
     number: "SS-0917",
-    eventDate: "2026-09-17",
+    eventDate: "2027-03-12",
     venueText: "The Shelbourne by Proper, 1801 Collins Ave, Miami Beach",
     eventLabel: "private dinner",
     totalCents: 400250,
@@ -198,6 +223,7 @@ function fentyDemo(): PreviewProposal {
     pdfDataUrl: "/attachments/fenty-beauty-proposal.pdf",
     pageUrls: [1, 2, 3, 4, 5, 6].map((page) => `/attachments/fenty-pages/page-0${page}.png?v=2`),
     status: "sent",
+    sentAt: "2026-10-27T15:00:00.000Z",
     agreement: null,
     signedName: null,
     signedAt: null,
@@ -212,10 +238,10 @@ export function openPreviewProposal(token: string) {
   if (
     typeof window !== "undefined" &&
     token === FENTY_DEMO &&
-    sessionStorage.getItem("say-sukii-fenty-fresh") !== FENTY_FRESH
+    localStorage.getItem("say-sukii-fenty-fresh") !== FENTY_FRESH
   ) {
     delete map[token];
-    sessionStorage.setItem("say-sukii-fenty-fresh", FENTY_FRESH);
+    localStorage.setItem("say-sukii-fenty-fresh", FENTY_FRESH);
   }
   const current = map[token] ?? (token === FENTY_DEMO ? fentyDemo() : null);
   if (!current) return null;
@@ -271,6 +297,7 @@ export function acceptPreviewProposal(token: string) {
     throw new Error("This proposal can no longer be accepted.");
   }
   current.status = "accepted";
+  current.acceptedAt = new Date().toISOString();
   current.agreement = buildAgreementContent("standard", {
     clientName: current.clientName,
     contactName: null,
@@ -310,6 +337,7 @@ export function payPreviewProposal(token: string) {
   const current = map[token];
   if (!current?.signedName) throw new Error("Sign the agreement before paying.");
   current.paid = true;
+  current.paidAt = new Date().toISOString();
   map[token] = current;
   writeMap(map);
   return current;

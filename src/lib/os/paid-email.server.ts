@@ -1,3 +1,9 @@
+import {
+  defaultEmailTemplate,
+  templateFirstName,
+  templateWords,
+  type EmailTemplate,
+} from "@/lib/email-templates";
 import { emailKind, renderSaySukiiEmail, studioLinkOrigin } from "@/lib/os/email-layout";
 
 export type PaidLetter = {
@@ -16,12 +22,14 @@ export type PaidLetter = {
   eventDate?: string | null;
   /** when it was paid */
   paidAt: string;
-  /** the attachments going with the client's letter, by file name */
-  attachments?: string[];
   /** the inquiry's id, so the studio's button opens it */
   inquiryId?: string;
   /** the inquiry's event type, for the small label of its kind */
   eventType?: string;
+  /** an invoice of its own after the booking, like an arrangement they added on */
+  addOn?: boolean;
+  /** the studio's saved words for this letter; the app's own when there are none */
+  template?: EmailTemplate;
 };
 
 /** every date in these letters reads MM/DD/YY */
@@ -73,6 +81,17 @@ function money(cents: number) {
   return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** the booked letter, or the thank-you once the rest is paid, in the studio's words */
+function paidWords(letter: PaidLetter) {
+  const template =
+    letter.template ?? defaultEmailTemplate(letter.booking ? "booked" : "paid-in-full");
+  return templateWords(template, {
+    name: templateFirstName(letter.clientName),
+    invoice: letter.invoiceNumber,
+    occasion: letter.occasion,
+  });
+}
+
 /**
  * To the client once they've paid. The payment that books the project says so, with the receipt
  * and signed agreement; paying the rest later is a simple thank-you with the receipt.
@@ -84,32 +103,27 @@ export function clientPaidHtml(letter: PaidLetter, origin?: string) {
     ...(origin ? { origin } : {}),
     ...(kind ? { kind } : {}),
     facts: paidFacts(letter),
-    ...(letter.attachments?.length ? { note: `attached: ${letter.attachments.join(" · ")}` } : {}),
   };
-  if (!letter.booking) {
+  if (letter.addOn) {
     return renderSaySukiiEmail({
       ...shared,
       eyebrow: "paid in full",
       headline: "thank you",
-      body: `thank you, ${first}. your receipt is attached.`,
+      body: `thank you, ${first}. your receipt for your add-ons is attached.`,
     });
   }
+  const words = paidWords(letter);
   return renderSaySukiiEmail({
     ...shared,
-    eyebrow: "booked",
-    headline: "your project is booked",
-    body: [
-      `thank you, ${first}. your project is on the books.`,
-      "",
-      "your receipt and your signed service agreement are attached for your records. we'll be in touch soon with next steps.",
-    ].join("\n"),
+    eyebrow: letter.booking ? "booked" : "paid in full",
+    headline: words.headline,
+    body: words.body,
   });
 }
 
 export function clientPaidSubject(letter: PaidLetter) {
-  return letter.booking
-    ? `your project is booked · receipt for ${letter.invoiceNumber}`
-    : `thank you · receipt for ${letter.invoiceNumber}`;
+  if (letter.addOn) return `thank you · receipt for ${letter.invoiceNumber}`;
+  return paidWords(letter).subject;
 }
 
 /** To the studio: the project is booked, or later, the balance is paid. */
@@ -120,10 +134,16 @@ export function studioPaidHtml(letter: PaidLetter, origin?: string) {
     ...(origin ? { origin } : {}),
     ...(kind ? { kind } : {}),
     eyebrow: letter.booking ? "booked" : "paid in full",
-    headline: letter.booking ? "a project is booked" : "a balance is paid",
+    headline: letter.booking
+      ? "a project is booked"
+      : letter.addOn
+        ? "an add-on is paid"
+        : "a balance is paid",
     body: letter.booking
-      ? `${letter.clientName} ${letter.paidCents >= letter.totalCents ? "paid in full" : "paid the deposit"}. the project is on the books, and the receipt and signed agreement went to them.`
-      : `${letter.clientName} paid the rest of their invoice. the receipt went to them.`,
+      ? `${letter.clientName} ${letter.paidCents >= letter.totalCents ? "paid in full" : "paid the deposit"}. the project is on the books, and their proposal, signed agreement + receipt went to them.`
+      : letter.addOn
+        ? `${letter.clientName} paid for their add-ons. the receipt went to them.`
+        : `${letter.clientName} paid the rest of their invoice. the receipt went to them.`,
     facts: [{ label: "client", value: letter.clientName }, ...paidFacts(letter)],
     button: {
       label: "open the project",
@@ -140,15 +160,17 @@ export function studioPaidSubject(letter: PaidLetter) {
 
 export function paidText(letter: PaidLetter) {
   const left = letter.totalCents - letter.paidCents;
+  const words = paidWords(letter);
   return [
-    letter.booking ? "your project is booked" : "thank you",
+    words.headline,
+    "",
+    words.body,
+    "",
     `invoice: ${letter.invoiceNumber}`,
     `paid: ${money(letter.amountCents)} on ${letterDate(letter.paidAt)}`,
-    left > 0 ? `balance: ${balanceLine(left, letter.eventDate)}` : "",
+    ...(left > 0 ? [`balance: ${balanceLine(left, letter.eventDate)}`] : []),
     `for: ${forLine(letter)}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].join("\n");
 }
 
 export type BalanceReminder = {
@@ -157,27 +179,50 @@ export type BalanceReminder = {
   balanceCents: number;
   occasion: string;
   eventDate: string;
-  /** "soon" five days ahead of the due date, "today" on it */
-  when: "soon" | "today";
+  /** "soon" five days ahead of the due date, "today" on it, "now" when the studio sends it by hand */
+  when: "soon" | "today" | "now";
   /** the client's proposal, which opens on the invoice */
   payUrl: string;
   eventType?: string;
+  /** the studio's own words, when they edited the letter before sending it */
+  body?: string;
+  /** the studio's saved words for this letter; the app's own when there are none */
+  template?: EmailTemplate;
 };
 
+export { LETTER_WORDS } from "@/lib/letter-words";
+
 /** To the client before the balance is due: what's left, when, and a button straight to the invoice. */
-export function balanceReminderHtml(reminder: BalanceReminder, origin?: string) {
-  const first = reminder.clientName.trim().split(/\s+/)[0] || reminder.clientName;
+/** the letter's own words, before any edits */
+export function balanceReminderWords(reminder: BalanceReminder) {
+  return balanceReminderParts(reminder).body;
+}
+
+/** how each balance letter reads: its eyebrow, subject, headline, and words */
+function balanceReminderParts(reminder: BalanceReminder) {
   const due = balanceDueDate(reminder.eventDate);
+  const id = ({ today: "balance-today", soon: "balance-soon", now: "balance-invoice" } as const)[
+    reminder.when
+  ];
+  const words = templateWords(reminder.template ?? defaultEmailTemplate(id), {
+    name: templateFirstName(reminder.clientName),
+    occasion: reminder.occasion,
+    due: due ? letterDate(due) : "soon",
+    invoice: reminder.invoiceNumber,
+  });
+  const eyebrow = { today: "due today", soon: "a gentle reminder", now: "invoice" }[reminder.when];
+  return { eyebrow, ...words };
+}
+
+export function balanceReminderHtml(reminder: BalanceReminder, origin?: string) {
   const kind = emailKind(reminder.eventType);
+  const { eyebrow, headline, body } = balanceReminderParts(reminder);
   return renderSaySukiiEmail({
     ...(origin ? { origin } : {}),
     ...(kind ? { kind } : {}),
-    eyebrow: reminder.when === "today" ? "due today" : "a gentle reminder",
-    headline: reminder.when === "today" ? "your balance is due today" : "your balance is due soon",
-    body:
-      reminder.when === "today"
-        ? `hi ${first}, the remaining balance for your ${reminder.occasion} is due today, 30 days before the big day. you can pay it right from your invoice.`
-        : `hi ${first}, a gentle reminder that the remaining balance for your ${reminder.occasion} is due ${due ? letterDate(due) : "soon"}, 30 days before the big day.`,
+    eyebrow,
+    headline,
+    body: reminder.body ?? body,
     facts: [
       { label: "invoice", value: reminder.invoiceNumber },
       { label: "balance", value: balanceLine(reminder.balanceCents, reminder.eventDate) },
@@ -188,9 +233,41 @@ export function balanceReminderHtml(reminder: BalanceReminder, origin?: string) 
 }
 
 export function balanceReminderSubject(reminder: BalanceReminder) {
-  return reminder.when === "today"
-    ? `due today · your balance for ${reminder.invoiceNumber}`
-    : `a gentle reminder · your balance for ${reminder.invoiceNumber}`;
+  return balanceReminderParts(reminder).subject;
+}
+
+export type AddOnInvoice = {
+  clientName: string;
+  invoiceNumber: string;
+  amountCents: number;
+  eventDate?: string | null;
+  /** the invoice page, where they pay */
+  payUrl: string;
+  eventType?: string;
+};
+
+/** To the client: an invoice of its own after the booking, with a button straight to it. */
+export function addOnInvoiceHtml(invoice: AddOnInvoice, origin?: string) {
+  const first = invoice.clientName.trim().split(/\s+/)[0] || invoice.clientName;
+  const kind = emailKind(invoice.eventType);
+  const when = letterDate(invoice.eventDate);
+  return renderSaySukiiEmail({
+    ...(origin ? { origin } : {}),
+    ...(kind ? { kind } : {}),
+    eyebrow: "invoice",
+    headline: "your invoice",
+    body: `hi ${first}, here's the invoice for your requested add-ons. you can pay it right from your invoice.`,
+    facts: [
+      { label: "invoice", value: invoice.invoiceNumber },
+      { label: "due", value: money(invoice.amountCents) },
+      { label: "for", value: when ? `add-ons · ${when}` : "add-ons" },
+    ],
+    button: { label: "view + pay your invoice", url: invoice.payUrl },
+  });
+}
+
+export function addOnInvoiceSubject(invoice: AddOnInvoice) {
+  return `your invoice · ${invoice.invoiceNumber}`;
 }
 
 export type LetterFile = { name: string; type: string; data: Uint8Array };

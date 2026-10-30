@@ -30,6 +30,11 @@ export type InquirySummaryProposal = {
   declined_reason?: string | null;
   valid_until?: string | null;
   total_cents?: number | null;
+  /** when the client signed the agreement */
+  signed_at?: string | null;
+  /** what's been paid on it so far, and when the latest payment landed */
+  paid_cents?: number | null;
+  paid_at?: string | null;
 };
 
 export type InquirySummaryInvoice = { status: string; amount_cents: number };
@@ -62,6 +67,7 @@ export type SummarySituation =
   | "booked"
   | "proposal_declined"
   | "proposal_accepted"
+  | "proposal_signed"
   | "proposal_expired"
   | "proposal_draft"
   | "proposal_unopened"
@@ -102,6 +108,11 @@ export type InquirySummaryFacts = {
   proposalStatus: string | null;
   proposalTotal: string | null;
   depositPaid: boolean | null;
+  /** the agreement's signing, and the money on the proposal */
+  signedAt: string | null;
+  paidTotal: string | null;
+  balance: string | null;
+  balanceDue: string | null;
   callAt: string | null;
   meetings: Array<InquirySummaryMeeting & { when: "past" | "upcoming" }>;
   headline: string;
@@ -175,8 +186,14 @@ export function buildInquirySummaryFacts(input: SummaryInput): InquirySummaryFac
   const pastCall = [...calls].reverse().find((at) => Date.parse(at) <= now.getTime()) ?? null;
   const pastMeeting = [...meetings].reverse().find((meeting) => meeting.when === "past") ?? null;
   const invoices = input.invoices;
+  const paidCents = proposal?.paid_cents ?? 0;
+  const left = proposal?.total_cents ? Math.max(0, proposal.total_cents - paidCents) : 0;
   const depositPaid =
-    invoices && invoices.length ? invoices.some((invoice) => invoice.status === "paid") : null;
+    paidCents > 0
+      ? true
+      : invoices && invoices.length
+        ? invoices.some((invoice) => invoice.status === "paid")
+        : null;
   const clientEmail = details.clientEmail?.trim().toLowerCase() ?? "";
 
   const base = {
@@ -209,6 +226,10 @@ export function buildInquirySummaryFacts(input: SummaryInput): InquirySummaryFac
     proposalStatus: proposal?.status ?? null,
     proposalTotal: proposal?.total_cents ? money(proposal.total_cents) : null,
     depositPaid,
+    signedAt: proposal?.signed_at ?? null,
+    paidTotal: paidCents > 0 ? money(paidCents) : null,
+    balance: paidCents > 0 && left > 0 ? money(left) : null,
+    balanceDue: paidCents > 0 && left > 0 ? balanceDueDay(details.eventDate) : null,
     callAt: upcomingCall,
     meetings,
   };
@@ -263,7 +284,8 @@ function readSituation(
   );
   const proposal = f.proposal;
   const total = f.proposalTotal ? `${f.proposalTotal} ` : "";
-  const booked = f.status === "booked";
+  // a paid deposit books it, whether or not the stage has caught up
+  const booked = f.status === "booked" || Boolean(proposal?.paid_cents);
 
   if (f.status === "closed") {
     const reason = f.details.closedReason?.trim();
@@ -350,14 +372,22 @@ function readSituation(
 
   if (booked || proposal?.status === "accepted") {
     const unpaid = f.depositPaid === false;
+    if (!booked && f.signedAt) {
+      return {
+        situation: "proposal_signed",
+        headline: `${client} accepted the ${total}proposal and signed the agreement ${on(f.signedAt)}. the deposit isn't paid yet.`,
+        nextMoveTitle: "check in about the deposit, it books them the moment it's paid",
+        nextMoveNote: "the invoice is waiting on their proposal link.",
+      };
+    }
     if (!booked) {
       return {
         situation: "proposal_accepted",
-        headline: `${client} accepted the ${total}proposal${proposal?.accepted_at ? ` ${on(proposal.accepted_at)}` : ""}${unpaid ? ". the deposit isn't paid yet." : "."}`,
+        headline: `${client} accepted the ${total}proposal${proposal?.accepted_at ? ` ${on(proposal.accepted_at)}` : ""} but hasn't signed the agreement yet.`,
         nextMoveTitle: unpaid
-          ? "check in about the deposit, then mark it booked once it's paid"
-          : "send the deposit invoice, then mark it booked once it's paid",
-        nextMoveNote: "the date isn't held until the deposit lands.",
+          ? "nudge them to sign the agreement, then the deposit"
+          : "nudge them to sign the agreement so they can pay the deposit",
+        nextMoveNote: "the date isn't held until they sign and pay.",
       };
     }
     if (unpaid) {
@@ -374,6 +404,22 @@ function readSituation(
         headline: `${theEvent} is ${on(f.event.date)}${f.event.venue ? ` at ${f.event.venue}` : ""}, under two weeks away.`,
         nextMoveTitle: "confirm the final details: timing, load-in, and final counts",
         nextMoveNote: "the day is close.",
+      };
+    }
+    if (f.paidTotal) {
+      const paidWhen = proposal?.paid_at ? ` ${on(proposal.paid_at)}` : "";
+      return {
+        situation: "booked",
+        headline: f.balance
+          ? `${client} signed and paid the ${f.paidTotal} deposit${paidWhen}. they're booked for ${aboutBare || "their date"}, with ${f.balance} due ${f.balanceDue ? day(f.balanceDue) : "before the event"}.`
+          : `${client} signed and paid in full${paidWhen}. they're booked for ${aboutBare || "their date"}.`,
+        nextMoveTitle:
+          f.event.tbd || !f.event.date
+            ? "lock in the date with them"
+            : f.balance
+              ? "the date is held, the balance reminders go out on their own"
+              : "the date is held, production lives in the project now",
+        nextMoveNote: "this is a project now.",
       };
     }
     return {
@@ -606,6 +652,10 @@ function factsToPrompt(facts: InquirySummaryFacts) {
     proposal_status: facts.proposalStatus,
     proposal_total: facts.proposalTotal,
     deposit_paid: facts.depositPaid,
+    agreement_signed_at: facts.signedAt,
+    paid_so_far: facts.paidTotal,
+    balance_left: facts.balance,
+    balance_due: facts.balanceDue,
     meetings: facts.meetings.map((meeting) => ({
       title: meeting.title,
       when: meeting.when,
@@ -789,4 +839,13 @@ function callWord(value: string) {
     minute: "2-digit",
   });
   return `${day} at ${time}`.toLowerCase();
+}
+
+/** the balance falls due 30 days before the event */
+function balanceDueDay(eventDate: string | null | undefined) {
+  const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(eventDate ?? "");
+  if (!day) return null;
+  return new Date(Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]) - 30))
+    .toISOString()
+    .slice(0, 10);
 }

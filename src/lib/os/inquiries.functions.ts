@@ -24,7 +24,8 @@ import {
 import { ensureInquirySummary, refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
 import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
 import { noteWriter, signatureName, signatureText, wroteNote } from "@/lib/os/mail-signature";
-import { fileNameFromNotes } from "@/lib/floral-agreement";
+import { fileNameFromNotes, signerFromAgreement } from "@/lib/floral-agreement";
+import { SENT_LETTER_EVENTS, sentLetterLine, type SentLetter } from "@/lib/sent-letters";
 import { invoiceTitle } from "@/lib/invoice-title";
 import { proposalCards } from "@/lib/proposal-link";
 
@@ -868,6 +869,45 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
     const invoiceNumbers = new Map(
       (invoiceResult.data ?? []).map((invoice) => [invoice.proposal_id, invoice.number]),
     );
+    // what the app emailed them on its own, listed on the proposal tab
+    const lettersResult = proposalIds.length
+      ? await context.supabase
+          .from("integration_events")
+          .select("id, event_type, payload, created_at")
+          .eq("reference_type", "proposal")
+          .in("reference_id", proposalIds)
+          .in("event_type", [...SENT_LETTER_EVENTS])
+          .eq("status", "succeeded")
+          .order("created_at", { ascending: true })
+      : { data: [], error: null };
+    const sentLetters: SentLetter[] = (lettersResult.data ?? []).map((row) => {
+      const payload = (row.payload ?? {}) as { to?: string; booking?: boolean; html?: string };
+      return {
+        id: row.id,
+        line: sentLetterLine(row.event_type, payload),
+        at: row.created_at,
+        // a saved email opens in its own tab
+        ...(payload.html ? { href: `/letter/${row.id}` } : {}),
+      };
+    });
+    // once they sign and pay, the proposal tab shows the signed agreement and each invoice
+    const [agreementsResult, paymentsResult] = proposalIds.length
+      ? await Promise.all([
+          context.supabase
+            .from("agreements")
+            .select("proposal_id, signed_at, signed_name, content")
+            .in("proposal_id", proposalIds),
+          context.supabase
+            .from("payments")
+            .select("proposal_id, amount_cents, paid_at")
+            .in("proposal_id", proposalIds)
+            .eq("status", "completed")
+            .order("paid_at", { ascending: true }),
+        ])
+      : [
+          { data: [], error: null },
+          { data: [], error: null },
+        ];
     const proposals = await Promise.all(
       proposalRows.map(async (proposal) => {
         const signed = proposal.pdf_path
@@ -876,11 +916,25 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
               .createSignedUrl(proposal.pdf_path, 60 * 30)
           : null;
         const invoiceNumber = invoiceNumbers.get(proposal.id);
+        const agreement = (agreementsResult.data ?? []).find(
+          (row) => row.proposal_id === proposal.id,
+        );
         return {
           ...proposal,
           pdf_url: signed?.data?.signedUrl ?? null,
           file_name: fileNameFromNotes(proposal.notes),
           invoice_number: invoiceNumber ? invoiceTitle(invoiceNumber) : null,
+          signed:
+            agreement?.signed_at && agreement.signed_name
+              ? {
+                  at: agreement.signed_at,
+                  signature: agreement.signed_name,
+                  signer: signerFromAgreement(agreement.content),
+                }
+              : null,
+          payments: (paymentsResult.data ?? [])
+            .filter((row) => row.proposal_id === proposal.id)
+            .map((row) => ({ amount_cents: row.amount_cents ?? 0, paid_at: row.paid_at })),
         };
       }),
     );
@@ -903,15 +957,29 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
     const listed = await listInquiriesWithClients(context.supabase, BOOK_DETECTION_STATUSES, {
       withClosed: true,
     });
+    // the owner's signature from settings, which countersigns the agreement the client keeps
+    const { data: owner } = await context.supabase
+      .from("profiles")
+      .select("full_name, signature")
+      .eq("role", "admin")
+      .eq("active", true)
+      .not("signature", "is", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
     return {
       inquiry: {
         ...inquiryResult.data,
         summary_text: summary ?? inquiryResult.data.summary_text ?? null,
       },
+      studioSignature: owner?.signature
+        ? { name: owner.full_name?.trim() || "Say Sukii", image: owner.signature }
+        : null,
       slug: listed.find((row) => row.id === inquiryId)?.slug ?? inquiryId,
       client: clientResult.data,
       messages,
       proposals,
+      sentLetters,
       files,
       source_message,
       invoices: invoicesResult.error ? [] : (invoicesResult.data ?? []),

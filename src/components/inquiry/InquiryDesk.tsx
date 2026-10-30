@@ -51,7 +51,6 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
   const reviewInquiry = useServerFn(reviewDetectedInquiry);
   const [adding, setAdding] = useState(false);
   const [reading, setReading] = useState<InquiryPipelineItem | null>(null);
-  const [order, setOrder] = useDeskOrder();
 
   const {
     data: inquiries = [],
@@ -88,12 +87,12 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
     () =>
       BOARD_COLUMNS.map((column) => ({
         ...column,
-        items: inquiries.filter(column.match).sort((left, right) => {
-          const newer = right.received_at.localeCompare(left.received_at);
-          return order === "newest" ? newer : -newer;
-        }),
+        // always newest first
+        items: inquiries
+          .filter(column.match)
+          .sort((left, right) => right.received_at.localeCompare(left.received_at)),
       })),
-    [inquiries, order],
+    [inquiries],
   );
   const calendarMarks = useMemo(
     () => [
@@ -172,18 +171,6 @@ export function InquiryDesk({ selectedId }: { selectedId?: string }) {
           <p>{isPending ? "gathering the book…" : note}</p>
         </div>
         <div className="studio-home-hello-go">
-          <div className="studio-desk-order" role="group" aria-label="order the book">
-            {(["newest", "oldest"] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={order === value}
-                onClick={() => setOrder(value)}
-              >
-                {value} first
-              </button>
-            ))}
-          </div>
           <button type="button" className="studio-today-go" onClick={() => setAdding(true)}>
             add inquiry
           </button>
@@ -471,29 +458,6 @@ function ReviewMessage({
       </DialogContent>
     </Dialog>
   );
-}
-
-const DESK_ORDER_KEY = "say-sukii-desk-order";
-
-/** Newest first unless the studio picked otherwise; remembered on this browser. */
-function useDeskOrder() {
-  const [order, setOrder] = useState<"newest" | "oldest">("newest");
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(DESK_ORDER_KEY) === "oldest") setOrder("oldest");
-    } catch {
-      // private windows keep the default
-    }
-  }, []);
-  function choose(next: "newest" | "oldest") {
-    setOrder(next);
-    try {
-      localStorage.setItem(DESK_ORDER_KEY, next);
-    } catch {
-      // the choice still holds for this visit
-    }
-  }
-  return [order, choose] as const;
 }
 
 function messagePreview(inquiry: InquiryPipelineItem) {

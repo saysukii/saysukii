@@ -1,8 +1,17 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import {
+  degrees,
+  PDFDocument,
+  popGraphicsState,
+  pushGraphicsState,
+  rgb,
+  setCharacterSpacing,
+  StandardFonts,
+  type PDFFont,
+  type PDFPage,
+} from "pdf-lib";
+
+import { agreementSignedLine, type FloralBlock } from "@/lib/floral-agreement";
 
 const INK = rgb(0.102, 0.094, 0.09);
 const MUTED = rgb(0.541, 0.498, 0.475);
@@ -36,6 +45,8 @@ export type LineItem = {
   qty: number;
   unitPriceCents: number;
   lineTotalCents: number;
+  /** quieter lines under the item, on the receipt */
+  details?: string[];
 };
 
 function money(cents: number): string {
@@ -269,127 +280,259 @@ export async function renderProposalPdf(args: {
   return doc.save();
 }
 
-export type AgreementSignature = {
-  name: string;
+export type AgreementSigner = {
+  first: string;
+  last: string;
   /** a png data url of the drawn signature */
   image: string;
   signedAt: string;
 };
 
+// the agreement's colors on the client's page: ink, and ink faded into white
+const PAGE_INK = rgb(0.141, 0.133, 0.122);
+const inkFaded = (percent: number) =>
+  rgb(
+    (255 - (percent / 100) * 219) / 255,
+    (255 - (percent / 100) * 221) / 255,
+    (255 - (percent / 100) * 224) / 255,
+  );
+
+/**
+ * The signed floral service agreement, laid out like it is on the client's page: the logo, the
+ * terms in the same blocks, then the client's signature and Say Sukii's.
+ */
 export async function renderAgreementPdf(args: {
-  meta: DocumentMeta;
-  typeLabel: string;
-  version: number;
-  content: string;
-  /** the client's signature, then the studio's, on the copy the client keeps */
-  signatures?: { client?: AgreementSignature; studio?: AgreementSignature | null };
+  number: string;
+  blocks: FloralBlock[];
+  consent: string;
+  client: AgreementSigner;
+  /** say sukii countersigns the copy the client keeps */
+  studio?: AgreementSigner | null;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  doc.setTitle(`Say Sukii Agreement ${args.meta.number}`);
-  const fonts = await loadFonts(doc);
+  doc.setTitle(`Say Sukii Floral Service Agreement ${args.number}`);
+  doc.registerFontkit(fontkit);
+  const assets = await receiptAssets();
+  const light = assets.light
+    ? await doc.embedFont(assets.light)
+    : await doc.embedFont(StandardFonts.Helvetica);
+  const medium = assets.regular
+    ? await doc.embedFont(assets.regular)
+    : await doc.embedFont(StandardFonts.HelveticaBold);
+
+  // the page's 724px column, scaled onto the letter page
+  const M = 56;
+  const contentW = PAGE_W - M * 2;
+  const px = (value: number) => value * (contentW / 724);
+  const bottom = M;
   let page = doc.addPage([PAGE_W, PAGE_H]);
-  let y = drawHeader(page, fonts, args.meta);
+  let y = PAGE_H - M;
+  let gapAfter = 0;
 
-  page.drawText(args.typeLabel, { x: MARGIN, y, size: 20, font: fonts.display, color: INK });
-  y -= 16;
-  page.drawText(`Version ${args.version}`, {
-    x: MARGIN,
-    y,
-    size: 8,
-    font: fonts.bold,
-    color: MUTED,
+  const room = (height: number) => {
+    if (y - height >= bottom) return;
+    page = doc.addPage([PAGE_W, PAGE_H]);
+    y = PAGE_H - M;
+    gapAfter = 0;
+  };
+  const text = (
+    value: string,
+    x: number,
+    baseline: number,
+    size: number,
+    font: PDFFont,
+    options: { color?: ReturnType<typeof rgb>; spacing?: number; italic?: boolean } = {},
+  ) => {
+    page.pushOperators(pushGraphicsState(), setCharacterSpacing(options.spacing ?? 0));
+    page.drawText(value, {
+      x,
+      y: baseline,
+      size,
+      font,
+      color: options.color ?? PAGE_INK,
+      ...(options.italic ? { ySkew: degrees(12) } : {}),
+    });
+    page.pushOperators(popGraphicsState());
+  };
+  const widthOf = (value: string, size: number, font: PDFFont, spacing = 0) =>
+    font.widthOfTextAtSize(value, size) + spacing * Math.max(0, value.length - 1);
+
+  /** one block of text: css margins collapse, lines are 1.6 tall, a long block breaks across pages */
+  const block = (
+    value: string,
+    style: {
+      size: number;
+      font: PDFFont;
+      top: number;
+      bottom: number;
+      upper?: boolean;
+      spacing?: number;
+      color?: ReturnType<typeof rgb>;
+      center?: boolean;
+      italic?: boolean;
+    },
+  ) => {
+    const size = px(style.size);
+    const spacing = style.spacing ? size * style.spacing : 0;
+    const shown = style.upper ? value.toUpperCase() : value;
+    const lineHeight = size * 1.6;
+    const lines = wrap(shown, style.font, size, contentW - spacing * 40);
+    y -= Math.max(gapAfter, px(style.top));
+    lines.forEach((line, index) => {
+      // a heading stays with the line after it
+      room(index === 0 && style.upper ? lineHeight * 3 : lineHeight);
+      const lineWidth = widthOf(line, size, style.font, spacing);
+      text(line, style.center ? (PAGE_W - lineWidth) / 2 : M, y - size * 1.12, size, style.font, {
+        ...(style.color ? { color: style.color } : {}),
+        spacing,
+        ...(style.italic ? { italic: true } : {}),
+      });
+      y -= lineHeight;
+    });
+    gapAfter = px(style.bottom);
+  };
+
+  if (assets.logo) {
+    const logo = await doc.embedPng(assets.logo);
+    const width = px(120);
+    const height = width * (logo.height / logo.width);
+    y -= px(4);
+    page.drawImage(logo, { x: (PAGE_W - width) / 2, y: y - height, width, height });
+    y -= height;
+    gapAfter = px(22);
+  }
+
+  for (const item of args.blocks) {
+    if (item.kind === "title")
+      block(item.text, { size: 18, font: medium, top: 0, bottom: 16, upper: true, spacing: 0.04 });
+    else if (item.kind === "heading")
+      block(item.text, { size: 13, font: medium, top: 22, bottom: 12, upper: true, spacing: 0.06 });
+    else if (item.kind === "subhead")
+      block(item.text, { size: 13, font: medium, top: 16, bottom: 12 });
+    else if (item.kind === "line") block(item.text, { size: 13, font: light, top: 0, bottom: 4 });
+    else if (item.kind === "note")
+      block(item.text, {
+        size: 13,
+        font: medium,
+        top: 22,
+        bottom: 22,
+        upper: true,
+        spacing: 0.04,
+        color: PINK,
+        center: true,
+      });
+    else block(item.text, { size: 13, font: light, top: 0, bottom: 12 });
+  }
+
+  // authorization: a rule, the heading, then each signer; the heading stays with the client's part
+  const signerHeight = (consent: boolean) =>
+    px(22 + 20 + (consent ? 80 : 0) + 14 + 32 + 18 + 26 + 116 + 28);
+  room(px(30 + 18 + 22 + 21 + 12) + signerHeight(true));
+  y -= Math.max(gapAfter, px(30));
+  page.drawLine({
+    start: { x: M, y },
+    end: { x: PAGE_W - M, y },
+    thickness: 0.75,
+    color: inkFaded(12),
   });
-  y -= 26;
+  y -= px(18);
+  gapAfter = 0;
+  block("Authorization / confirmation", {
+    size: 13,
+    font: medium,
+    top: 22,
+    bottom: 12,
+    upper: true,
+    spacing: 0.06,
+  });
 
-  for (const line of wrap(args.content, fonts.body, 10, PAGE_W - MARGIN * 2)) {
-    if (y < 90) {
-      drawFooter(page, fonts);
-      page = doc.addPage([PAGE_W, PAGE_H]);
-      y = PAGE_H - MARGIN;
-    }
-    const isHeading = /^\d+\.\s[A-Z]/.test(line) || line === "Accepted by:";
-    page.drawText(line, {
-      x: MARGIN,
-      y,
-      size: isHeading ? 9.5 : 10,
-      font: isHeading ? fonts.bold : fonts.body,
-      color: isHeading ? INK : MUTED,
-    });
-    y -= line === "" ? 8 : 15;
-  }
+  const signer = async (heading: string, person: AgreementSigner, consent: string | null) => {
+    // a signer's heading, names, box and date stay on one page
+    room(signerHeight(Boolean(consent)));
+    block(heading, { size: 12, font: medium, top: 22, bottom: 8, upper: true, spacing: 0.06 });
+    if (consent) block(consent, { size: 13, font: light, top: 0, bottom: 12 });
 
-  const signers = [
-    args.signatures?.client ? { label: "Client signature", ...args.signatures.client } : null,
-    args.signatures?.studio ? { label: "Say Sukii signature", ...args.signatures.studio } : null,
-  ].filter((signer): signer is AgreementSignature & { label: string } => Boolean(signer));
-  if (signers.length) {
-    if (y < 90 + signers.length * 130) {
-      drawFooter(page, fonts);
-      page = doc.addPage([PAGE_W, PAGE_H]);
-      y = PAGE_H - MARGIN;
-    }
-    y -= 12;
-    page.drawText("Authorization / confirmation", {
-      x: MARGIN,
-      y,
-      size: 11,
-      font: fonts.bold,
-      color: INK,
-    });
-    y -= 26;
-    for (const signer of signers) {
-      page.drawText(signer.label, { x: MARGIN, y, size: 9.5, font: fonts.bold, color: INK });
-      y -= 16;
-      page.drawText(signer.name, { x: MARGIN, y, size: 10, font: fonts.body, color: INK });
-      y -= 8;
-      const base64 = signer.image.split(",")[1] ?? "";
-      try {
-        const png = await doc.embedPng(Uint8Array.from(Buffer.from(base64, "base64")));
-        const scale = Math.min(200 / png.width, 56 / png.height);
-        page.drawImage(png, {
-          x: MARGIN,
-          y: y - png.height * scale,
-          width: png.width * scale,
-          height: png.height * scale,
-        });
-        y -= png.height * scale + 8;
-      } catch {
-        y -= 8;
-      }
+    // first and last name, each on its own underline
+    y -= Math.max(gapAfter, px(14));
+    const column = (contentW - px(20)) / 2;
+    const names: Array<[string, string]> = [
+      [person.first, "First name"],
+      [person.last, "Last name"],
+    ];
+    names.forEach(([value, label], index) => {
+      const x = M + index * (column + px(20));
+      const size = px(13);
+      text(value || label, x, y - px(32) / 2 - size * 0.35, size, light, {
+        color: value ? PAGE_INK : inkFaded(45),
+      });
       page.drawLine({
-        start: { x: MARGIN, y },
-        end: { x: MARGIN + 220, y },
-        thickness: 0.6,
-        color: MUTED,
+        start: { x, y: y - px(32) },
+        end: { x: x + column, y: y - px(32) },
+        thickness: 0.75,
+        color: inkFaded(28),
       });
-      y -= 14;
-      page.drawText(`Signed ${signedOn(signer.signedAt)}`, {
-        x: MARGIN,
-        y,
-        size: 8.5,
-        font: fonts.body,
-        color: MUTED,
-      });
-      y -= 30;
-    }
-  }
+    });
+    y -= px(32);
+    gapAfter = px(18);
 
-  drawFooter(page, fonts);
+    block("Signature", { size: 12, font: medium, top: 0, bottom: 6 });
+
+    // the signature, in its soft rounded box
+    y -= gapAfter;
+    const boxHeight = px(116);
+    page.drawSvgPath(roundedRect(contentW, boxHeight, px(10)), {
+      x: M,
+      y,
+      color: rgb(0.973, 0.973, 0.973),
+      borderColor: inkFaded(14),
+      borderWidth: 0.75,
+    });
+    try {
+      const png = await doc.embedPng(
+        Uint8Array.from(Buffer.from(person.image.split(",")[1] ?? "", "base64")),
+      );
+      const scale = Math.min((contentW - px(32)) / png.width, px(96) / png.height);
+      page.drawImage(png, {
+        x: M + px(16),
+        y: y - px(10) - (px(96) + png.height * scale) / 2,
+        width: png.width * scale,
+        height: png.height * scale,
+      });
+    } catch {
+      // a signature that won't decode leaves the box empty rather than losing the agreement
+    }
+    y -= boxHeight;
+    gapAfter = 0;
+    block(`Signed ${agreementSignedLine(person.signedAt)}`, {
+      size: 12,
+      font: light,
+      top: 8,
+      bottom: 0,
+      color: inkFaded(55),
+      italic: true,
+    });
+  };
+
+  await signer("Client signature", args.client, args.consent);
+  if (args.studio) await signer("Say Sukii signature", args.studio, null);
   return doc.save();
 }
 
-function signedOn(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "2-digit",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "America/New_York",
-    timeZoneName: "short",
-  });
+/** an svg path for a rectangle with round corners, drawn down and right from its top left */
+function roundedRect(width: number, height: number, radius: number) {
+  const r = Math.min(radius, width / 2, height / 2);
+  return [
+    `M ${r} 0`,
+    `H ${width - r}`,
+    `Q ${width} 0 ${width} ${r}`,
+    `V ${height - r}`,
+    `Q ${width} ${height} ${width - r} ${height}`,
+    `H ${r}`,
+    `Q 0 ${height} 0 ${height - r}`,
+    `V ${r}`,
+    `Q 0 0 ${r} 0`,
+    "Z",
+  ].join(" ");
 }
 
 export async function renderInvoicePdf(args: {
@@ -551,17 +694,24 @@ export async function renderInvoicePdf(args: {
   return doc.save();
 }
 
-export type ReceiptPayment = { amountCents: number; paidOn: string };
+export type ReceiptPayment = {
+  amountCents: number;
+  /** MM/DD/YY */
+  paidOn: string;
+  /** "Visa 1111", when square says how it was paid */
+  method?: string | null;
+};
 
 /**
- * The client's receipt, as a short thank-you letter: the logo, "thank you, {name}.", what was
- * received and what's left, then the items and payments in a blush card.
+ * The client's receipt, laid out like square's paid invoice in the studio's colors: the logo and
+ * studio details, a pink title, customer / receipt / payment columns, the items, the total, and
+ * every payment in a blush card.
  */
 export async function renderReceiptPdf(args: {
   number: string;
-  clientName: string;
-  /** what it's for, e.g. "private dinner" */
-  occasion: string;
+  /** e.g. "Floral Celebration 03/12/27" */
+  title: string;
+  client: { name: string; email?: string | null; phone?: string | null };
   /** MM/DD/YY */
   eventDate: string | null;
   venue: string | null;
@@ -569,10 +719,10 @@ export async function renderReceiptPdf(args: {
   totalCents: number;
   /** every payment so far, oldest first; the last is the one this receipt is for */
   payments: ReceiptPayment[];
-  /** true for the payment that booked the project */
-  booking: boolean;
   /** what's left after this payment, and when it's due (MM/DD/YY) */
   balance: { amountCents: number; due: string | null } | null;
+  /** MM/DD/YY, the day the receipt was issued */
+  createdOn: string;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Say Sukii Receipt ${args.number}`);
@@ -584,123 +734,168 @@ export async function renderReceiptPdf(args: {
   const regular = assets.regular
     ? await doc.embedFont(assets.regular)
     : await doc.embedFont(StandardFonts.HelveticaBold);
-  const italic = await doc.embedFont(StandardFonts.TimesRomanItalic);
   const page = doc.addPage([PAGE_W, PAGE_H]);
-  const M = 72;
-  const right = (text: string, x: number, y: number, size: number, font: PDFFont, color = INK) =>
-    page.drawText(text, { x: x - font.widthOfTextAtSize(text, size), y, size, font, color });
+  const M = 50;
+  const end = PAGE_W - M;
+  const draw = (
+    text: string,
+    x: number,
+    y: number,
+    size: number,
+    font: PDFFont,
+    options: { color?: ReturnType<typeof rgb>; align?: "right"; italic?: boolean } = {},
+  ) =>
+    page.drawText(text, {
+      x: options.align === "right" ? x - font.widthOfTextAtSize(text, size) : x,
+      y,
+      size,
+      font,
+      color: options.color ?? INK,
+      ...(options.italic ? { ySkew: degrees(10) } : {}),
+    });
+  const rule = (y: number, from = M, to = end) =>
+    page.drawLine({
+      start: { x: from, y },
+      end: { x: to, y },
+      thickness: 0.6,
+      color: BLUSH_LINE,
+    });
 
   page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: SOFT });
   const payment = args.payments.at(-1) ?? { amountCents: 0, paidOn: "" };
+
+  // the logo, the studio, and the receipt's number and date
+  let y = PAGE_H - 46;
   if (assets.logo) {
     const logo = await doc.embedPng(assets.logo);
-    const height = 132 * (logo.height / logo.width);
-    page.drawImage(logo, { x: M, y: PAGE_H - 62 - height, width: 132, height });
+    const height = 172 * (logo.height / logo.width);
+    page.drawImage(logo, { x: M, y: y - height, width: 172, height });
   } else {
-    page.drawText("Say Sukii", { x: M, y: PAGE_H - 86, size: 26, font: italic, color: INK });
+    draw("Say Sukii", M, y - 40, 30, regular);
   }
-  right(`receipt ${args.number}  ·  ${payment.paidOn}`, PAGE_W - M, PAGE_H - 80, 9.5, light, MUTED);
+  draw("SAY SUKII, LLC", M + 196, y - 10, 8.5, regular);
+  draw("info@saysukii.com  |  (305) 725-5029", M + 196, y - 24, 8.5, light);
+  draw(`Receipt #${args.number}`, end, y - 10, 8.5, regular, { align: "right" });
+  draw("Issued on", end, y - 34, 8.5, regular, { align: "right" });
+  draw(args.createdOn, end, y - 47, 8.5, light, { align: "right" });
+  y -= 92;
+  page.drawRectangle({ x: M, y, width: end - M, height: 4, color: BLUSH_LINE });
 
-  const first = (args.clientName.trim().split(/\s+/)[0] ?? args.clientName).toLowerCase();
-  page.drawText(`thank you, ${first}.`, {
-    x: M,
-    y: PAGE_H - 180,
-    size: 34,
-    font: light,
-    color: PINK,
-  });
+  // the title, in the receipt's pink
+  y -= 46;
+  draw(args.title, M, y, 22, light, { color: PINK });
+  y -= 22;
+  draw("Thank you for choosing Say Sukii! We appreciate your business.", M, y, 9, light);
 
-  const what = args.booking ? (args.balance ? "deposit" : "payment") : "final payment";
-  const where = [
-    args.eventDate ? ` on ${args.eventDate}` : "",
-    args.venue ? ` at ${args.venue}` : "",
-  ].join("");
-  const words = [
-    `we received your ${what} of ${money(payment.amountCents)} on ${payment.paidOn} for your ${args.occasion}${where}.`,
-    "",
-    args.balance
-      ? `the remaining ${money(args.balance.amountCents)} is due ${args.balance.due ?? "before your event"}. we'll send a reminder before then, with a link straight to your invoice.`
-      : "you're paid in full. keep this with your signed service agreement.",
-  ].join("\n");
-  let y = PAGE_H - 226;
-  for (const line of wrap(words, light, 12, PAGE_W - M * 2 - 40)) {
-    if (line) page.drawText(line, { x: M, y, size: 12, font: light, color: INK });
-    y -= line ? 19 : 10;
-  }
-
-  // the blush card: items, the total, each payment, and what's left
-  const pad = M + 24;
-  const end = PAGE_W - M - 24;
-  const itemLines = args.items.slice(0, 12).map((item) => ({
-    lines: wrap(item.name.toLowerCase(), light, 10.5, end - pad - 110).slice(0, 2),
-    amount: money(item.lineTotalCents),
-  }));
-  const rowsHeight =
-    itemLines.reduce((sum, item) => sum + 20 + (item.lines.length - 1) * 14, 0) +
-    40 +
-    (args.payments.length + (args.balance ? 1 : 0)) * 20;
-  y -= 30;
-  const top = y;
-  const cardHeight = rowsHeight + 44;
-  page.drawRectangle({
-    x: M,
-    y: top - cardHeight,
-    width: PAGE_W - M * 2,
-    height: cardHeight,
-    color: BLUSH,
-  });
-  y = top - 32;
-  for (const item of itemLines) {
-    item.lines.forEach((line, index) => {
-      page.drawText(line, { x: pad, y: y - index * 14, size: 10.5, font: light, color: INK });
-    });
-    right(item.amount, end, y, 10.5, light);
-    y -= 20 + (item.lines.length - 1) * 14;
-  }
-  page.drawLine({
-    start: { x: pad, y: y + 8 },
-    end: { x: end, y: y + 8 },
-    thickness: 0.6,
-    color: BLUSH_LINE,
-  });
-  y -= 14;
-  page.drawText("total", { x: pad, y, size: 10.5, font: regular, color: INK });
-  right(money(args.totalCents), end, y, 10.5, regular);
-  y -= 26;
-  const pinkRows: Array<[string, string]> = [
-    ...args.payments.map((paid): [string, string] => [
-      `paid ${paid.paidOn}`,
-      money(paid.amountCents),
-    ]),
-    ...(args.balance
-      ? ([
-          [
-            args.balance.due ? `balance due ${args.balance.due}` : "balance due",
-            money(args.balance.amountCents),
-          ],
-        ] as Array<[string, string]>)
-      : []),
+  // customer, receipt, payment
+  y -= 28;
+  const gap = 12;
+  const columnW = (end - M - gap * 2) / 3;
+  const columns: Array<[string, string[]]> = [
+    [
+      "Customer",
+      [args.client.name, args.client.email ?? "", args.client.phone ?? ""].filter(Boolean),
+    ],
+    [
+      "Receipt details",
+      [
+        money(args.totalCents),
+        ...(args.eventDate ? [`Event date ${args.eventDate}`] : []),
+        ...(args.venue ? [args.venue] : []),
+      ],
+    ],
+    [
+      "Payment",
+      [
+        `Paid ${payment.paidOn}`,
+        money(payment.amountCents),
+        ...(args.balance
+          ? [
+              args.balance.due ? `Balance due ${args.balance.due}` : "Balance due",
+              money(args.balance.amountCents),
+            ]
+          : ["Paid in full"]),
+      ],
+    ],
   ];
-  for (const [label, value] of pinkRows) {
-    page.drawText(label, { x: pad, y, size: 10.5, font: regular, color: PINK });
-    right(value, end, y, 10.5, regular, PINK);
-    y -= 20;
+  let lowest = y;
+  columns.forEach(([heading, lines], index) => {
+    const x = M + index * (columnW + gap);
+    rule(y, x, x + columnW);
+    draw(heading, x, y - 22, 8.5, regular);
+    let lineY = y - 36;
+    for (const line of lines.flatMap((value) => wrap(value, light, 8.5, columnW))) {
+      draw(line, x, lineY, 8.5, light);
+      lineY -= 12.5;
+    }
+    lowest = Math.min(lowest, lineY);
+  });
+  y = lowest - 8;
+  rule(y);
+
+  // the items
+  const qtyX = 400;
+  const priceX = 470;
+  y -= 22;
+  draw("Items", M, y, 8.5, regular);
+  draw("Quantity", qtyX, y, 8.5, regular, { align: "right" });
+  draw("Price", priceX, y, 8.5, regular, { align: "right" });
+  draw("Amount", end, y, 8.5, regular, { align: "right" });
+  y -= 12;
+  rule(y);
+  y -= 22;
+  for (const item of args.items.slice(0, 10)) {
+    // "Floral Celebration — Booked for…" reads as the item and, under it, its details
+    const [name = item.name, ...rest] = item.name.split(" — ");
+    const details = [...(rest.length ? [rest.join(" — ")] : []), ...(item.details ?? [])];
+    draw(name, M, y, 9, light);
+    draw(String(item.qty), qtyX, y, 9, light, { align: "right" });
+    draw(money(item.unitPriceCents), priceX, y, 9, light, { align: "right" });
+    draw(money(item.lineTotalCents), end, y, 9, light, { align: "right" });
+    y -= 14;
+    for (const line of details.flatMap((value) => wrap(value, light, 8.5, qtyX - M - 60))) {
+      draw(line, M, y, 8.5, light, { color: MUTED, italic: true });
+      y -= 12;
+    }
+    y -= 10;
+  }
+  rule(y + 4);
+
+  // the subtotal, then the total
+  y -= 16;
+  const subtotal = args.items.reduce((sum, item) => sum + item.lineTotalCents, 0);
+  draw("Subtotal", M, y, 9, light);
+  draw(money(subtotal), end, y, 9, light, { align: "right" });
+  y -= 18;
+  rule(y);
+  y -= 26;
+  draw(args.balance ? "Total" : "Total Paid", M, y, 16, regular);
+  draw(money(args.totalCents), end, y, 16, regular, { align: "right" });
+  y -= 18;
+
+  // every payment, and what's left, in a blush card
+  const rows = args.payments.length + (args.balance ? 1 : 0);
+  const cardHeight = 34 + rows * 18 + 10;
+  page.drawRectangle({ x: M, y: y - cardHeight, width: end - M, height: cardHeight, color: BLUSH });
+  let rowY = y - 22;
+  draw("Payments", M + 16, rowY, 8.5, regular);
+  rowY -= 18;
+  for (const paid of args.payments) {
+    draw(`${paid.paidOn}${paid.method ? ` (${paid.method})` : ""}`, M + 16, rowY, 9, light, {
+      color: PINK,
+    });
+    draw(money(paid.amountCents), end - 16, rowY, 9, regular, { color: PINK, align: "right" });
+    rowY -= 18;
+  }
+  if (args.balance) {
+    const label = args.balance.due ? `Balance due ${args.balance.due}` : "Balance due";
+    draw(label, M + 16, rowY, 9, light, { color: PINK });
+    draw(money(args.balance.amountCents), end - 16, rowY, 9, regular, {
+      color: PINK,
+      align: "right",
+    });
   }
 
-  page.drawText("with love, say sukii", {
-    x: M,
-    y: top - cardHeight - 50,
-    size: 13,
-    font: italic,
-    color: INK,
-  });
-  page.drawText("say sukii  ·  miami, florida  ·  info@saysukii.com", {
-    x: M,
-    y: 56,
-    size: 8,
-    font: light,
-    color: MUTED,
-  });
   return doc.save();
 }
 
@@ -717,9 +912,11 @@ let receiptAssetsCache: Promise<ReceiptAssets> | null = null;
  */
 function receiptAssets() {
   receiptAssetsCache ??= (async () => {
+    // node's file reader loads here, on the server, so the page's own bundle never pulls it in
+    const { readFile } = await import("node:fs/promises");
     const load = async (path: string) => {
       try {
-        return new Uint8Array(await readFile(join(process.cwd(), "public", path)));
+        return new Uint8Array(await readFile(`${process.cwd()}/public/${path}`));
       } catch {
         try {
           const response = await fetch(`https://inside.saysukii.com/${path}`);

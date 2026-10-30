@@ -28,11 +28,12 @@ import {
   signatureName,
 } from "@/lib/os/mail-signature";
 import {
-  applyTemplate,
-  loadTemplates,
-  saveTemplates,
-  type MailTemplate,
-} from "@/lib/os/mail-templates";
+  EMAIL_TEMPLATE_GROUPS,
+  defaultEmailTemplate,
+  type EmailTemplateInfo,
+} from "@/lib/email-templates";
+import { applyTemplate } from "@/lib/os/mail-templates";
+import { useEmailTemplates, useSaveEmailTemplate } from "@/lib/os/use-email-templates";
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 import type { InquiryMessageRow } from "@/integrations/supabase/types";
 import { proposalCards } from "@/lib/proposal-link";
@@ -99,6 +100,8 @@ export function LetterPreview({
   subject = "your proposal",
   button = "your proposal",
   to,
+  onBody,
+  onSubject,
 }: {
   body: string;
   href: string | null;
@@ -106,14 +109,30 @@ export function LetterPreview({
   subject?: string;
   button?: string;
   to?: string;
+  /** with these, the subject and words can be edited right in the preview before it sends */
+  onBody?: (next: string) => void;
+  onSubject?: (next: string) => void;
 }) {
   const person = signatureName(sender);
   const text = proposalCards(body).text;
   return (
     <article className="studio-letter">
       {to ? <p className="studio-letter-to">to {to}</p> : null}
-      <p className="studio-letter-subject">{subject}</p>
-      {text ? <MailBody body={text} /> : null}
+      {onSubject ? (
+        <input
+          className="studio-letter-subject studio-letter-edit"
+          value={subject}
+          aria-label="subject"
+          onChange={(event) => onSubject(event.target.value)}
+        />
+      ) : (
+        <p className="studio-letter-subject">{subject}</p>
+      )}
+      {onBody ? (
+        <LetterWords value={text} onChange={onBody} />
+      ) : text ? (
+        <MailBody body={text} />
+      ) : null}
       {href ? (
         <a className="studio-letter-button" href={href} target="_blank" rel="noreferrer">
           {button}
@@ -141,6 +160,27 @@ export function LetterPreview({
         <p>{SIGNATURE_COPYRIGHT}</p>
       </footer>
     </article>
+  );
+}
+
+/** the letter's words as a field that grows with them, set like the letter itself */
+function LetterWords({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const node = field.current;
+    if (!node) return;
+    node.style.height = "auto";
+    node.style.height = `${node.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={field}
+      className="studio-mail-body studio-letter-edit"
+      value={value}
+      rows={4}
+      aria-label="the letter"
+      onChange={(event) => onChange(event.target.value)}
+    />
   );
 }
 
@@ -241,12 +281,13 @@ export function ThreadComposer({
   const [linkHref, setLinkHref] = useState("");
   const [linkAt, setLinkAt] = useState<{ top: number; left: number } | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
-  const [addingTemplate, setAddingTemplate] = useState(false);
-  const [templates, setTemplates] = useState<MailTemplate[]>(() => loadTemplates());
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [templateName, setTemplateName] = useState("");
+  const { templates } = useEmailTemplates();
+  const keepTemplateWords = useSaveEmailTemplate();
+  const [editing, setEditing] = useState<EmailTemplateInfo | null>(null);
   const [templateSubject, setTemplateSubject] = useState("");
+  const [templateHeadline, setTemplateHeadline] = useState("");
   const [templateBody, setTemplateBody] = useState("");
+  const [templateProblem, setTemplateProblem] = useState("");
   const [confirm, setConfirm] = useState<{
     body: string;
     sendAt: string;
@@ -255,43 +296,44 @@ export function ThreadComposer({
   const email = sendAs === "email";
 
   function closeTemplateEditor() {
-    setAddingTemplate(false);
-    setEditingId(null);
-    setTemplateName("");
-    setTemplateSubject("");
-    setTemplateBody("");
+    setEditing(null);
+    setTemplateProblem("");
   }
 
-  function beginTemplate(item?: MailTemplate) {
-    setEditingId(item?.id ?? null);
-    setTemplateName(item?.name ?? "");
-    setTemplateSubject(item?.subject ?? "");
-    setTemplateBody(item?.body ?? "");
-    setAddingTemplate(true);
+  function beginTemplate(item: EmailTemplateInfo, words: EmailTemplateInfo = item) {
+    setEditing(item);
+    setTemplateSubject(words.subject);
+    setTemplateHeadline(words.headline);
+    setTemplateBody(words.body);
+    setTemplateProblem("");
   }
 
   function keepTemplate() {
-    const name = templateName.trim();
-    const body = templateBody.trim();
-    if (!name || !body) return;
-    const subject = templateSubject.trim();
-    const saved: MailTemplate = {
-      id: editingId ?? crypto.randomUUID(),
-      name,
-      body,
-      ...(subject ? { subject } : {}),
+    if (!editing) return;
+    const template = {
+      id: editing.id,
+      subject: templateSubject.trim(),
+      headline: editing.designed ? templateHeadline.trim() : "",
+      body: templateBody.trim(),
     };
-    setTemplates((current) => {
-      const next = editingId
-        ? current.map((item) => (item.id === editingId ? saved : item))
-        : [saved, ...current];
-      saveTemplates(next);
-      return next;
-    });
-    closeTemplateEditor();
+    if (!template.body) return;
+    const original = defaultEmailTemplate(editing.id);
+    // the app's own words again: nothing of the studio's to keep
+    const reset =
+      template.subject === original.subject &&
+      template.headline === original.headline &&
+      template.body === original.body;
+    keepTemplateWords.mutate(
+      { template, reset },
+      {
+        onSuccess: closeTemplateEditor,
+        onError: (error) =>
+          setTemplateProblem(error instanceof Error ? error.message : "could not keep it"),
+      },
+    );
   }
 
-  function applyTemplateItem(item: MailTemplate) {
+  function applyTemplateItem(item: EmailTemplateInfo) {
     setDraft(applyTemplate(item.body, clientName, facts.job));
     if (item.subject) onUseSubject?.(item.subject);
     setTemplatesOpen(false);
@@ -860,30 +902,45 @@ export function ThreadComposer({
               <DialogTitle className="sr-only">email templates</DialogTitle>
               <DialogDescription className="sr-only">choose a letter.</DialogDescription>
               <div className="studio-task-form">
-                <div className="studio-template-list">
-                  {templates.map((item) => (
-                    <div key={item.id} className="studio-template-row">
-                      <button
-                        type="button"
-                        className="studio-template-item"
-                        onClick={() => applyTemplateItem(item)}
-                      >
-                        <b>{item.name}</b>
-                        <em>{previewLine(applyTemplate(item.body, clientName, facts.job))}</em>
-                      </button>
-                      <button
-                        type="button"
-                        className="studio-template-edit"
-                        onClick={() => beginTemplate(item)}
-                      >
-                        edit
-                      </button>
+                {EMAIL_TEMPLATE_GROUPS.map((group) => (
+                  <div key={group.id} className="studio-template-group">
+                    <p className="studio-ask-label">{group.label}</p>
+                    <div className="studio-template-list">
+                      {templates
+                        .filter((item) => item.group === group.id)
+                        .map((item) => (
+                          <div key={item.id} className="studio-template-row">
+                            <button
+                              type="button"
+                              className="studio-template-item"
+                              onClick={() =>
+                                item.group === "write"
+                                  ? applyTemplateItem(item)
+                                  : beginTemplate(item)
+                              }
+                            >
+                              <b>{item.name}</b>
+                              <em>
+                                {item.group === "write"
+                                  ? previewLine(applyTemplate(item.body, clientName, facts.job))
+                                  : item.when}
+                              </em>
+                            </button>
+                            <button
+                              type="button"
+                              className="studio-template-edit"
+                              onClick={() => beginTemplate(item)}
+                            >
+                              edit
+                            </button>
+                          </div>
+                        ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
               <Dialog
-                open={addingTemplate}
+                open={Boolean(editing)}
                 onOpenChange={(open) => {
                   if (!open) closeTemplateEditor();
                 }}
@@ -899,52 +956,77 @@ export function ThreadComposer({
                       <X aria-hidden="true" />
                     </DialogClose>
                   </div>
-                  <DialogTitle className="sr-only">
-                    {editingId ? "edit a template" : "add a template"}
-                  </DialogTitle>
+                  <DialogTitle className="sr-only">edit {editing?.name}</DialogTitle>
                   <DialogDescription className="sr-only">
-                    name the letter, then write it.
+                    what's kept here is exactly what sends.
                   </DialogDescription>
-                  <div className="studio-task-form">
-                    <label className="studio-ask-field">
-                      <span className="studio-ask-label">name</span>
-                      <input
-                        className="studio-template-letter"
-                        value={templateName}
-                        onChange={(event) => setTemplateName(event.target.value)}
-                        placeholder="a name for this letter"
-                      />
-                    </label>
-                    <label className="studio-ask-field">
-                      <span className="studio-ask-label">subject</span>
-                      <input
-                        className="studio-template-letter"
-                        value={templateSubject}
-                        onChange={(event) => setTemplateSubject(event.target.value)}
-                        placeholder="subject, when this letter starts its own conversation"
-                      />
-                    </label>
-                    <label className="studio-ask-field">
-                      <span className="studio-ask-label">letter</span>
-                      <textarea
-                        className="studio-template-letter"
-                        value={templateBody}
-                        onChange={(event) => setTemplateBody(event.target.value)}
-                        placeholder="write it here. {name} becomes their first name. {{job.title}} becomes the job. {calendar} becomes the scheduler link."
-                        rows={8}
-                      />
-                    </label>
-                    <div className="studio-ask-foot">
-                      <button
-                        type="button"
-                        className="studio-today-go"
-                        disabled={!templateName.trim() || !templateBody.trim()}
-                        onClick={keepTemplate}
-                      >
-                        keep template
-                      </button>
+                  {editing ? (
+                    <div className="studio-task-form">
+                      <div className="studio-template-about">
+                        <b>{editing.name}</b>
+                        <span>{editing.when}</span>
+                      </div>
+                      <label className="studio-ask-field">
+                        <span className="studio-ask-label">subject</span>
+                        <input
+                          className="studio-template-letter"
+                          value={templateSubject}
+                          onChange={(event) => setTemplateSubject(event.target.value)}
+                          placeholder={
+                            editing.group === "write"
+                              ? "subject, when this letter starts its own conversation"
+                              : "the subject line"
+                          }
+                        />
+                      </label>
+                      {editing.designed ? (
+                        <label className="studio-ask-field">
+                          <span className="studio-ask-label">headline</span>
+                          <input
+                            className="studio-template-letter"
+                            value={templateHeadline}
+                            onChange={(event) => setTemplateHeadline(event.target.value)}
+                            placeholder="the big line at the top"
+                          />
+                        </label>
+                      ) : null}
+                      <label className="studio-ask-field">
+                        <span className="studio-ask-label">letter</span>
+                        <textarea
+                          className="studio-template-letter"
+                          value={templateBody}
+                          onChange={(event) => setTemplateBody(event.target.value)}
+                          rows={8}
+                        />
+                      </label>
+                      <p className="studio-template-fills">fills in: {editing.fills.join(" · ")}</p>
+                      {templateProblem ? (
+                        <p className="studio-composer-note">{templateProblem}</p>
+                      ) : null}
+                      <div className="studio-ask-foot is-pair is-spread">
+                        {editing.saved ? (
+                          <button
+                            type="button"
+                            className="studio-proposal-preview"
+                            disabled={keepTemplateWords.isPending}
+                            onClick={() => beginTemplate(editing, defaultEmailTemplate(editing.id))}
+                          >
+                            back to the original
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                        <button
+                          type="button"
+                          className="studio-today-go"
+                          disabled={!templateBody.trim() || keepTemplateWords.isPending}
+                          onClick={keepTemplate}
+                        >
+                          {keepTemplateWords.isPending ? "keeping" : "keep template"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </DialogContent>
               </Dialog>
             </DialogContent>

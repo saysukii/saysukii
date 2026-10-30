@@ -83,7 +83,9 @@ export const bookAppointment = createServerFn({ method: "POST" })
       saveError = error instanceof Error ? error.message : "booking was not saved";
     }
     const { sendBookingEmail, sendBookingNotice } = await import("@/lib/os/booking-email.server");
+    const { loadEmailTemplate } = await import("@/lib/os/email-templates.server");
     const mail = {
+      template: await loadEmailTemplate("call-booked"),
       startsAt: data.startsAt,
       name: data.name,
       email: data.email,

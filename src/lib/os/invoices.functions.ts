@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
+import { fillTemplate } from "@/lib/email-templates";
 import { invoiceTitle } from "@/lib/invoice-title";
 import { signatureName } from "@/lib/os/mail-signature";
 
@@ -29,6 +30,8 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
         courtesy_cents: z.number().int().min(0),
         pay_in_full: z.boolean(),
         letter: z.string().trim().min(1).max(8000),
+        /** the saved subject, with {invoice} where the number goes */
+        subject: z.string().trim().max(300).optional(),
         to: z.array(z.string().trim().email().max(200)).max(12).optional().default([]),
         cc: z.array(z.string().trim().email().max(200)).max(12).optional().default([]),
       })
@@ -108,8 +111,8 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
     try {
       await deliverLetter(context.supabase, {
         inquiryId: data.inquiry_id,
-        body: `${data.letter}\n\n[pay your invoice](${square.url})\n\n<3`,
-        subject: number,
+        body: `${fillTemplate(data.letter, { invoice: number })}\n\n[pay your invoice](${square.url})\n\n<3`,
+        subject: fillTemplate(data.subject || "{invoice}", { invoice: number }),
         fresh: true,
         threadId: null,
         to: data.to,

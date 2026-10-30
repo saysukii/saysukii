@@ -1,5 +1,11 @@
 import { Resend } from "resend";
 
+import {
+  defaultEmailTemplate,
+  templateFirstName,
+  templateWords,
+  type EmailTemplate,
+} from "@/lib/email-templates";
 import { renderSaySukiiEmail } from "@/lib/os/email-layout";
 
 export type BookingMail = {
@@ -11,7 +17,17 @@ export type BookingMail = {
   meeting?: "meet" | "phone";
   /** the google meet link, when the calendar made one */
   joinUrl?: string | null;
+  /** the studio's saved words for the confirmation; the app's own when there are none */
+  template?: EmailTemplate;
 };
+
+/** the confirmation's subject, headline, and words, in the studio's words */
+function bookingWords(input: BookingMail) {
+  return templateWords(input.template ?? defaultEmailTemplate("call-booked"), {
+    name: templateFirstName(input.name),
+    when: bookingWhen(input.startsAt),
+  });
+}
 
 const ZONE = "America/New_York";
 
@@ -112,22 +128,17 @@ export function calendarLink(input: BookingMail) {
 }
 
 function subjectFor(input: BookingMail) {
-  return `you’re booked · ${bookingWhen(input.startsAt)}`;
+  return bookingWords(input).subject;
 }
 
 export function bookingHtml(input: BookingMail, origin?: string) {
   const note = input.note.trim();
+  const words = bookingWords(input);
   return renderSaySukiiEmail({
     ...(origin ? { origin } : {}),
     eyebrow: "let's talk",
-    headline: "you're booked",
-    body: [
-      "thank you for making time. looking forward to connecting with you soon!\u00a0<3",
-      "",
-      "if this is an event or wedding -- in our initial consultation, we will discuss your overall vision and needs to follow up with an accurate proposal quote.",
-      "",
-      "please have any inspiration images you have readily available for our meeting. you may also email them to info@saysukii.com.",
-    ].join("\n"),
+    headline: words.headline,
+    body: words.body,
     facts: [
       { label: "when", value: bookingWhen(input.startsAt) },
       { label: "length", value: `${input.durationMinutes} minutes · ${placeLabel(input)}` },
@@ -143,12 +154,17 @@ export function bookingHtml(input: BookingMail, origin?: string) {
 }
 
 export function bookingText(input: BookingMail) {
+  const words = bookingWords(input);
   return [
     "say sukii",
-    "you’re booked",
+    words.headline,
     bookingWhen(input.startsAt),
     "",
-    ...noteLines(input),
+    words.body,
+    "",
+    `${input.durationMinutes} minutes · ${placeLabel(input)}`,
+    ...(input.joinUrl ? [`join: ${input.joinUrl}`] : []),
+    ...(input.note.trim() ? [input.note.trim()] : []),
     "",
     "this note has the meeting attached, so you can keep it on your calendar.",
     calendarLink(input),

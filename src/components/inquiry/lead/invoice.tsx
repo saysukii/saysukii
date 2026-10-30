@@ -15,13 +15,14 @@ import {
   type StatementOfWork,
 } from "@/lib/floral-agreement";
 import { dollarsToCents, formatDollarInput } from "@/lib/proposal-link";
-import { formatMoneyExact } from "@/lib/money";
+import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
 import {
   customItem,
   itemFromCatalog,
   type CatalogItem,
   type InvoiceItem,
 } from "@/lib/invoice-items";
+import type { SentLetter } from "@/lib/sent-letters";
 import { cn } from "@/lib/utils";
 
 export type ItemCatalog = { items: CatalogItem[]; problem: string | null; loading: boolean };
@@ -163,6 +164,7 @@ export function InvoicePreview({
   items = [],
   catalog,
   onItems,
+  due: dueOverride,
 }: {
   clientName: string;
   clientEmail?: string;
@@ -180,10 +182,15 @@ export function InvoicePreview({
   items?: InvoiceItem[];
   catalog?: ItemCatalog;
   onItems?: (next: InvoiceItem[]) => void;
+  /** which payment this invoice asks for, and when it was paid, once a deposit splits it in two */
+  due?: { label: string; cents: number; paidOn?: string | null };
 }) {
-  const dueLabel = depositCents >= totalCents && totalCents > 0 ? "due in full" : "deposit due";
+  const dueLabel =
+    dueOverride?.label ??
+    (depositCents >= totalCents && totalCents > 0 ? "due in full" : "deposit due");
   const total = formatMoneyExact(totalCents);
-  const due = formatMoneyExact(depositCents);
+  const due = formatMoneyExact(dueOverride?.cents ?? depositCents);
+  const paidOn = dueOverride?.paidOn ?? null;
   const shared = invoiceSharedDate(issuedOn);
   // with no items picked yet, the amount typed above stands in as one line
   const base: InvoiceItem | null =
@@ -352,7 +359,10 @@ export function InvoicePreview({
         <span>{total}</span>
       </div>
       <div>
-        <span>{dueLabel}</span>
+        <span>
+          {dueLabel}
+          {paidOn ? ` · paid ${paidOn}` : ""}
+        </span>
         <strong>{due}</strong>
       </div>
     </footer>
@@ -367,7 +377,7 @@ export function InvoicePreview({
               <strong>{due}</strong>
               <em>
                 {number}
-                {shared ? ` · shared ${shared}` : ""}
+                {paidOn ? ` · paid ${paidOn}` : shared ? ` · shared ${shared}` : ""}
               </em>
             </div>
             <Wordmark tone="ink" className="client-packet-mark is-sheet" />
@@ -416,6 +426,9 @@ export function PacketPreview({
   fileUrl,
   invoiceNumber,
   stored,
+  signed,
+  studioSigned,
+  invoiceDue,
 }: {
   kind: "proposal" | "agreement" | "invoice";
   clientName: string;
@@ -431,6 +444,12 @@ export function PacketPreview({
   fileUrl: string;
   invoiceNumber: string;
   stored: ReturnType<typeof readPreviewProposal>;
+  /** the client's signature, once they've signed */
+  signed?: { signature: string; at: string; signer: { first: string; last: string } | null } | null;
+  /** the owner's signature, which countersigns once the client has signed */
+  studioSigned?: { name: string; image: string } | null;
+  /** for a deposit, which of the two invoices this is */
+  invoiceDue?: { label: string; cents: number; paidOn?: string | null } | null;
 }) {
   const pages = stored?.pageUrls ?? [];
   const frame = fileUrl || stored?.pdfDataUrl || "";
@@ -520,6 +539,30 @@ export function PacketPreview({
               deposit: formatMoneyExact(depositCents),
               balance: formatMoneyExact(Math.max(0, totalCents - depositCents)),
             }}
+            {...(signed
+              ? {
+                  signature: (
+                    <img src={signed.signature} alt="Signature" className="client-packet-ink" />
+                  ),
+                  signedAt: signed.at,
+                  signer: { first: signed.signer?.first ?? "", last: signed.signer?.last ?? "" },
+                  // say sukii countersigns the copy they keep, dated the moment they signed
+                  studio: studioSigned
+                    ? {
+                        first: studioSigned.name.split(/\s+/)[0] ?? studioSigned.name,
+                        last: studioSigned.name.split(/\s+/).slice(1).join(" "),
+                        signature: (
+                          <img
+                            src={studioSigned.image}
+                            alt="Say Sukii signature"
+                            className="client-packet-ink"
+                          />
+                        ),
+                        signedAt: signed.at,
+                      }
+                    : null,
+                }
+              : {})}
           />
         </div>
       ) : null}
@@ -539,8 +582,160 @@ export function PacketPreview({
           totalCents={totalCents}
           depositCents={depositCents}
           issuedOn={stored?.sentAt || new Date().toISOString()}
+          {...(invoiceDue ? { due: invoiceDue } : {})}
         />
       ) : null}
     </div>
   );
+}
+
+export type SignedPacketState = {
+  /** null in the local preview, where nothing is sent */
+  proposalId: string | null;
+  signed: { signature: string; at: string; signer: { first: string; last: string } | null };
+  payments: Array<{ amount_cents: number; paid_at: string | null }>;
+  totalCents: number;
+  depositCents: number;
+  /** the event's date (YYYY-MM-DD); the balance falls due 30 days before */
+  eventDate: string | null;
+};
+
+type PacketTab = "proposal" | "agreement" | "invoice" | "balance";
+
+/**
+ * A signed proposal, held as the client sees it: the proposal, the signed agreement, and its
+ * invoices (two for a deposit, the second once the deposit is paid). Nothing here edits.
+ */
+export function SignedPacket({
+  packet,
+  preview,
+  letters = [],
+  onCopy,
+  onSendBalance,
+  sending = false,
+}: {
+  packet: SignedPacketState;
+  /** what the app emailed them on its own: receipts and reminders, kept out of the conversation */
+  letters?: SentLetter[];
+  preview: Omit<Parameters<typeof PacketPreview>[0], "kind" | "signed" | "invoiceDue">;
+  onCopy?: () => void;
+  onSendBalance?: () => void;
+  sending?: boolean;
+}) {
+  const [tab, setTab] = useState<PacketTab>("proposal");
+  const split = packet.depositCents > 0 && packet.depositCents < packet.totalCents;
+  const paidCents = packet.payments.reduce((sum, row) => sum + row.amount_cents, 0);
+  const balanceCents = Math.max(0, packet.totalCents - paidCents);
+  const first = packet.payments[0] ?? null;
+  const second = packet.payments[1] ?? null;
+  const balanceDue = balanceDueShort(packet.eventDate);
+  const tabs: Array<[PacketTab, string]> = [
+    ["proposal", "proposal"],
+    ["agreement", "service agreement"],
+    ...(split
+      ? ([
+          ["invoice", "invoice 1 of 2"],
+          ...(first ? ([["balance", "invoice 2 of 2"]] as Array<[PacketTab, string]>) : []),
+        ] as Array<[PacketTab, string]>)
+      : ([["invoice", "invoice"]] as Array<[PacketTab, string]>)),
+  ];
+  const shown = tabs.some(([key]) => key === tab) ? tab : "proposal";
+  const invoiceDue =
+    shown === "balance"
+      ? {
+          label: balanceDue ? `balance due ${balanceDue}` : "balance due",
+          cents: packet.totalCents - packet.depositCents,
+          paidOn: second?.paid_at ? formatDateNumeric(second.paid_at) : null,
+        }
+      : {
+          label: split ? "deposit due" : "due in full",
+          cents: split ? packet.depositCents : packet.totalCents,
+          paidOn: first?.paid_at ? formatDateNumeric(first.paid_at) : null,
+        };
+  const number = split
+    ? `${preview.invoiceNumber || "invoice"} · ${shown === "balance" ? "2" : "1"} of 2`
+    : preview.invoiceNumber;
+  const notes = [
+    `signed ${formatDateNumeric(packet.signed.at)}`,
+    first?.paid_at
+      ? balanceCents > 0
+        ? `deposit paid ${formatDateNumeric(first.paid_at)}`
+        : `paid in full ${formatDateNumeric(packet.payments.at(-1)?.paid_at ?? first.paid_at)}`
+      : "deposit not paid yet",
+    ...(first && balanceCents > 0
+      ? [`${formatMoneyExact(balanceCents)} due${balanceDue ? ` ${balanceDue}` : ""}`]
+      : []),
+  ];
+
+  return (
+    <div className="studio-proposal-signed">
+      <p className="studio-proposal-signed-note">{notes.join(" · ")}</p>
+      {letters.length ? (
+        <ul className="studio-sent-letters" aria-label="sent by the app">
+          {letters.map((letter) => (
+            <li key={letter.id}>
+              {letter.href ? (
+                <a href={letter.href} target="_blank" rel="noreferrer">
+                  {letter.line}
+                </a>
+              ) : (
+                letter.line
+              )}
+              <span>{formatDateNumeric(letter.at)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="studio-proposal-preview-nav" role="tablist" aria-label="the signed packet">
+        {tabs.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={shown === key}
+            className={shown === key ? "is-on" : undefined}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <PacketPreview
+        {...preview}
+        kind={shown === "balance" ? "invoice" : shown}
+        signed={packet.signed}
+        invoiceDue={invoiceDue}
+        invoiceNumber={number}
+      />
+      {onCopy || (onSendBalance && first && balanceCents > 0) ? (
+        <div className="studio-ask-foot is-spread">
+          {onCopy ? (
+            <button type="button" className="studio-proposal-preview" onClick={onCopy}>
+              copy link
+            </button>
+          ) : (
+            <span />
+          )}
+          {onSendBalance && first && balanceCents > 0 ? (
+            <button
+              type="button"
+              className="studio-today-go"
+              disabled={sending}
+              onClick={onSendBalance}
+            >
+              {sending ? "opening…" : "send invoice link"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** "02/10/27": 30 days before the event */
+function balanceDueShort(eventDate: string | null) {
+  const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(eventDate ?? "");
+  if (!day) return null;
+  const due = new Date(Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]) - 30));
+  return formatDateNumeric(due.toISOString());
 }

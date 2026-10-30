@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, FileRow } from "@/integrations/supabase/types";
+import { invoiceTitle } from "@/lib/invoice-title";
 import { clientSlugs } from "@/lib/os/inquiry-desk";
 
 export type FileRelation =
@@ -11,13 +12,29 @@ export type FileRelation =
   | { scope: "client"; name: string; id: string; person: boolean }
   | { scope: "venue"; name: string; id: string };
 
+/** what a file is, read from its name, so the library can group and sort it */
+export type FileCategory = "proposal" | "agreement" | "invoice" | "receipt" | "image" | "other";
+
 export type StudioFile = {
   id: string;
   name: string;
   kind: string;
   href: string | null;
   relation: FileRelation;
+  category: FileCategory;
+  /** when it was filed, for the newest first */
+  addedAt: string;
 };
+
+export function fileCategory(name: string, kind = ""): FileCategory {
+  const lower = name.toLowerCase();
+  if (/receipt/.test(lower)) return "receipt";
+  if (/agreement|contract/.test(lower)) return "agreement";
+  if (/proposal/.test(lower)) return "proposal";
+  if (/invoice|^sqinv/.test(lower)) return "invoice";
+  if (kind === "image") return "image";
+  return "other";
+}
 
 function fileName(path: string) {
   return path.split("/").filter(Boolean).at(-1) || path;
@@ -40,6 +57,10 @@ function idsFor(
   ];
 }
 
+/**
+ * Every file the studio keeps: its own uploads, and everything tied to a client. That includes the
+ * proposals, signed agreements, and invoices kept with the documents, each listed once.
+ */
 export const listStudioFiles = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async ({ context }): Promise<StudioFile[]> => {
@@ -49,25 +70,147 @@ export const listStudioFiles = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
 
-    const files = data ?? [];
-    const relations = await resolveRelations(context.supabase, files);
+    // a paid document is filed under the client and the inquiry; it shows once
+    const seenPaths = new Set<string>();
+    const files = (data ?? []).filter((file) => {
+      if (seenPaths.has(file.file_path)) return false;
+      seenPaths.add(file.file_path);
+      return true;
+    });
+    const documents = await clientDocuments(context.supabase);
+    const relations = await resolveRelations(context.supabase, [
+      ...files,
+      ...documents.map((doc) => ({
+        id: doc.id,
+        owner_type: "client" as const,
+        owner_id: doc.clientId,
+      })),
+    ]);
 
-    return Promise.all(
-      files.map(async (file) => {
-        const name = fileName(file.file_path);
-        const signed = await context.supabase.storage
-          .from("project-files")
-          .createSignedUrl(file.file_path, 60 * 30);
-        return {
-          id: file.id,
-          name,
-          kind: fileKind(file.file_type || name),
-          href: signed.data?.signedUrl ?? null,
-          relation: relations.get(file.id) ?? { scope: "studio" },
-        };
-      }),
+    const filed = await signedUrls(
+      context.supabase,
+      "project-files",
+      files.map((file) => file.file_path),
     );
+    const rows: StudioFile[] = files.map((file) => {
+      const name = fileName(file.file_path);
+      const kind = fileKind(file.file_type || name);
+      return {
+        id: file.id,
+        name,
+        kind,
+        href: filed.get(file.file_path) ?? null,
+        relation: relations.get(file.id) ?? { scope: "studio" },
+        category: fileCategory(name, kind),
+        addedAt: file.created_at,
+      };
+    });
+
+    // a document already filed for that client (after they paid) isn't listed twice
+    const filedNames = new Set(
+      rows.map((row) => `${row.relation.scope === "client" ? row.relation.id : ""}/${row.name}`),
+    );
+    const kept = await signedUrls(
+      context.supabase,
+      "documents",
+      documents.map((doc) => doc.path),
+    );
+    for (const doc of documents) {
+      const relation = relations.get(doc.id) ?? { scope: "studio" as const };
+      const key = `${relation.scope === "client" ? relation.id : ""}/${doc.name}`;
+      if (filedNames.has(key) || relation.scope !== "client") continue;
+      filedNames.add(key);
+      rows.push({
+        id: doc.id,
+        name: doc.name,
+        kind: "pdf",
+        href: kept.get(doc.path) ?? null,
+        relation,
+        category: doc.category,
+        addedAt: doc.addedAt,
+      });
+    }
+    return rows.sort((left, right) => right.addedAt.localeCompare(left.addedAt));
   });
+
+/** the proposals, signed agreements, and invoices kept with the documents, named the way they're filed */
+async function clientDocuments(supabase: SupabaseClient<Database>) {
+  const [proposals, agreements, invoices] = await Promise.all([
+    supabase
+      .from("proposals")
+      .select("id, number, client_id, pdf_path, created_at, sent_at")
+      .eq("archived", false)
+      .not("pdf_path", "is", null),
+    supabase
+      .from("agreements")
+      .select("id, proposal_id, pdf_path, signed_at")
+      .not("pdf_path", "is", null)
+      .not("signed_at", "is", null),
+    supabase
+      .from("invoices")
+      .select("id, proposal_id, number, pdf_path, created_at")
+      .not("pdf_path", "is", null),
+  ]);
+  for (const result of [proposals, agreements, invoices]) {
+    if (result.error) throw new Error(result.error.message);
+  }
+  const proposalById = new Map((proposals.data ?? []).map((row) => [row.id, row]));
+  const docs: Array<{
+    id: string;
+    clientId: string;
+    path: string;
+    name: string;
+    category: FileCategory;
+    addedAt: string;
+  }> = [];
+  for (const row of proposals.data ?? []) {
+    if (!row.pdf_path || !row.client_id) continue;
+    docs.push({
+      id: `proposal-${row.id}`,
+      clientId: row.client_id,
+      path: row.pdf_path,
+      name: `say-sukii-proposal-${row.number}.pdf`,
+      category: "proposal",
+      addedAt: row.sent_at ?? row.created_at,
+    });
+  }
+  for (const row of agreements.data ?? []) {
+    const proposal = proposalById.get(row.proposal_id);
+    if (!row.pdf_path || !proposal?.client_id) continue;
+    docs.push({
+      id: `agreement-${row.id}`,
+      clientId: proposal.client_id,
+      path: row.pdf_path,
+      name: `floral-service-agreement-${proposal.number}.pdf`,
+      category: "agreement",
+      addedAt: row.signed_at ?? proposal.created_at,
+    });
+  }
+  for (const row of invoices.data ?? []) {
+    const proposal = proposalById.get(row.proposal_id);
+    if (!row.pdf_path || !proposal?.client_id) continue;
+    docs.push({
+      id: `invoice-${row.id}`,
+      clientId: proposal.client_id,
+      path: row.pdf_path,
+      name: `say-sukii-invoice-${invoiceTitle(row.number)}.pdf`,
+      category: "invoice",
+      addedAt: row.created_at,
+    });
+  }
+  return docs;
+}
+
+/** signed links for many files at once, by path */
+async function signedUrls(supabase: SupabaseClient<Database>, bucket: string, paths: string[]) {
+  const links = new Map<string, string>();
+  if (paths.length === 0) return links;
+  const { data } = await supabase.storage.from(bucket).createSignedUrls(paths, 60 * 30);
+  for (const row of data ?? []) {
+    if (row.path && row.signedUrl) links.set(row.path, row.signedUrl);
+  }
+  return links;
+}
 
 const libraryFileInput = z.object({
   file_path: z.string().trim().min(1).max(500),

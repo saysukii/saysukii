@@ -463,6 +463,73 @@ describe("classify + route engine", () => {
     );
   });
 
+  it("leaves receipts and balance reminders out, but keeps a hand-sent invoice link", async () => {
+    const letter = (id: string, subject: string) =>
+      inbound(id, {
+        from_addr: "info@saysukii.com",
+        to_addr: "ada@example.com",
+        gmail_thread_id: `thread-${id}`,
+        subject,
+        body: "thank you.",
+      });
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        letter("booked-receipt", "your project is booked · receipt for SS103"),
+        letter("balance-receipt", "thank you · receipt for SS103"),
+        letter("reminder", "a gentle reminder · your balance for SS103"),
+        letter("due", "due today · your balance for SS103"),
+        letter("by-hand", "your remaining balance · SS103"),
+      ],
+      clients: [client("cli-ada")],
+      inquiries: [inquiry("inq-wedding", "cli-ada")],
+      messages: [threadMessage("inq-wedding", "thread-wedding")],
+    });
+
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async () => {
+        throw new Error("the studio's own letters should not need the model");
+      },
+    });
+
+    assert.equal(result.ignored, 4);
+    assert.equal(result.attached, 1);
+    const filed = state.messages.map((row) => row.gmail_message_id);
+    assert.ok(filed.includes("gmail-by-hand"));
+    assert.ok(!filed.includes("gmail-booked-receipt"));
+    assert.ok(!filed.includes("gmail-reminder"));
+  });
+
+  it("leaves out an automatic letter whose subject the studio rewrote", async () => {
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("rewritten", {
+          from_addr: "info@saysukii.com",
+          to_addr: "ada@example.com",
+          gmail_thread_id: "thread-rewritten",
+          subject: "welcome to say sukii · receipt SS103",
+          body: "thank you.",
+        }),
+      ],
+      clients: [client("cli-ada")],
+      inquiries: [inquiry("inq-wedding", "cli-ada")],
+      messages: [threadMessage("inq-wedding", "thread-wedding")],
+    });
+    store.listAutomaticSubjects = async () => ["welcome to say sukii · receipt {invoice}"];
+
+    const result = await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async () => {
+        throw new Error("the studio's own letters should not need the model");
+      },
+    });
+
+    assert.equal(result.ignored, 1);
+    assert.ok(!state.messages.some((row) => row.gmail_message_id === "gmail-rewritten"));
+  });
+
   it("never turns the studio's own mail into a lead", async () => {
     const { state, store } = createMemoryRoutingStore({
       inbound: [

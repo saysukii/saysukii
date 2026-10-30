@@ -35,7 +35,19 @@ export function readNotices() {
   return read().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export function pushNotice(input: { id?: string; title: string; body: string; href?: string }) {
+/** whether this browser already has the notice, so a moment isn't celebrated twice */
+export function hasNotice(id: string) {
+  return read().some((notice) => notice.id === id);
+}
+
+export function pushNotice(input: {
+  id?: string;
+  title: string;
+  body: string;
+  href?: string;
+  /** already shown some other way, like the booking's glitter, so it doesn't toast again */
+  toasted?: boolean;
+}) {
   const current = read();
   if (input.id && current.some((notice) => notice.id === input.id)) {
     return current.find((notice) => notice.id === input.id) ?? current[0];
@@ -46,7 +58,7 @@ export function pushNotice(input: { id?: string; title: string; body: string; hr
     body: input.body,
     createdAt: new Date().toISOString(),
     read: false,
-    toasted: false,
+    toasted: input.toasted ?? false,
     ...(input.href ? { href: input.href } : {}),
   };
   write([notice, ...current]);

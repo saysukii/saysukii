@@ -80,8 +80,26 @@ function inquiryReceivedText(details: InquiryEmailDetails, origin?: string) {
   ].join("\n");
 }
 
-function noticeRfc822(subject: string, html: string, text: string, to: string) {
+export type NoticeFile = { name: string; type: string; data: Uint8Array };
+
+function base64Lines(value: string | Uint8Array) {
+  return (
+    Buffer.from(value)
+      .toString("base64")
+      .match(/.{1,76}/g)
+      ?.join("\r\n") ?? ""
+  );
+}
+
+function noticeRfc822(
+  subject: string,
+  html: string,
+  text: string,
+  to: string,
+  files: NoticeFile[] = [],
+) {
   const boundary = "saysukii-notice";
+  const mixed = "saysukii-notice-files";
   const headers = [
     `From: "Say Sukii" <${STUDIO_INBOX}>`,
     `To: ${to}`,
@@ -89,7 +107,9 @@ function noticeRfc822(subject: string, html: string, text: string, to: string) {
     `Date: ${new Date().toUTCString().replace(/UTC$/i, "GMT")}`,
     `Message-ID: <${randomUUID()}@saysukii.com>`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    files.length
+      ? `Content-Type: multipart/mixed; boundary="${mixed}"`
+      : `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ];
   const plain =
     Buffer.from(text, "utf8")
@@ -101,9 +121,7 @@ function noticeRfc822(subject: string, html: string, text: string, to: string) {
       .toString("base64")
       .match(/.{1,76}/g)
       ?.join("\r\n") ?? "";
-  return [
-    headers.join("\r\n"),
-    "",
+  const letter = [
     `--${boundary}`,
     "Content-Type: text/plain; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
@@ -115,6 +133,25 @@ function noticeRfc822(subject: string, html: string, text: string, to: string) {
     "",
     markup,
     `--${boundary}--`,
+  ];
+  if (!files.length) return [headers.join("\r\n"), "", ...letter, ""].join("\r\n");
+  // with files: the letter first, then each file attached
+  return [
+    headers.join("\r\n"),
+    "",
+    `--${mixed}`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    ...letter,
+    ...files.flatMap((file) => [
+      `--${mixed}`,
+      `Content-Type: ${file.type}; name="${file.name}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${file.name}"`,
+      "",
+      base64Lines(file.data),
+    ]),
+    `--${mixed}--`,
     "",
   ].join("\r\n");
 }
@@ -220,9 +257,14 @@ export async function sendInquiryReceivedEmail(details: InquiryEmailDetails) {
  * A note for the studio: placed straight in the studio inbox when that's where notices go,
  * otherwise sent through resend, and through gmail as the last resort.
  */
-export async function deliverStudioNotice(subject: string, html: string, text: string) {
+export async function deliverStudioNotice(
+  subject: string,
+  html: string,
+  text: string,
+  files: NoticeFile[] = [],
+) {
   const to = studioNotificationEmail();
-  const raw = noticeRfc822(subject, html, text, to);
+  const raw = noticeRfc822(subject, html, text, to, files);
 
   if (to === STUDIO_INBOX) {
     try {
@@ -243,6 +285,10 @@ export async function deliverStudioNotice(subject: string, html: string, text: s
         subject,
         html,
         text,
+        attachments: files.map((file) => ({
+          filename: file.name,
+          content: Buffer.from(file.data),
+        })),
       });
       if (error) {
         console.error("[Inquiry email]", error.message);

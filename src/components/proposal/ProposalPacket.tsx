@@ -14,6 +14,7 @@ import {
   statementFromNotes,
   courtesyFromNotes,
   floralPackageName,
+  formatEventWhen,
   invoiceBookingLine,
   invoiceDateLabel,
   invoiceSharedDate,
@@ -53,20 +54,6 @@ function proposalSlides(pageUrls: string[] | undefined, frameUrl: string | null)
     slides.push({ kind: "proposal" });
   }
   return slides;
-}
-
-function formatEventWhen(value: string | null) {
-  if (!value) return "";
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  if (!match) return value;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function optionDeposit(total: number, percent: number) {
@@ -244,17 +231,8 @@ export function ProposalPacket({ token }: { token: string }) {
 
   const { isPending: signing, mutate: signNow } = sign;
   const named = Boolean(signerFirst.trim() && signerLast.trim());
-  useEffect(() => {
-    if (
-      isSignatureDataUrl(preview?.signedName) ||
-      !isSignatureDataUrl(signature) ||
-      !named ||
-      signing
-    )
-      return;
-    const timer = window.setTimeout(() => signNow(), 700);
-    return () => window.clearTimeout(timer);
-  }, [signature, preview?.signedName, signing, signNow, named]);
+  // nothing signs until they press sign, so they can clear and try again first
+  const canSign = isSignatureDataUrl(signature) && named && !signing;
 
   if (!checked || (!preview && isPending)) {
     return (
@@ -337,7 +315,9 @@ export function ProposalPacket({ token }: { token: string }) {
   const slides = proposalSlides(preview?.pageUrls, frameUrl);
   const current = imageCount > 0 ? (slides[safePage] ?? slides[0]) : null;
   const invoiceNumber = data?.invoice?.number ? invoiceTitle(data.invoice.number) : number;
-  const step = view;
+  // once they've paid, the link is just their invoice: the proposal and signed agreement are in their email
+  const settled = preview ? Boolean(preview.paid) : paidCents > 0;
+  const step = settled ? "invoice" : view;
 
   function openInvoice() {
     setView("invoice");
@@ -409,6 +389,16 @@ export function ProposalPacket({ token }: { token: string }) {
                       {sign.error.message}
                     </p>
                   ) : null}
+                  <div className="client-packet-buttons client-packet-sign-row">
+                    <button
+                      type="button"
+                      className="client-packet-accept"
+                      disabled={!canSign}
+                      onClick={() => signNow()}
+                    >
+                      {signing ? "Signing…" : "Sign"}
+                    </button>
+                  </div>
                 </>
               ) : (
                 <p className="client-packet-stamp">Accept the proposal to sign.</p>
@@ -501,20 +491,24 @@ export function ProposalPacket({ token }: { token: string }) {
         </header>
 
         <div className="client-packet-steps" aria-label="packet">
-          <button
-            type="button"
-            className={step === "proposal" ? "is-on" : undefined}
-            onClick={() => setView("proposal")}
-          >
-            proposal
-          </button>
-          <button
-            type="button"
-            className={step === "agreement" ? "is-on" : undefined}
-            onClick={() => setView("agreement")}
-          >
-            agreement
-          </button>
+          {settled ? null : (
+            <>
+              <button
+                type="button"
+                className={step === "proposal" ? "is-on" : undefined}
+                onClick={() => setView("proposal")}
+              >
+                proposal
+              </button>
+              <button
+                type="button"
+                className={step === "agreement" ? "is-on" : undefined}
+                onClick={() => setView("agreement")}
+              >
+                agreement
+              </button>
+            </>
+          )}
           <button
             type="button"
             className={step === "invoice" ? "is-on" : undefined}
@@ -644,14 +638,22 @@ export function ProposalPacket({ token }: { token: string }) {
                 Sign the agreement to pay.
               </p>
             ) : paid ? (
-              <p className="client-packet-stamp" style={{ marginTop: 0 }}>
-                Paid in full. Thank you.
-              </p>
+              <div className="client-packet-balance">
+                <p className="client-packet-stamp" style={{ marginTop: 0 }}>
+                  Paid in full. Thank you.
+                </p>
+                <p className="client-packet-client">
+                  A copy of your proposal, signed agreement + invoice is in your email.
+                </p>
+              </div>
             ) : depositIn ? (
               <div className="client-packet-balance">
                 <p className="client-packet-stamp" style={{ marginTop: 0 }}>
                   Deposit received. {formatMoneyExact(balanceLeft)} remaining
                   {data?.balanceDue ? `, due ${shortDate(data.balanceDue)}` : ""}.
+                </p>
+                <p className="client-packet-client">
+                  A copy of your proposal, signed agreement + invoice is in your email.
                 </p>
                 <SquarePay
                   token={token}
@@ -665,14 +667,25 @@ export function ProposalPacket({ token }: { token: string }) {
                 />
               </div>
             ) : preview ? (
-              <button
-                type="button"
-                className="client-packet-accept"
-                disabled={pay.isPending}
-                onClick={() => pay.mutate()}
-              >
-                {pay.isPending ? "Paying…" : `Pay ${formatMoneyExact(depositCents)}`}
-              </button>
+              <SquarePay
+                demo
+                token={token}
+                amountCents={depositCents}
+                clientName={clientName}
+                clientEmail={clientEmail}
+                summary={{
+                  service: packageName,
+                  eventDate: eventShort,
+                  balance:
+                    depositCents < totalCents && preview.eventDate
+                      ? {
+                          amountCents: totalCents - depositCents,
+                          due: previewBalanceDue(preview.eventDate),
+                        }
+                      : null,
+                }}
+                onPaid={() => pay.mutate()}
+              />
             ) : (
               <SquarePay
                 token={token}
@@ -698,6 +711,14 @@ export function ProposalPacket({ token }: { token: string }) {
       </div>
     </main>
   );
+}
+
+/** the local preview's balance date, 30 days before the event, MM/DD/YY */
+function previewBalanceDue(eventDate: string) {
+  const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(eventDate);
+  if (!day) return "";
+  const due = new Date(Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]) - 30));
+  return shortDate(due.toISOString());
 }
 
 /** MM/DD/YY, the way the studio writes every date */

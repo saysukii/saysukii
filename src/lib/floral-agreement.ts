@@ -307,6 +307,36 @@ export function signerFromAgreement(content: string | null | undefined) {
   return { first, last: rest.join(" ") };
 }
 
+/** "Friday, March 12, 2027", the way the agreement names the event day */
+export function formatEventWhen(value: string | null) {
+  if (!value) return "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return value;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** "October 29, 2026 at 5:20 PM EDT", under each signature */
+export function agreementSignedLine(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+  });
+}
+
 export const AGREEMENT_CONSENT =
   "“I, the Client, agree to the terms set in this agreement and agree that I, the Client, am responsible for all payments and decisions regarding this order.”";
 

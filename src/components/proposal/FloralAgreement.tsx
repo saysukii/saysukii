@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Wordmark } from "@/components/portal/bits";
 import {
   AGREEMENT_CONSENT,
+  agreementSignedLine,
   floralAgreementBlocks,
   type FloralAgreementFields,
 } from "@/lib/floral-agreement";
@@ -15,17 +16,27 @@ export type SignerNames = {
   onLast?: (value: string) => void;
 };
 
+/** Say Sukii's countersignature, from the owner's signature in settings */
+export type StudioCountersign = {
+  first: string;
+  last: string;
+  signature: ReactNode;
+  signedAt: string;
+};
+
 export function FloralAgreement({
   fields,
   signature,
   signedAt,
   signer,
+  studio,
 }: {
   fields: FloralAgreementFields;
   /** the client's signature: a pad to draw on, the drawn ink, or a note to accept first */
   signature?: ReactNode;
   signedAt?: string | null | undefined;
   signer?: SignerNames;
+  studio?: StudioCountersign | null;
 }) {
   return (
     <article className="client-packet-agreement">
@@ -53,7 +64,12 @@ export function FloralAgreement({
           );
         return <p key={index}>{block.text}</p>;
       })}
-      <AgreementSignatures signer={signer} signature={signature} signedAt={signedAt} />
+      <AgreementSignatures
+        signer={signer}
+        signature={signature}
+        signedAt={signedAt}
+        studio={studio}
+      />
     </article>
   );
 }
@@ -63,10 +79,12 @@ function AgreementSignatures({
   signer,
   signature,
   signedAt,
+  studio,
 }: {
   signer?: SignerNames | undefined;
   signature?: ReactNode;
   signedAt?: string | null | undefined;
+  studio?: StudioCountersign | null | undefined;
 }) {
   return (
     <section className="client-packet-auth" aria-label="authorization and confirmation">
@@ -92,26 +110,40 @@ function AgreementSignatures({
       <div className="client-packet-auth-box">{signature ?? <em>Sign here</em>}</div>
       <p className="client-packet-auth-when">
         {signedAt
-          ? `Signed ${signedLine(signedAt)}`
+          ? `Signed ${agreementSignedLine(signedAt)}`
           : "The date and time are recorded once the agreement is signed."}
       </p>
 
       <h4>Say Sukii signature</h4>
-      <div className="client-packet-auth-names">
-        <span>
-          {" "}
-          <small>First name</small>
-        </span>
-        <span>
-          {" "}
-          <small>Last name</small>
-        </span>
-      </div>
-      <p className="client-packet-auth-label">Signature</p>
-      <div className="client-packet-auth-box">
-        <em>Say Sukii signs here</em>
-      </div>
-      <p className="client-packet-auth-when">The date is recorded once Say Sukii signs.</p>
+      {studio ? (
+        <>
+          <div className="client-packet-auth-names">
+            <NameLine label="First name" value={studio.first} autoComplete="off" />
+            <NameLine label="Last name" value={studio.last} autoComplete="off" />
+          </div>
+          <p className="client-packet-auth-label">Signature</p>
+          <div className="client-packet-auth-box">{studio.signature}</div>
+          <p className="client-packet-auth-when">Signed {agreementSignedLine(studio.signedAt)}</p>
+        </>
+      ) : (
+        <>
+          <div className="client-packet-auth-names">
+            <span>
+              {" "}
+              <small>First name</small>
+            </span>
+            <span>
+              {" "}
+              <small>Last name</small>
+            </span>
+          </div>
+          <p className="client-packet-auth-label">Signature</p>
+          <div className="client-packet-auth-box">
+            <em>Say Sukii signs here</em>
+          </div>
+          <p className="client-packet-auth-when">The date is recorded once Say Sukii signs.</p>
+        </>
+      )}
     </section>
   );
 }
@@ -147,18 +179,4 @@ function NameLine({
       {value || label}
     </span>
   );
-}
-
-function signedLine(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "America/New_York",
-    timeZoneName: "short",
-  });
 }

@@ -16,13 +16,18 @@ import { invoiceTitle } from "@/lib/invoice-title";
 import {
   freeProposalSlug,
   isProposalSlug,
+  PROPOSAL_MAX_BYTES,
   PROPOSAL_ORIGIN,
+  PROPOSAL_TOO_BIG,
   proposalLink,
   proposalSlug,
 } from "@/lib/proposal-link";
 import {
+  AGREEMENT_CONSENT,
   courtesyFromNotes,
+  floralAgreementBlocks,
   floralPackageName,
+  formatEventWhen,
   invoiceBookingLine,
   invoiceDateLabel,
   invoiceSharedDate,
@@ -31,7 +36,9 @@ import {
   statementOfWork,
   signedByLine,
   signerFromAgreement,
+  type FloralAgreementFields,
 } from "@/lib/floral-agreement";
+import { formatMoneyExact } from "@/lib/money";
 import { renderAgreementPdf, renderInvoicePdf, renderReceiptPdf } from "@/lib/pdf.server";
 import { createPublicToken, hashToken } from "./crypto.server";
 import { createSquarePaymentLink } from "./square.server";
@@ -207,6 +214,16 @@ const importInput = z
     message: "Choose the proposal PDF.",
   });
 
+/** an uploaded file's size, from storage's listing of its folder */
+async function storedSize(path: string) {
+  const slash = path.lastIndexOf("/");
+  const { data } = await supabaseAdmin.storage
+    .from("documents")
+    .list(path.slice(0, slash), { search: path.slice(slash + 1), limit: 1 });
+  const size = (data?.[0]?.metadata as { size?: number } | undefined)?.size;
+  return typeof size === "number" ? size : 0;
+}
+
 export const importProposalPdf = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((input: unknown) => importInput.parse(input))
@@ -271,6 +288,11 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       const current = Boolean(existing.data?.pdf_path) && data.pdf_path === existing.data?.pdf_path;
       if (!incoming && !current) throw new Error("Choose the proposal PDF.");
       if (!current) copyFrom = data.pdf_path;
+      // the page checks the size before uploading; this holds the line if it's skipped
+      if (copyFrom && (await storedSize(copyFrom)) > PROPOSAL_MAX_BYTES) {
+        await supabaseAdmin.storage.from("documents").remove([copyFrom]);
+        throw new Error(PROPOSAL_TOO_BIG);
+      }
     } else if (data.pdf_base64) {
       pdfBytes = Buffer.from(data.pdf_base64, "base64");
     }
@@ -278,7 +300,7 @@ export const importProposalPdf = createServerFn({ method: "POST" })
       if (pdfBytes.length < 5 || pdfBytes.subarray(0, 4).toString() !== "%PDF") {
         throw new Error("Choose the proposal PDF.");
       }
-      if (pdfBytes.length > 50 * 1024 * 1024) throw new Error("That PDF is larger than 50MB.");
+      if (pdfBytes.length > PROPOSAL_MAX_BYTES) throw new Error(PROPOSAL_TOO_BIG);
     } else if (!copyFrom && !existing.data?.pdf_path) {
       throw new Error("Choose the proposal PDF.");
     }
@@ -547,7 +569,7 @@ export const listFreshPayments = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("payments")
       .select(
-        "id, proposal_id, amount_cents, paid_at, proposals(inquiry_id, total_cents, clients(name))",
+        "id, proposal_id, amount_cents, paid_at, proposals(inquiry_id, total_cents, event_date, clients(name))",
       )
       .eq("status", "completed")
       .gte("paid_at", since)
@@ -570,6 +592,7 @@ export const listFreshPayments = createServerFn({ method: "GET" })
       const proposal = row.proposals as unknown as {
         inquiry_id: string;
         total_cents: number;
+        event_date: string | null;
         clients: { name: string } | null;
       } | null;
       const upTo = (all ?? []).filter(
@@ -583,6 +606,8 @@ export const listFreshPayments = createServerFn({ method: "GET" })
         inquiryId: proposal?.inquiry_id ?? null,
         first: upTo.length <= 1,
         inFull: proposal ? paidSoFarCents >= proposal.total_cents : false,
+        amountCents: row.amount_cents,
+        eventDate: proposal?.event_date ?? null,
       };
     });
   });
@@ -929,19 +954,17 @@ export const signPublicAgreement = createServerFn({ method: "POST" })
       ? agreement.content
       : `${agreement.content}\n\n${signedByLine(data.first_name, data.last_name, signedAt)}`;
     const agreementPdf = await renderAgreementPdf({
-      meta: documentMeta(bundle, "Agreement", bundle.proposal.number),
-      typeLabel: "Standard Service Agreement",
-      version: 1,
-      content,
-      signatures: {
-        client: {
-          name: `${data.first_name} ${data.last_name}`,
-          image: data.signature,
-          signedAt,
-        },
-        // say sukii countersigns the copy the client keeps, dated the moment they signed
-        studio: await studioSignature(signedAt),
+      number: bundle.proposal.number,
+      blocks: floralAgreementBlocks(agreementFieldsFor(bundle)),
+      consent: AGREEMENT_CONSENT,
+      client: {
+        first: data.first_name.trim(),
+        last: data.last_name.trim(),
+        image: data.signature,
+        signedAt,
       },
+      // say sukii countersigns the copy the client keeps, dated the moment they signed
+      studio: await studioSignature(signedAt),
     });
     const agreementPath = `${bundle.proposal.id}/agreement-${bundle.proposal.number}.pdf`;
     await uploadDocument(agreementPath, agreementPdf);
@@ -955,6 +978,7 @@ export const signPublicAgreement = createServerFn({ method: "POST" })
       })
       .eq("id", agreement.id);
     if (signError) throw new Error(signError.message);
+    await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
 
     const paymentLink = await ensureDepositInvoice(bundle);
     return { signed: true, paymentLink, amountCents: bundle.proposal.deposit_amount_cents };
@@ -1074,7 +1098,30 @@ async function studioSignature(signedAt: string) {
     .maybeSingle();
   // before the signature migration runs, the agreement simply goes out with the client's alone
   if (error || !data?.signature) return null;
-  return { name: data.full_name?.trim() || "Say Sukii", image: data.signature, signedAt };
+  const [first = "Say", ...last] = (data.full_name?.trim() || "Say Sukii").split(/\s+/);
+  return { first, last: last.join(" "), image: data.signature, signedAt };
+}
+
+/** The agreement's details exactly as the client's page fills them in. */
+function agreementFieldsFor(bundle: ProposalBundle): FloralAgreementFields {
+  const saved = statementFromNotes(bundle.proposal.notes);
+  const total = bundle.proposal.total_cents;
+  const deposit = bundle.proposal.deposit_amount_cents;
+  return {
+    ...statementOfWork({
+      ...saved,
+      flowers: saved?.flowers || "Floral design",
+      eventWhen: saved?.eventWhen || formatEventWhen(bundle.proposal.event_date),
+      occasion: saved?.occasion || "",
+      venue: saved?.venue || bundle.proposal.venue_text || "",
+    }),
+    clientName: bundle.client.name,
+    clientPhone: bundle.client.phone || null,
+    clientEmail: bundle.client.email || null,
+    total: formatMoneyExact(total),
+    deposit: formatMoneyExact(deposit),
+    balance: formatMoneyExact(Math.max(0, total - deposit)),
+  };
 }
 
 function moneyLabel(cents: number) {
@@ -1193,27 +1240,37 @@ function invoiceItems(bundle: ProposalBundle) {
 }
 
 /** Keeps a document in the client's file, once, under a clear name. */
-async function fileForClient(clientId: string, name: string, data: Uint8Array) {
-  const path = `clients/${clientId}/${name}`;
-  const { data: existing } = await supabaseAdmin
-    .from("files")
-    .select("id")
-    .eq("owner_type", "client")
-    .eq("owner_id", clientId)
-    .eq("file_path", path)
-    .maybeSingle();
+/** Stores a document once and lists it in the client's file and the inquiry's files tab. */
+async function fileForClient(
+  owners: { clientId: string; inquiryId: string },
+  name: string,
+  data: Uint8Array,
+) {
+  const path = `clients/${owners.clientId}/${name}`;
   const { error } = await supabaseAdmin.storage
     .from("project-files")
     .upload(path, data, { contentType: "application/pdf", upsert: true });
   if (error) throw new Error(error.message);
-  if (existing) return;
-  const { error: rowError } = await supabaseAdmin.from("files").insert({
-    owner_type: "client",
-    owner_id: clientId,
-    file_path: path,
-    file_type: "application/pdf",
-  });
-  if (rowError) throw new Error(rowError.message);
+  const listings = [
+    { owner_type: "client" as const, owner_id: owners.clientId },
+    { owner_type: "inquiry" as const, owner_id: owners.inquiryId },
+  ];
+  for (const owner of listings) {
+    const { data: existing } = await supabaseAdmin
+      .from("files")
+      .select("id")
+      .eq("owner_type", owner.owner_type)
+      .eq("owner_id", owner.owner_id)
+      .eq("file_path", path)
+      .maybeSingle();
+    if (existing) continue;
+    const { error: rowError } = await supabaseAdmin.from("files").insert({
+      ...owner,
+      file_path: path,
+      file_type: "application/pdf",
+    });
+    if (rowError) throw new Error(rowError.message);
+  }
 }
 
 /** What's been paid on a proposal so far, across the deposit and the balance. */
@@ -1249,7 +1306,7 @@ export async function sendPaidLetters(
   // every payment so far, this one included, for the receipt's paid rows
   const { data: payments, error: paymentsError } = await supabaseAdmin
     .from("payments")
-    .select("amount_cents, paid_at")
+    .select("amount_cents, paid_at, raw_payload")
     .eq("proposal_id", proposalId)
     .eq("status", "completed")
     .order("paid_at", { ascending: true });
@@ -1272,7 +1329,9 @@ export async function sendPaidLetters(
     studioPaidHtml,
     studioPaidSubject,
   } = await import("./paid-email.server");
+  const { loadEmailTemplate } = await import("./email-templates.server");
   const letter = {
+    template: await loadEmailTemplate(payment.booking ? "booked" : "paid-in-full"),
     clientName: bundle.client.name,
     invoiceNumber,
     amountCents: payment.amountCents,
@@ -1290,8 +1349,10 @@ export async function sendPaidLetters(
   const left = Math.max(0, bundle.proposal.total_cents - paid);
   const receipt = await renderReceiptPdf({
     number: invoiceNumber,
-    clientName: bundle.client.name,
-    occasion: letter.occasion,
+    title: [floralPackageName(letter.occasion), eventDate ? letterDate(eventDate) : ""]
+      .filter(Boolean)
+      .join(" "),
+    client: { name: bundle.client.name, email: bundle.client.email, phone: bundle.client.phone },
     eventDate: eventDate ? letterDate(eventDate) : null,
     venue: documentMeta(bundle, "Invoice", invoiceNumber).venue,
     items: invoiceItems(bundle),
@@ -1299,10 +1360,11 @@ export async function sendPaidLetters(
     payments: (payments ?? []).map((row) => ({
       amountCents: row.amount_cents ?? 0,
       paidOn: letterDate(row.paid_at ?? paidAt),
+      method: paidWith(row.raw_payload),
     })),
-    booking: payment.booking,
     balance:
       left > 0 ? { amountCents: left, due: letterDate(balanceDueDate(eventDate)) || null } : null,
+    createdOn: letterDate(new Date().toISOString()),
   });
   files.push({
     name: `Say Sukii receipt ${invoiceNumber}.pdf`,
@@ -1314,7 +1376,8 @@ export async function sendPaidLetters(
     .select("pdf_path")
     .eq("proposal_id", proposalId)
     .maybeSingle();
-  // the signed agreement goes with the payment that books the project; later it's the receipt alone
+  // the signed agreement and the proposal go with the payment that books the project;
+  // later it's the receipt alone
   if (payment.booking && agreement?.pdf_path) {
     const download = await supabaseAdmin.storage.from("documents").download(agreement.pdf_path);
     if (download.data) {
@@ -1322,6 +1385,22 @@ export async function sendPaidLetters(
         name: "Floral Service Agreement.pdf",
         type: "application/pdf",
         data: new Uint8Array(await download.data.arrayBuffer()),
+      });
+    }
+  }
+  let proposalCopy: Uint8Array | null = null;
+  if (payment.booking && bundle.proposal.pdf_path) {
+    const download = await supabaseAdmin.storage
+      .from("documents")
+      .download(bundle.proposal.pdf_path);
+    if (download.data) proposalCopy = new Uint8Array(await download.data.arrayBuffer());
+    // uploads are capped, but an older, larger proposal stays in their file rather than
+    // tipping the email over gmail's limit
+    if (proposalCopy && proposalCopy.byteLength <= PROPOSAL_MAX_BYTES) {
+      files.unshift({
+        name: `Say Sukii proposal ${bundle.proposal.number}.pdf`,
+        type: "application/pdf",
+        data: proposalCopy,
       });
     }
   }
@@ -1341,40 +1420,56 @@ export async function sendPaidLetters(
         data: agreementCopy.data,
       });
     }
-    if (bundle.proposal.pdf_path) {
-      const proposalPdf = await supabaseAdmin.storage
-        .from("documents")
-        .download(bundle.proposal.pdf_path);
-      if (proposalPdf.data) {
-        keep.push({
-          name: `say-sukii-proposal-${bundle.proposal.number}.pdf`,
-          data: new Uint8Array(await proposalPdf.data.arrayBuffer()),
-        });
-      }
+    if (proposalCopy) {
+      keep.push({ name: `say-sukii-proposal-${bundle.proposal.number}.pdf`, data: proposalCopy });
     }
   }
   for (const file of keep) {
-    await fileForClient(bundle.client.id, file.name, file.data).catch((error: unknown) =>
-      console.error("[paid letters] client file:", error),
-    );
+    await fileForClient(
+      { clientId: bundle.client.id, inquiryId: bundle.proposal.inquiry_id },
+      file.name,
+      file.data,
+    ).catch((error: unknown) => console.error("[paid letters] client file:", error));
   }
 
-  const withFiles = { ...letter, attachments: files.map((file) => file.name) };
   const receiptTo = payment.receiptEmail || bundle.client.email;
   if (receiptTo) {
-    await sendClientLetter({
+    const result = await sendClientLetter({
       to: receiptTo,
-      subject: clientPaidSubject(withFiles),
-      html: clientPaidHtml(withFiles),
-      text: paidText(withFiles),
+      subject: clientPaidSubject(letter),
+      html: clientPaidHtml(letter),
+      text: paidText(letter),
       attachments: files,
-    }).catch((error: unknown) => console.error("[paid letters] client letter:", error));
+    }).catch((error: unknown) => {
+      console.error("[paid letters] client letter:", error);
+      return { sent: false as const };
+    });
+    // kept out of the conversation, so the proposal tab lists it instead
+    await supabaseAdmin.from("integration_events").insert({
+      provider: "studio",
+      event_type: "paid_letter",
+      status: result.sent ? "succeeded" : "failed",
+      reference_type: "proposal",
+      reference_id: proposalId,
+      attempts: 1,
+      // the letter as it went out, so the proposal tab can open it in its own tab
+      payload: {
+        to: receiptTo,
+        booking: payment.booking,
+        amount_cents: payment.amountCents,
+        subject: clientPaidSubject(letter),
+        html: clientPaidHtml(letter),
+      },
+    });
   }
   const { deliverStudioNotice } = await import("./inquiry-email.server");
+  // the studio's note carries the receipt too
+  const receiptFile = files.find((file) => file.data === receipt);
   await deliverStudioNotice(
     studioPaidSubject(letter),
     studioPaidHtml(letter),
     paidText(letter),
+    receiptFile ? [receiptFile] : [],
   ).catch((error: unknown) => console.error("[paid letters] studio note:", error));
 }
 
@@ -1382,17 +1477,121 @@ export async function sendPaidLetters(
  * The balance reminders, run once a day: five days before the balance is due (35 days before the
  * event) and on the day it's due (30 days before). Each goes once per proposal.
  */
+/** The balance letter for a proposal: who it goes to, how it reads, and a way to send it. */
+async function balanceLetter(
+  proposalId: string,
+  when: "soon" | "today" | "now",
+  balance: number,
+  /** the studio's own words, when they edited the letter */
+  body?: string,
+) {
+  const bundle = await loadProposalBundleById(proposalId);
+  const eventDate = proposalEventDate(bundle);
+  if (!bundle.client.email || !eventDate) return null;
+  const slug = await ensureProposalSlug(proposalId, bundle.client.name, bundle.proposal.slug);
+  const { data: invoice } = await supabaseAdmin
+    .from("invoices")
+    .select("number")
+    .eq("proposal_id", proposalId)
+    .maybeSingle();
+  const {
+    LETTER_WORDS,
+    balanceReminderHtml,
+    balanceReminderSubject,
+    balanceReminderWords,
+    sendClientLetter,
+  } = await import("./paid-email.server");
+  const { loadEmailTemplate } = await import("./email-templates.server");
+  const reminder = {
+    template: await loadEmailTemplate(
+      ({ today: "balance-today", soon: "balance-soon", now: "balance-invoice" } as const)[when],
+    ),
+    clientName: bundle.client.name,
+    invoiceNumber: invoiceTitle(invoice?.number ?? bundle.proposal.number),
+    balanceCents: balance,
+    occasion: proposalOccasion(bundle),
+    eventDate,
+    when,
+    payUrl: proposalLink(publicOrigin(), slug),
+    eventType: bundle.inquiry.event_type,
+    ...(body?.trim() ? { body: body.trim() } : {}),
+  };
+  const subject = balanceReminderSubject(reminder);
+  const html = balanceReminderHtml(reminder);
+  const to = bundle.client.email;
+  const words = reminder.body ?? balanceReminderWords(reminder);
+  return {
+    to,
+    subject,
+    html,
+    // for the preview: the letter's own words, and the html with a place to type them into
+    words,
+    previewHtml: balanceReminderHtml({ ...reminder, body: LETTER_WORDS }),
+    send: () => sendClientLetter({ to, subject, html, text: `${words}\n\n${reminder.payUrl}` }),
+  };
+}
+
+/** The studio sends the balance invoice by hand: first a look at the letter, then the send. */
+export const sendBalanceInvoice = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) =>
+    z
+      .object({
+        proposal_id: z.string().uuid(),
+        send: z.boolean().default(false),
+        body: z.string().trim().max(4000).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { data: proposal, error } = await supabaseAdmin
+      .from("proposals")
+      .select("total_cents")
+      .eq("id", data.proposal_id)
+      .single();
+    if (error) throw new Error(error.message);
+    const paid = await paidSoFar(data.proposal_id);
+    const balance = proposal.total_cents - paid;
+    if (paid <= 0) throw new Error("the deposit isn't paid yet.");
+    if (balance <= 0) throw new Error("this one is paid in full.");
+    const letter = await balanceLetter(data.proposal_id, "now", balance, data.body);
+    if (!letter) throw new Error("add the client's email and event date first.");
+    const preview = {
+      to: letter.to,
+      subject: letter.subject,
+      html: letter.previewHtml,
+      words: letter.words,
+    };
+    if (!data.send) return { ...preview, sent: false };
+    const result = await letter.send();
+    if (!result.sent) throw new Error("the invoice didn't send. check the gmail connection.");
+    await supabaseAdmin.from("integration_events").insert({
+      provider: "studio",
+      event_type: "balance_invoice_sent",
+      status: "succeeded",
+      reference_type: "proposal",
+      reference_id: data.proposal_id,
+      attempts: 1,
+      payload: {
+        balance_cents: balance,
+        to: letter.to,
+        subject: letter.subject,
+        html: letter.html,
+      },
+    });
+    return { ...preview, sent: true };
+  });
+
 export async function sendBalanceReminders(now = new Date()) {
   const { data: rows, error } = await supabaseAdmin
     .from("proposals")
-    .select("id, event_date, total_cents, slug")
+    .select("id, event_date, total_cents")
     .eq("status", "accepted")
     .eq("archived", false)
     .not("event_date", "is", null);
   if (error) throw new Error(error.message);
   const today = now.toISOString().slice(0, 10);
-  const { balanceDueDate, balanceReminderHtml, balanceReminderSubject, sendClientLetter } =
-    await import("./paid-email.server");
+  const { balanceDueDate } = await import("./paid-email.server");
   let sent = 0;
   for (const row of rows ?? []) {
     const due = balanceDueDate(row.event_date);
@@ -1414,30 +1613,9 @@ export async function sendBalanceReminders(now = new Date()) {
       .eq("reference_id", row.id)
       .limit(1);
     if (already?.length) continue;
-    const bundle = await loadProposalBundleById(row.id);
-    if (!bundle.client.email) continue;
-    const slug = await ensureProposalSlug(row.id, bundle.client.name, row.slug);
-    const { data: invoice } = await supabaseAdmin
-      .from("invoices")
-      .select("number")
-      .eq("proposal_id", row.id)
-      .maybeSingle();
-    const reminder = {
-      clientName: bundle.client.name,
-      invoiceNumber: invoiceTitle(invoice?.number ?? bundle.proposal.number),
-      balanceCents: balance,
-      occasion: proposalOccasion(bundle),
-      eventDate: row.event_date as string,
-      when: when as "soon" | "today",
-      payUrl: proposalLink(publicOrigin(), slug),
-      eventType: bundle.inquiry.event_type,
-    };
-    const result = await sendClientLetter({
-      to: bundle.client.email,
-      subject: balanceReminderSubject(reminder),
-      html: balanceReminderHtml(reminder),
-      text: `${balanceReminderSubject(reminder)}\n${reminder.payUrl}`,
-    });
+    const letter = await balanceLetter(row.id, when, balance);
+    if (!letter) continue;
+    const result = await letter.send();
     await supabaseAdmin.from("integration_events").insert({
       provider: "studio",
       event_type: key,
@@ -1445,7 +1623,13 @@ export async function sendBalanceReminders(now = new Date()) {
       reference_type: "proposal",
       reference_id: row.id,
       attempts: 1,
-      payload: { balance_cents: balance, due },
+      payload: {
+        balance_cents: balance,
+        due,
+        to: letter.to,
+        subject: letter.subject,
+        html: letter.html,
+      },
     });
     if (result.sent) sent += 1;
   }
@@ -1458,7 +1642,21 @@ function pdfItems(items: ProposalLineItemRow[]) {
     qty: item.quantity,
     unitPriceCents: item.unit_price_cents,
     lineTotalCents: item.line_total_cents,
+    details: (item.description ?? "").split("\n").filter((line) => line.trim()),
   }));
+}
+
+/** "Visa 0523", from the card square charged */
+function paidWith(payload: unknown) {
+  const card = (payload as { card_details?: { card?: { card_brand?: string; last_4?: string } } })
+    ?.card_details?.card;
+  if (!card?.last_4) return null;
+  const brand = (card.card_brand ?? "card")
+    .toLowerCase()
+    .split("_")
+    .map((word) => (word ? word[0]!.toUpperCase() + word.slice(1) : word))
+    .join(" ");
+  return `${brand} ${card.last_4}`;
 }
 
 function agreementFor(bundle: ProposalBundle) {

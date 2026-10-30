@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Wordmark } from "./bits";
+import { celebrateBooking } from "@/components/portal/BookingCelebration";
 import { BloomPass, loginBloomArmed } from "@/components/portal/StudioLoader";
 import { PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
@@ -30,9 +31,12 @@ import { listFreshBookings } from "@/lib/os/bookings.functions";
 import { listFreshPayments } from "@/lib/os/proposals.functions";
 import { listRecentIssues } from "@/lib/os/settings.functions";
 import { getDevPreviewSettings } from "@/lib/dev-preview";
+import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
 import { PREVIEW_ARRIVALS_KEY } from "@/lib/preview-arrivals";
+import { fentyDemoProposal, onPreviewProposalsChange } from "@/lib/preview-proposals";
 import {
   dismissNotice,
+  hasNotice,
   markNoticeToasted,
   markNoticesRead,
   pushNotice,
@@ -207,14 +211,31 @@ export function Shell({ children }: { children: ReactNode }) {
         const paid = await payments();
         if (stop) return;
         for (const row of paid) {
+          const id = `payment-${row.id}`;
+          // a new booking gets the glitter; the bell keeps the note
+          const celebrate = row.first && !hasNotice(id);
           pushNotice({
-            id: `payment-${row.id}`,
+            id,
             title: row.first
               ? `${firstName(row.name)} paid · the project is booked`
               : `${firstName(row.name)} paid the balance`,
             body: row.inFull ? "paid in full." : "the deposit is in.",
             href: row.inquiryId ? `/pipeline/${row.inquiryId}` : "/pipeline",
+            toasted: celebrate,
           });
+          if (celebrate) {
+            celebrateBooking("rain", {
+              name: row.name,
+              paid: `${formatMoneyExact(row.amountCents)} ${row.inFull ? "paid in full" : "deposit"}`,
+              eventDate: row.eventDate ? formatDateNumeric(row.eventDate) : null,
+              onOpen: () =>
+                void router.navigate(
+                  row.inquiryId
+                    ? { to: "/pipeline/$id", params: { id: row.inquiryId } }
+                    : { to: "/pipeline" },
+                ),
+            });
+          }
         }
         const booked = await bookings();
         if (stop) return;
@@ -236,7 +257,34 @@ export function Shell({ children }: { children: ReactNode }) {
       stop = true;
       window.clearInterval(timer);
     };
-  }, [arrivals, bookings, devPreview, payments, profile.role]);
+  }, [arrivals, bookings, devPreview, payments, profile.role, router]);
+
+  // locally, paying the fenty demo is a new booking too
+  useEffect(() => {
+    if (!devPreview) return;
+    const check = () => {
+      const demo = fentyDemoProposal();
+      if (!demo.paid || !demo.paidAt) return;
+      const id = `payment-fenty-demo-${demo.paidAt}`;
+      if (hasNotice(id)) return;
+      pushNotice({
+        id,
+        title: `${firstName(demo.clientName)} paid · the project is booked`,
+        body: "paid in full.",
+        href: "/pipeline/fentybeauty",
+        toasted: true,
+      });
+      celebrateBooking("rain", {
+        name: demo.clientName,
+        paid: `${formatMoneyExact(demo.depositCents)} ${demo.depositCents >= demo.totalCents ? "paid in full" : "deposit"}`,
+        eventDate: demo.eventDate ? formatDateNumeric(demo.eventDate) : null,
+        onOpen: () => void router.navigate({ to: "/pipeline/$id", params: { id: "fentybeauty" } }),
+      });
+    };
+    // on opening the app (paid in this tab) and whenever another tab pays it
+    check();
+    return onPreviewProposalsChange(check);
+  }, [devPreview, router]);
 
   useEffect(() => {
     if (profile.role !== "admin") return;

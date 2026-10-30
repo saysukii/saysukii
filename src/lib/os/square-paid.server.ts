@@ -75,6 +75,13 @@ export async function settleSquarePayment(
     console.error("[square paid] the paid letters did not all send:", error),
   );
 
+  // the inquiry's summary now says they're booked
+  const inquiryId = (invoice.proposals as { inquiry_id?: string } | null)?.inquiry_id;
+  if (inquiryId) {
+    const { refreshInquirySummarySafe } = await import("@/lib/os/inquiry-summary.server");
+    await refreshInquirySummarySafe(supabaseAdmin, inquiryId);
+  }
+
   if (projectId) {
     void pushProjectToGoogleCalendar(projectId).catch(async (error) => {
       await supabaseAdmin.from("integration_events").insert({

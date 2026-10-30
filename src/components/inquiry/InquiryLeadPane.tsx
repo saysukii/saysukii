@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
   Calendar,
+  Check,
   FileText,
   Folder,
   MessageCircle,
@@ -36,7 +37,9 @@ import {
 } from "@/lib/os/inquiry-holds";
 import { mailRecord, replyAllPeople, uniqueMails } from "@/lib/os/mail-people";
 import { noteWriter, signatureName } from "@/lib/os/mail-signature";
-import { applyTemplate, BUILT_IN_TEMPLATES } from "@/lib/os/mail-templates";
+import { fillTemplate } from "@/lib/email-templates";
+import { applyTemplate } from "@/lib/os/mail-templates";
+import { useEmailTemplates } from "@/lib/os/use-email-templates";
 import type { InquiryMessageRow, InquiryStatus } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -47,6 +50,7 @@ import {
 } from "@/lib/dev-preview";
 import {
   markPreviewProposalSent,
+  onPreviewProposalsChange,
   previewProposalForInquiry,
   previewTokenFor,
   readPreviewProposal,
@@ -71,7 +75,9 @@ import {
   ensureProposalLink,
   formatDollarInput,
   proposalCards,
+  PROPOSAL_MAX_BYTES,
   PROPOSAL_ORIGIN,
+  PROPOSAL_TOO_BIG,
   proposalLink,
   proposalOrigin,
   proposalSlug,
@@ -113,7 +119,13 @@ import {
   updateInquiryMoment,
   updateInquiryNote,
 } from "@/lib/os/inquiries.functions";
-import { clearProposal, importProposalPdf, shareProposal } from "@/lib/os/proposals.functions";
+import { fillLetterWords } from "@/lib/letter-words";
+import {
+  clearProposal,
+  importProposalPdf,
+  sendBalanceInvoice,
+  shareProposal,
+} from "@/lib/os/proposals.functions";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
 import {
@@ -128,6 +140,8 @@ import {
   type SentInvoice,
   InvoicePreview,
   PacketPreview,
+  SignedPacket,
+  type SignedPacketState,
 } from "@/components/inquiry/lead/invoice";
 import {
   PROPOSAL_THREAD,
@@ -298,6 +312,8 @@ function RecordBack() {
 
 export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?: LeadSurface }) {
   const devPreview = useDevPreview();
+  const { template: emailTemplate } = useEmailTemplates();
+  const proposalTemplate = emailTemplate("proposal");
   const navigate = useNavigate();
   const { profile } = useRouteContext({ from: "/_authenticated" });
   const queryClient = useQueryClient();
@@ -375,6 +391,11 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const [shareMenu, setShareMenu] = useState(false);
   const [packetOpen, setPacketOpen] = useState(false);
   const [invoiceShare, setInvoiceShare] = useState(false);
+  // the proposal and invoice letters, as edited in their previews before they send
+  const [proposalWords, setProposalWords] = useState<{ subject: string; text: string } | null>(
+    null,
+  );
+  const [invoiceWords, setInvoiceWords] = useState<string | null>(null);
   const [packetKind, setPacketKind] = useState<"proposal" | "agreement" | "invoice">("proposal");
   const [copiedLink, setCopiedLink] = useState(false);
   const copiedTimer = useRef<number | null>(null);
@@ -391,6 +412,15 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       devPreview ? getDevPreviewInquiryWorkspace(id) : fetchWorkspace({ data: { id } }),
   });
   const inquiryId = data?.inquiry.id ?? id;
+
+  // locally, a preview proposal moving in another tab (accepted, signed, paid) refreshes this one
+  useEffect(() => {
+    if (!devPreview) return;
+    return onPreviewProposalsChange(() => {
+      void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace"] });
+      void queryClient.invalidateQueries({ queryKey: ["inquiry-pipeline"] });
+    });
+  }, [devPreview, queryClient]);
 
   useEffect(() => {
     setThreadKey(null);
@@ -417,6 +447,39 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     setProposalPay("deposit");
     setProposalError("");
   }
+
+  // the balance invoice, sent by hand: a look at the letter first, then the send
+  const balanceInvoiceFn = useServerFn(sendBalanceInvoice);
+  const [balanceLetter, setBalanceLetter] = useState<{
+    proposalId: string;
+    to: string;
+    html: string;
+    words: string;
+  } | null>(null);
+  const balanceInvoice = useMutation({
+    mutationFn: (input: { proposalId: string; send: boolean; body?: string }) =>
+      balanceInvoiceFn({
+        data: {
+          proposal_id: input.proposalId,
+          send: input.send,
+          ...(input.body ? { body: input.body } : {}),
+        },
+      }),
+    onSuccess: (result, input) => {
+      if (!result.sent) {
+        setBalanceLetter({
+          proposalId: input.proposalId,
+          to: result.to,
+          html: result.html,
+          words: result.words,
+        });
+        return;
+      }
+      setBalanceLetter(null);
+      toast.success(`invoice sent to ${result.to}`);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const clearOffer = useMutation({
     mutationFn: async () => {
@@ -1292,6 +1355,11 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       setProposalError("drop the proposal pdf.");
       return;
     }
+    if (file.size > PROPOSAL_MAX_BYTES) {
+      setProposalError(PROPOSAL_TOO_BIG);
+      toast.error(PROPOSAL_TOO_BIG);
+      return;
+    }
     setProposalError("");
     proposalDirty.current = true;
     setProposalFile(file);
@@ -1437,17 +1505,22 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   }
 
   async function emailProposal() {
-    const template = BUILT_IN_TEMPLATES.find((item) => item.id === "proposal");
-    if (!template) return;
+    const template = proposalTemplate;
     setProposalBusy(true);
     setProposalError("");
     try {
       const href = await readyProposalHref();
+      // the words as edited in the preview, with the proposal's link kept on
       const body = ensureProposalLink(
-        applyTemplate(template.body, client?.name, EVENT_LABEL[inquiry.event_type]),
+        proposalWords?.text ??
+          applyTemplate(template.body, client?.name, EVENT_LABEL[inquiry.event_type]),
         href,
       );
-      await post.mutateAsync({ body, fresh: true, subject: template.subject || PROPOSAL_THREAD });
+      await post.mutateAsync({
+        body,
+        fresh: true,
+        subject: proposalWords?.subject.trim() || template.subject || PROPOSAL_THREAD,
+      });
       setProposalShare(false);
     } catch (error) {
       setProposalError(problemText(error, "could not send the proposal"));
@@ -1456,29 +1529,13 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     }
   }
 
+  /** the invoice letter in the studio's saved words; the server fills in the invoice's number */
   function invoiceLetter() {
-    const first = firstName(client?.name);
-    const dueLabel = invoiceDraft.pay === "full" ? "due in full" : "deposit due";
-    const lines = [
-      `hi ${first},`,
-      "",
-      "your invoice is ready.",
-      ...(invoiceItems.length
-        ? [
-            "",
-            ...invoiceItems.map(
-              (item) =>
-                `${item.name.trim() || "custom item"}${item.note?.trim() ? ` (${item.note.trim()})` : ""} × ${item.quantity} · ${formatMoneyExact(item.unitCents * item.quantity)}`,
-            ),
-          ]
-        : []),
-      ...(invoiceCourtesyCents
-        ? ["", `courtesy discount: −${formatMoneyExact(invoiceCourtesyCents)}`]
-        : []),
-      "",
-      `${dueLabel}: ${formatMoneyExact(invoiceDueCents)}`,
-    ];
-    return { subject: "your invoice", text: lines.join("\n") };
+    const template = emailTemplate("invoice");
+    return {
+      subject: applyTemplate(template.subject, client?.name, EVENT_LABEL[inquiry.event_type]),
+      text: applyTemplate(template.body, client?.name, EVENT_LABEL[inquiry.event_type]),
+    };
   }
 
   function invoiceProblem() {
@@ -1494,6 +1551,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     const problem = invoiceProblem();
     setProposalError(problem ?? "");
     if (problem) return;
+    setInvoiceWords(invoiceLetter().text);
     setInvoiceShare(true);
   }
 
@@ -1520,7 +1578,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     setProposalBusy(true);
     setProposalError("");
     try {
-      const letter = invoiceLetter().text;
+      // the words as edited in the preview
+      const letter = invoiceWords?.trim() || invoiceLetter().text;
+      const subject = invoiceLetter().subject;
       if (devPreview) {
         const number = `SS${String(100 + previewInvoices.length + 1)}`;
         setPreviewInvoices((current) => [
@@ -1538,9 +1598,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
           ...current,
         ]);
         await post.mutateAsync({
-          body: `${letter}\n\n[pay your invoice](https://squareup.com/pay-invoice/preview)\n\n<3`,
+          body: `${fillTemplate(letter, { invoice: number })}\n\n[pay your invoice](https://squareup.com/pay-invoice/preview)\n\n<3`,
           fresh: true,
-          subject: number,
+          subject: fillTemplate(subject, { invoice: number }),
         });
         toast.success(`${number} sent`);
       } else {
@@ -1558,6 +1618,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             courtesy_cents: invoiceCourtesyCents,
             pay_in_full: invoiceDraft.pay === "full",
             letter,
+            subject,
             to: uniqueMails([client?.email, ...moreTo]),
             cc: copyTo,
           },
@@ -1590,13 +1651,40 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     savedInvoice && typeof savedInvoice.invoice_number === "string"
       ? invoiceTitle(savedInvoice.invoice_number)
       : "";
-  const proposalTemplate = BUILT_IN_TEMPLATES.find((item) => item.id === "proposal");
-  const proposalLetterBody = proposalTemplate
-    ? ensureProposalLink(
-        applyTemplate(proposalTemplate.body, client?.name, EVENT_LABEL[inquiry.event_type]),
-        proposalHref || `${PROPOSAL_ORIGIN}/${proposalSlug(client?.name ?? "")}`,
-      )
-    : "";
+  // once the client signs, the proposal is settled: it shows as they see it and can't be edited
+  const signedRow = data.proposals.find((item) => item.signed) ?? null;
+  const signedPreview = proposalKey.current?.startsWith("preview_")
+    ? readPreviewProposal(proposalKey.current)
+    : null;
+  const signedPacket: SignedPacketState | null = signedRow?.signed
+    ? {
+        proposalId: signedRow.id,
+        signed: signedRow.signed,
+        payments: signedRow.payments,
+        totalCents: signedRow.total_cents,
+        depositCents: signedRow.deposit_amount_cents,
+        eventDate: signedRow.event_date ?? inquiry.event_date,
+      }
+    : signedPreview?.signedAt && signedPreview.signedName?.startsWith("data:image")
+      ? {
+          proposalId: null,
+          signed: {
+            signature: signedPreview.signedName,
+            at: signedPreview.signedAt,
+            signer: signedPreview.signer ?? null,
+          },
+          payments: signedPreview.paid
+            ? [{ amount_cents: signedPreview.depositCents, paid_at: signedPreview.signedAt }]
+            : [],
+          totalCents: signedPreview.totalCents,
+          depositCents: signedPreview.depositCents,
+          eventDate: signedPreview.eventDate,
+        }
+      : null;
+  const proposalLetterBody = ensureProposalLink(
+    applyTemplate(proposalTemplate.body, client?.name, EVENT_LABEL[inquiry.event_type]),
+    proposalHref || `${PROPOSAL_ORIGIN}/${proposalSlug(client?.name ?? "")}`,
+  );
 
   const composer = (
     <ThreadComposer
@@ -2053,6 +2141,10 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             >
               {focus === item ? <i className="studio-pill-dot" aria-hidden="true" /> : null}
               {item === "note" ? "internal note" : item}
+              {/* signed: the proposal side is all set */}
+              {item === "proposal" && signedPacket ? (
+                <Check className="studio-tab-done" aria-label="signed" strokeWidth={2} />
+              ) : null}
             </button>
           ))}
         </div>
@@ -2295,250 +2387,351 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             <FileText aria-hidden="true" strokeWidth={1.5} />
             proposal
           </p>
-          <div className="studio-proposal-desk">
-            <div className="studio-proposal-drop">
-              <label
-                className={cn(
-                  "studio-file-drop",
-                  proposalOver && "is-over",
-                  (proposalFile || proposalName) && "is-set",
-                )}
-                onDragEnter={(event) => {
-                  event.preventDefault();
-                  setProposalOver(true);
-                }}
-                onDragOver={(event) => event.preventDefault()}
-                onDragLeave={(event) => {
-                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-                  setProposalOver(false);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  takeProposal(event.dataTransfer.files[0]);
-                }}
-              >
-                <Upload aria-hidden="true" strokeWidth={1.5} />
-                {proposalName ? <b className="studio-proposal-file">{proposalName}</b> : null}
-                <small>{proposalName ? "replace" : "or browse"}</small>
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="sr-only"
-                  onChange={(event) => {
-                    takeProposal(event.target.files?.[0]);
-                    event.target.value = "";
+          {signedPacket ? (
+            <SignedPacket
+              packet={signedPacket}
+              letters={data.sentLetters}
+              preview={{
+                clientName: client?.name ?? "",
+                clientEmail: client?.email ?? "",
+                clientPhone: client?.phone ?? "",
+                work,
+                totalCents: proposalCents ?? signedPacket.totalCents,
+                courtesyCents,
+                depositCents: signedPacket.depositCents,
+                fileUrl: localProposalUrl || keptPdfUrl,
+                invoiceNumber: savedInvoiceTitle,
+                stored: signedPreview,
+                studioSigned: data.studioSignature ?? null,
+              }}
+              {...(proposalHref
+                ? {
+                    onCopy: () => {
+                      if (copyText(proposalHref)) markCopied();
+                      else toast.error("could not copy the link");
+                    },
+                  }
+                : {})}
+              {...(signedPacket.proposalId
+                ? {
+                    onSendBalance: () =>
+                      balanceInvoice.mutate({
+                        proposalId: signedPacket.proposalId ?? "",
+                        send: false,
+                      }),
+                  }
+                : {})}
+              sending={balanceInvoice.isPending && !balanceLetter}
+            />
+          ) : (
+            <div className="studio-proposal-desk">
+              <div className="studio-proposal-drop">
+                <label
+                  className={cn(
+                    "studio-file-drop",
+                    proposalOver && "is-over",
+                    (proposalFile || proposalName) && "is-set",
+                  )}
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    setProposalOver(true);
                   }}
-                />
-              </label>
-              {profile.role === "admin" && (proposalName || proposalHref) ? (
-                <button
-                  type="button"
-                  className="studio-proposal-clear"
-                  aria-label="clear this proposal"
-                  title="clear this proposal"
-                  disabled={clearOffer.isPending}
-                  onClick={() => setConfirmClear(true)}
-                >
-                  <X aria-hidden="true" />
-                </button>
-              ) : null}
-            </div>
-            <div className="studio-proposal-terms is-cards">
-              <div className="studio-proposal-money">
-                <label className="studio-ask-field">
-                  <span className="studio-ask-label">amount</span>
-                  <span className="studio-money">
-                    <span aria-hidden="true">$</span>
-                    <input
-                      className="studio-textarea"
-                      value={proposalAmount}
-                      onChange={(event) => {
-                        setProposalAmount(formatDollarInput(event.target.value));
-                      }}
-                      placeholder="12,000"
-                      inputMode="decimal"
-                    />
-                  </span>
-                </label>
-                <label className="studio-ask-field">
-                  <span className="studio-ask-label">courtesy discount</span>
-                  <span className="studio-money">
-                    <span aria-hidden="true">$</span>
-                    <input
-                      className="studio-textarea"
-                      value={proposalCourtesy}
-                      onChange={(event) => {
-                        setProposalCourtesy(formatDollarInput(event.target.value));
-                      }}
-                      placeholder="0"
-                      inputMode="decimal"
-                    />
-                  </span>
-                </label>
-              </div>
-              <div className="studio-proposal-cards" role="group" aria-label="payment method">
-                <div
-                  className={cn("studio-proposal-card", proposalPay === "deposit" && "is-on")}
-                  onClick={() => {
-                    proposalDirty.current = true;
-                    setProposalPay("deposit");
+                  onDragOver={(event) => event.preventDefault()}
+                  onDragLeave={(event) => {
+                    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                    setProposalOver(false);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    takeProposal(event.dataTransfer.files[0]);
                   }}
                 >
+                  <Upload aria-hidden="true" strokeWidth={1.5} />
+                  {proposalName ? <b className="studio-proposal-file">{proposalName}</b> : null}
+                  <small>{proposalName ? "replace" : "or browse"}</small>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="sr-only"
+                    onChange={(event) => {
+                      takeProposal(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+                {profile.role === "admin" && (proposalName || proposalHref) ? (
                   <button
                     type="button"
-                    aria-pressed={proposalPay === "deposit"}
+                    className="studio-proposal-clear"
+                    aria-label="clear this proposal"
+                    title="clear this proposal"
+                    disabled={clearOffer.isPending}
+                    onClick={() => setConfirmClear(true)}
+                  >
+                    <X aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
+              <div className="studio-proposal-terms is-cards">
+                <div className="studio-proposal-money">
+                  <label className="studio-ask-field">
+                    <span className="studio-ask-label">amount</span>
+                    <span className="studio-money">
+                      <span aria-hidden="true">$</span>
+                      <input
+                        className="studio-textarea"
+                        value={proposalAmount}
+                        onChange={(event) => {
+                          setProposalAmount(formatDollarInput(event.target.value));
+                        }}
+                        placeholder="12,000"
+                        inputMode="decimal"
+                      />
+                    </span>
+                  </label>
+                  <label className="studio-ask-field">
+                    <span className="studio-ask-label">courtesy discount</span>
+                    <span className="studio-money">
+                      <span aria-hidden="true">$</span>
+                      <input
+                        className="studio-textarea"
+                        value={proposalCourtesy}
+                        onChange={(event) => {
+                          setProposalCourtesy(formatDollarInput(event.target.value));
+                        }}
+                        placeholder="0"
+                        inputMode="decimal"
+                      />
+                    </span>
+                  </label>
+                </div>
+                <div className="studio-proposal-cards" role="group" aria-label="payment method">
+                  <div
+                    className={cn("studio-proposal-card", proposalPay === "deposit" && "is-on")}
                     onClick={() => {
                       proposalDirty.current = true;
                       setProposalPay("deposit");
                     }}
                   >
-                    {proposalPay === "deposit" ? (
-                      <i className="studio-pill-dot" aria-hidden="true" />
-                    ) : null}
-                    deposit
-                  </button>
-                  <small>
-                    {proposalCents
-                      ? formatMoneyExact(Math.round(proposalCents / 2))
-                      : "half the amount"}
-                  </small>
-                </div>
-                <div
-                  className={cn("studio-proposal-card", proposalPay === "full" && "is-on")}
-                  onClick={() => {
-                    proposalDirty.current = true;
-                    setProposalPay("full");
-                  }}
-                >
-                  <button
-                    type="button"
-                    aria-pressed={proposalPay === "full"}
+                    <button
+                      type="button"
+                      aria-pressed={proposalPay === "deposit"}
+                      onClick={() => {
+                        proposalDirty.current = true;
+                        setProposalPay("deposit");
+                      }}
+                    >
+                      {proposalPay === "deposit" ? (
+                        <i className="studio-pill-dot" aria-hidden="true" />
+                      ) : null}
+                      deposit
+                    </button>
+                    <small>
+                      {proposalCents
+                        ? formatMoneyExact(Math.round(proposalCents / 2))
+                        : "half the amount"}
+                    </small>
+                  </div>
+                  <div
+                    className={cn("studio-proposal-card", proposalPay === "full" && "is-on")}
                     onClick={() => {
                       proposalDirty.current = true;
                       setProposalPay("full");
                     }}
                   >
-                    {proposalPay === "full" ? (
-                      <i className="studio-pill-dot" aria-hidden="true" />
-                    ) : null}
-                    pay in full
-                  </button>
-                  <small>
-                    {proposalCents ? formatMoneyExact(proposalCents) : "the whole amount"}
-                  </small>
+                    <button
+                      type="button"
+                      aria-pressed={proposalPay === "full"}
+                      onClick={() => {
+                        proposalDirty.current = true;
+                        setProposalPay("full");
+                      }}
+                    >
+                      {proposalPay === "full" ? (
+                        <i className="studio-pill-dot" aria-hidden="true" />
+                      ) : null}
+                      pay in full
+                    </button>
+                    <small>
+                      {proposalCents ? formatMoneyExact(proposalCents) : "the whole amount"}
+                    </small>
+                  </div>
+                </div>
+                <div className="studio-proposal-work">
+                  <p className="studio-home-label">statement of work</p>
+                  <div className="studio-ask-grid is-two">
+                    {STATEMENT_FIELDS.map((field) => (
+                      <label key={field.key} className="studio-ask-field">
+                        <span className="studio-ask-label">{field.label}</span>
+                        <input
+                          className="studio-textarea"
+                          value={work[field.key]}
+                          onChange={(event) => {
+                            proposalDirty.current = true;
+                            setWork((current) => ({ ...current, [field.key]: event.target.value }));
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="studio-proposal-work">
-                <p className="studio-home-label">statement of work</p>
-                <div className="studio-ask-grid is-two">
-                  {STATEMENT_FIELDS.map((field) => (
-                    <label key={field.key} className="studio-ask-field">
-                      <span className="studio-ask-label">{field.label}</span>
-                      <input
-                        className="studio-textarea"
-                        value={work[field.key]}
-                        onChange={(event) => {
-                          proposalDirty.current = true;
-                          setWork((current) => ({ ...current, [field.key]: event.target.value }));
-                        }}
-                      />
-                    </label>
-                  ))}
-                </div>
+              {proposalError && !proposalShare ? (
+                <p className="studio-composer-note">{proposalError}</p>
+              ) : null}
+              <div className={cn("studio-ask-foot", profile.role === "admin" && "is-spread")}>
+                {profile.role === "admin" ? (
+                  <button
+                    type="button"
+                    className="studio-proposal-preview"
+                    onClick={() => setPacketOpen(true)}
+                  >
+                    preview
+                  </button>
+                ) : null}
+                <Popover open={shareMenu} onOpenChange={setShareMenu}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="studio-today-go"
+                      aria-expanded={shareMenu}
+                      disabled={proposalBusy || post.isPending}
+                    >
+                      {copiedLink ? "copied" : "share"}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="end"
+                    side="top"
+                    sideOffset={8}
+                    collisionPadding={16}
+                    className="studio-proposal-share w-44 border-0 shadow-none data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
+                    onOpenAutoFocus={(event) => event.preventDefault()}
+                    onCloseAutoFocus={(event) => event.preventDefault()}
+                    onFocusOutside={(event) => event.preventDefault()}
+                  >
+                    <button
+                      type="button"
+                      disabled={proposalBusy && !proposalHref}
+                      onClick={() => {
+                        if (!proposalHref) {
+                          void copyProposal();
+                          return;
+                        }
+                        const href = proposalHref;
+                        const write = navigator.clipboard?.writeText?.(href);
+                        setProposalError("");
+                        markShared();
+                        if (!write) {
+                          if (copyText(href)) markCopied();
+                          else setProposalError("could not copy the link");
+                          return;
+                        }
+                        void write.then(
+                          () => markCopied(),
+                          () => {
+                            setProposalError("could not copy the link");
+                            toast.error("could not copy the link");
+                          },
+                        );
+                      }}
+                    >
+                      {copiedLink ? "copied" : "copy link"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={proposalBusy}
+                      onClick={() => {
+                        setShareMenu(false);
+                        downloadProposal();
+                      }}
+                    >
+                      download
+                    </button>
+                    <button
+                      type="button"
+                      disabled={proposalBusy || post.isPending}
+                      onClick={() => {
+                        const problem = proposalProblem();
+                        setShareMenu(false);
+                        if (problem) {
+                          setProposalError(problem);
+                          return;
+                        }
+                        setProposalError("");
+                        setProposalWords({
+                          subject: proposalTemplate?.subject || PROPOSAL_THREAD,
+                          text: proposalCards(proposalLetterBody).text,
+                        });
+                        setProposalShare(true);
+                      }}
+                    >
+                      email
+                    </button>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
-            {proposalError && !proposalShare ? (
-              <p className="studio-composer-note">{proposalError}</p>
-            ) : null}
-            <div className={cn("studio-ask-foot", profile.role === "admin" && "is-spread")}>
-              {profile.role === "admin" ? (
-                <button
-                  type="button"
-                  className="studio-proposal-preview"
-                  onClick={() => setPacketOpen(true)}
-                >
-                  preview
-                </button>
-              ) : null}
-              <Popover open={shareMenu} onOpenChange={setShareMenu}>
-                <PopoverTrigger asChild>
+          )}
+          <Dialog
+            open={Boolean(balanceLetter)}
+            onOpenChange={(open) => {
+              if (!open && !balanceInvoice.isPending) setBalanceLetter(null);
+            }}
+          >
+            <DialogContent
+              overlayClassName="studio-task-veil"
+              className="studio-task-modal is-ask is-soft"
+              hideClose
+              onOpenAutoFocus={(event) => event.preventDefault()}
+            >
+              <div className="studio-task-head">
+                <DialogClose className="studio-task-close" aria-label="Close">
+                  <X aria-hidden="true" />
+                </DialogClose>
+              </div>
+              <DialogTitle className="sr-only">send the balance invoice</DialogTitle>
+              <DialogDescription className="sr-only">
+                this is the letter they will receive.
+              </DialogDescription>
+              <div className="studio-task-form">
+                <p className="studio-proposal-signed-note">to {balanceLetter?.to}</p>
+                {/* the words are editable here; the letter below fills in as they're typed */}
+                <textarea
+                  className="studio-letter-edit studio-balance-words"
+                  value={balanceLetter?.words ?? ""}
+                  rows={4}
+                  aria-label="the letter's words"
+                  onChange={(event) => {
+                    const words = event.target.value;
+                    setBalanceLetter((current) => (current ? { ...current, words } : current));
+                  }}
+                />
+                <iframe
+                  title="the balance invoice letter"
+                  srcDoc={fillLetterWords(balanceLetter?.html ?? "", balanceLetter?.words ?? "")}
+                  className="studio-balance-letter"
+                />
+                <div className="studio-ask-foot">
                   <button
                     type="button"
                     className="studio-today-go"
-                    aria-expanded={shareMenu}
-                    disabled={proposalBusy || post.isPending}
+                    disabled={balanceInvoice.isPending}
+                    onClick={() =>
+                      balanceLetter &&
+                      balanceInvoice.mutate({
+                        proposalId: balanceLetter.proposalId,
+                        send: true,
+                        body: balanceLetter.words,
+                      })
+                    }
                   >
-                    {copiedLink ? "copied" : "share"}
+                    {balanceInvoice.isPending ? "sending" : "send"}
                   </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  side="top"
-                  sideOffset={8}
-                  collisionPadding={16}
-                  className="studio-proposal-share w-44 border-0 shadow-none data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100"
-                  onOpenAutoFocus={(event) => event.preventDefault()}
-                  onCloseAutoFocus={(event) => event.preventDefault()}
-                  onFocusOutside={(event) => event.preventDefault()}
-                >
-                  <button
-                    type="button"
-                    disabled={proposalBusy && !proposalHref}
-                    onClick={() => {
-                      if (!proposalHref) {
-                        void copyProposal();
-                        return;
-                      }
-                      const href = proposalHref;
-                      const write = navigator.clipboard?.writeText?.(href);
-                      setProposalError("");
-                      markShared();
-                      if (!write) {
-                        if (copyText(href)) markCopied();
-                        else setProposalError("could not copy the link");
-                        return;
-                      }
-                      void write.then(
-                        () => markCopied(),
-                        () => {
-                          setProposalError("could not copy the link");
-                          toast.error("could not copy the link");
-                        },
-                      );
-                    }}
-                  >
-                    {copiedLink ? "copied" : "copy link"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={proposalBusy}
-                    onClick={() => {
-                      setShareMenu(false);
-                      downloadProposal();
-                    }}
-                  >
-                    download
-                  </button>
-                  <button
-                    type="button"
-                    disabled={proposalBusy || post.isPending}
-                    onClick={() => {
-                      const problem = proposalProblem();
-                      setShareMenu(false);
-                      if (problem) {
-                        setProposalError(problem);
-                        return;
-                      }
-                      setProposalError("");
-                      setProposalShare(true);
-                    }}
-                  >
-                    email
-                  </button>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
             <DialogContent
               overlayClassName="studio-task-veil"
@@ -2652,9 +2845,22 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               </DialogDescription>
               <div className="studio-task-form">
                 <LetterPreview
-                  body={proposalLetterBody}
+                  body={proposalWords?.text ?? proposalLetterBody}
+                  subject={proposalWords?.subject ?? (proposalTemplate.subject || PROPOSAL_THREAD)}
                   href={proposalHref}
                   sender={signatureName(profile.full_name)}
+                  onBody={(text) =>
+                    setProposalWords((current) => ({
+                      subject: current?.subject ?? PROPOSAL_THREAD,
+                      text,
+                    }))
+                  }
+                  onSubject={(subject) =>
+                    setProposalWords((current) => ({
+                      subject,
+                      text: current?.text ?? proposalCards(proposalLetterBody).text,
+                    }))
+                  }
                 />
                 {proposalError ? <p className="studio-composer-note">{proposalError}</p> : null}
                 <div className="studio-ask-foot">
@@ -2860,33 +3066,36 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               }}
             />
           </label>
-          {allFiles.map((file) => (
-            <div key={file.id} className="studio-ledger-row">
-              <b>{file.name ?? file.file_path}</b>
-              <span className="studio-file-actions">
+          {allFiles.map((file) => {
+            const name = file.name ?? file.file_path;
+            // the whole row opens the file; the x to remove it shows on hover
+            return (
+              <div key={file.id} className="studio-ledger-row studio-file-row">
                 {"signed_url" in file && file.signed_url ? (
                   <a
                     href={file.signed_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="auth-text-action"
+                    className="studio-file-open"
                   >
-                    open
+                    <b>{name}</b>
                   </a>
-                ) : null}
+                ) : (
+                  <b>{name}</b>
+                )}
                 <button
                   type="button"
-                  className="studio-ghost"
+                  className="studio-file-remove"
+                  aria-label={`remove ${name}`}
+                  title="remove"
                   disabled={removingFile === file.id}
-                  onClick={() =>
-                    setFileToRemove({ id: file.id, name: file.name ?? file.file_path })
-                  }
+                  onClick={() => setFileToRemove({ id: file.id, name })}
                 >
-                  {removingFile === file.id ? "removing…" : "remove"}
+                  <X aria-hidden="true" strokeWidth={1.5} />
                 </button>
-              </span>
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </section>
       ) : null}
 
@@ -2947,8 +3156,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
           <div className="studio-task-form">
             {invoiceShare ? (
               <LetterPreview
-                subject={invoiceLetter().subject}
-                body={invoiceLetter().text}
+                subject={fillTemplate(invoiceLetter().subject, { invoice: "SS…" })}
+                body={invoiceWords ?? invoiceLetter().text}
+                onBody={setInvoiceWords}
                 href={null}
                 button="pay your invoice"
                 to={mailRecord(uniqueMails([client?.email, ...moreTo]), copyTo).line}

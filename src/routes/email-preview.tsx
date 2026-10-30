@@ -16,7 +16,7 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
     const { inquiryReceivedHtml } = await import("@/lib/os/inquiry-email.server");
     const { changeRequestHtml } = await import("@/lib/os/change-request-email.server");
     const { bookingHtml } = await import("@/lib/os/booking-email.server");
-    const { balanceReminderHtml, clientPaidHtml, studioPaidHtml } =
+    const { addOnInvoiceHtml, balanceReminderHtml, clientPaidHtml, studioPaidHtml } =
       await import("@/lib/os/paid-email.server");
     // paid in october for a dinner next march, so the balance falls due in february
     const paid = {
@@ -29,7 +29,6 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
       occasion: "private dinner",
       eventDate: "2027-03-12",
       paidAt: "2026-10-29T21:20:00.000Z",
-      attachments: ["Say Sukii receipt SS103.pdf", "Floral Service Agreement.pdf"],
       inquiryId: "fenty-beauty",
       eventType: "private",
     };
@@ -39,7 +38,18 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
       amountCents: 200125,
       booking: false,
       paidAt: "2027-02-08T16:00:00.000Z",
-      attachments: ["Say Sukii receipt SS103.pdf"],
+    };
+    // after booking, they asked for an extra arrangement and were billed for it on its own
+    const addOn = {
+      ...paid,
+      invoiceNumber: "SS108",
+      amountCents: 38500,
+      paidCents: 38500,
+      totalCents: 38500,
+      booking: false,
+      addOn: true,
+      occasion: "add-ons",
+      paidAt: "2026-11-02T18:00:00.000Z",
     };
     const origin = data.origin.replace(/\/$/, "");
     return [
@@ -104,7 +114,7 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
       },
       {
         caption:
-          "to the client — the deposit books the project (receipt + signed agreement attached)",
+          "to the client — the deposit books the project (proposal + signed agreement + receipt attached)",
         html: clientPaidHtml(deposit, origin),
       },
       {
@@ -113,7 +123,7 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
       },
       {
         caption:
-          "to the client — paid in full at once books the project (receipt + agreement attached)",
+          "to the client — paid in full at once books the project (proposal + agreement + receipt attached)",
         html: clientPaidHtml(paid, origin),
       },
       {
@@ -128,11 +138,34 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
         caption: "to the studio — the balance is paid",
         html: studioPaidHtml(balance, origin),
       },
-      ...(["soon", "today"] as const).map((when) => ({
-        caption:
-          when === "soon"
-            ? "to the client — the balance is due in five days (35 days before the event)"
-            : "to the client — the balance is due today (30 days before the event)",
+      {
+        caption: "to the client — an add-on invoice (extras they asked for after booking)",
+        html: addOnInvoiceHtml(
+          {
+            clientName: "Fenty Beauty",
+            invoiceNumber: "SS108",
+            amountCents: 38500,
+            eventDate: "2027-03-12",
+            payUrl: `${origin}/fenty-beauty/invoice/SS108`,
+            eventType: "private",
+          },
+          origin,
+        ),
+      },
+      {
+        caption: "to the client — the add-on is paid, a thank-you (receipt attached)",
+        html: clientPaidHtml(addOn, origin),
+      },
+      {
+        caption: "to the studio — an add-on is paid",
+        html: studioPaidHtml(addOn, origin),
+      },
+      ...(["soon", "today", "now"] as const).map((when) => ({
+        caption: {
+          soon: "to the client — the balance is due in five days (35 days before the event)",
+          today: "to the client — the balance is due today (30 days before the event)",
+          now: "to the client — the studio sends the balance invoice by hand",
+        }[when],
         html: balanceReminderHtml(
           {
             clientName: "Fenty Beauty",

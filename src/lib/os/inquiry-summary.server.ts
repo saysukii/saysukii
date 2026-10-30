@@ -187,14 +187,49 @@ async function loadSummaryState(
 
   const email = clientResult.data?.email?.trim() ?? "";
   const proposalIds = (proposalsResult.data ?? []).map((proposal) => proposal.id);
-  const [callsResult, invoicesResult] = await Promise.all([
+  const [callsResult, invoicesResult, agreementsResult, paymentsResult] = await Promise.all([
     email
       ? client.from("appointments").select("starts_at").ilike("guest_email", email)
       : Promise.resolve({ data: [] as Array<{ starts_at: string }>, error: null }),
     proposalIds.length
       ? client.from("invoices").select("status, amount_cents").in("proposal_id", proposalIds)
       : Promise.resolve({ data: [] as InquirySummaryInvoice[], error: null }),
+    proposalIds.length
+      ? client.from("agreements").select("proposal_id, signed_at").in("proposal_id", proposalIds)
+      : Promise.resolve({
+          data: [] as Array<{ proposal_id: string; signed_at: string | null }>,
+          error: null,
+        }),
+    proposalIds.length
+      ? client
+          .from("payments")
+          .select("proposal_id, amount_cents, paid_at")
+          .in("proposal_id", proposalIds)
+          .eq("status", "completed")
+      : Promise.resolve({
+          data: [] as Array<{
+            proposal_id: string;
+            amount_cents: number | null;
+            paid_at: string | null;
+          }>,
+          error: null,
+        }),
   ]);
+  // each proposal with its signing and what's been paid on it
+  const proposals = (proposalsResult.data ?? []).map((proposal) => {
+    const paid = (paymentsResult.data ?? []).filter((row) => row.proposal_id === proposal.id);
+    return {
+      ...proposal,
+      signed_at:
+        agreementsResult.data?.find((row) => row.proposal_id === proposal.id)?.signed_at ?? null,
+      paid_cents: paid.reduce((sum, row) => sum + (row.amount_cents ?? 0), 0),
+      paid_at:
+        paid
+          .map((row) => row.paid_at ?? "")
+          .sort()
+          .at(-1) || null,
+    };
+  });
 
   return {
     inquiryId,
@@ -203,7 +238,7 @@ async function loadSummaryState(
     summary_text: inquiry.summary_text ?? null,
     summary_generated_at: inquiry.summary_generated_at ?? null,
     messages: (messagesResult.data ?? []) as InquiryMessageRow[],
-    proposals: (proposalsResult.data ?? []) as InquirySummaryProposal[],
+    proposals: proposals as InquirySummaryProposal[],
     meetings: meetingsResult.error ? [] : ((meetingsResult.data ?? []) as InquirySummaryMeeting[]),
     details: {
       clientName: clientResult.data?.name ?? null,

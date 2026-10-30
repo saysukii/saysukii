@@ -15,7 +15,13 @@ import { readPreviewArrivals } from "@/lib/preview-arrivals";
 import { clientSlugs, inquirySlugs } from "@/lib/os/inquiry-desk";
 import { isBookInquiry } from "@/lib/os/inquiry-detection";
 import { desiredInquiryAutoTask } from "@/lib/os/inquiry-tasks";
-import { buildInquirySummaryFacts, resolveInquirySummaryText } from "@/lib/os/inquiry-summary";
+import {
+  buildInquirySummaryFacts,
+  resolveInquirySummaryText,
+  type InquirySummaryProposal,
+} from "@/lib/os/inquiry-summary";
+import { FENTY_DEMO_INQUIRY, fentyDemoProposal } from "@/lib/preview-proposals";
+import { sentLetterLine, type SentLetter } from "@/lib/sent-letters";
 
 const now = Date.now();
 const iso = (days: number) => new Date(now + days * 86_400_000).toISOString();
@@ -30,6 +36,7 @@ export const PREVIEW_IDS = {
   clientCamila: "10000000-0000-4000-8000-000000000016",
   clientNoor: "10000000-0000-4000-8000-000000000017",
   clientJules: "10000000-0000-4000-8000-000000000018",
+  clientFenty: "10000000-0000-4000-8000-000000000019",
   inquiryWedding: "20000000-0000-4000-8000-000000000021",
   inquiryBrand: "20000000-0000-4000-8000-000000000022",
   inquiryCorporate: "20000000-0000-4000-8000-000000000023",
@@ -43,6 +50,7 @@ export const PREVIEW_IDS = {
   inquiryReviewNoor: "20000000-0000-4000-8000-00000000002f",
   inquiryReviewJules: "20000000-0000-4000-8000-000000000030",
   inquiryArrived: "20000000-0000-4000-8000-000000000029",
+  inquiryFenty: FENTY_DEMO_INQUIRY,
   proposalDraft: "40000000-0000-4000-8000-000000000041",
   proposalSent: "40000000-0000-4000-8000-000000000042",
   proposalAccepted: "40000000-0000-4000-8000-000000000043",
@@ -59,7 +67,25 @@ export const PREVIEW_IDS = {
   vendorWholesale: "60000000-0000-4000-8000-000000000062",
 } as const;
 
+const PREVIEW_STUDIO_SIGNATURE = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="140" viewBox="0 0 480 140"><path d="M24 92c18-58 46-70 52-30s-20 56-4 40 40-70 60-58-10 62 6 52 30-44 46-40-6 40 10 36 26-30 40-28 2 24 16 22 30-18 44-16" fill="none" stroke="#24221f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+)}`;
+
 const clients: Record<string, ClientRow> = {
+  // the client behind the /fenty-beauty demo proposal
+  [PREVIEW_IDS.clientFenty]: {
+    id: PREVIEW_IDS.clientFenty,
+    name: "Fenty Beauty",
+    email: "events@fentybeauty.com",
+    phone: "(305) 555-0142",
+    organization: "Fenty Beauty",
+    type: "brand",
+    source: "Website",
+    notes: null,
+    archived: false,
+    created_at: iso(-6),
+    updated_at: iso(-6),
+  },
   [PREVIEW_IDS.clientAmelia]: {
     id: PREVIEW_IDS.clientAmelia,
     name: "Amelia Chen",
@@ -463,6 +489,16 @@ function inquiry(
 }
 
 const inquiries: InquiryRow[] = [
+  // its proposal is the /fenty-beauty demo, so the summary follows the demo as it moves
+  inquiry(PREVIEW_IDS.inquiryFenty, PREVIEW_IDS.clientFenty, "proposal_sent", {
+    event_date: "2027-03-12",
+    event_type: "private",
+    venue_text: "The Shelbourne by Proper, 1801 Collins Ave, Miami Beach",
+    guest_count: 40,
+    budget_range: "$4,000–$5,000",
+    message: "A private dinner for the team, with a long table in deep pinks.",
+    received_at: iso(-6),
+  }),
   inquiry(PREVIEW_IDS.inquiryWedding, PREVIEW_IDS.clientAmelia, "in_conversation", {
     received_at: iso(-5),
   }),
@@ -884,7 +920,145 @@ export function previewReviewDecision(id: string, decision: "approve" | "dismiss
   reviewDecisions.set(id, { detection_status: "dismissed", status: "new" });
 }
 
+/**
+ * The fenty demo's conversation, as if the emails really went out: sukii's proposal letter, their
+ * reply when they accept, and their thank-you to the receipt (which arrives as its own thread,
+ * since the receipt itself stays out of the conversation).
+ */
+function fentyDemoMessages(inquiryId: string): InquiryMessageRow[] {
+  const demo = fentyDemoProposal();
+  const email = demo.clientEmail ?? "events@fentybeauty.com";
+  const letter = (
+    id: string,
+    direction: "inbound" | "outbound",
+    thread: string,
+    subject: string,
+    body: string,
+    sentAt: string,
+  ): InquiryMessageRow => ({
+    id,
+    inquiry_id: inquiryId,
+    direction,
+    channel: "email",
+    subject,
+    body,
+    from_address: direction === "outbound" ? "info@saysukii.com" : email,
+    to_address: direction === "outbound" ? email : "info@saysukii.com",
+    gmail_message_id: `gmail-${id}`,
+    gmail_thread_id: thread,
+    author: direction === "outbound" ? "say sukii" : demo.clientName,
+    sent_at: sentAt,
+    status: direction === "outbound" ? "sent" : "received",
+    created_by: null,
+    created_at: sentAt,
+  });
+  const sentAt = demo.sentAt ?? iso(-3);
+  const later = (iso: string, minutes: number) =>
+    new Date(Date.parse(iso) + minutes * 60_000).toISOString();
+  const rows = [
+    letter(
+      "fenty-proposal",
+      "outbound",
+      "thread-fenty-proposal",
+      "your say sukii proposal",
+      [
+        "fenty — your proposal for the private dinner is here whenever you're ready to look it over.",
+        "",
+        "[your proposal](https://inside.saysukii.com/fenty-beauty)",
+        "",
+        "<3",
+        "sukii",
+      ].join("\n"),
+      sentAt,
+    ),
+  ];
+  if (demo.status === "accepted") {
+    rows.push(
+      letter(
+        "fenty-accepting",
+        "inbound",
+        "thread-fenty-proposal",
+        "Re: your say sukii proposal",
+        "It's perfect. Accepting now and signing the agreement. Thank you!\n\nFenty Beauty Events",
+        later(demo.acceptedAt ?? demo.signedAt ?? sentAt, -2),
+      ),
+    );
+  }
+  if (demo.paid) {
+    rows.push(
+      letter(
+        "fenty-thanks",
+        "inbound",
+        "thread-fenty-receipt",
+        `Re: your project is booked · receipt for ${demo.number}`,
+        "Received, thank you so much! We can't wait for March.\n\nFenty Beauty Events",
+        later(demo.paidAt ?? demo.signedAt ?? sentAt, 6),
+      ),
+    );
+  }
+  return rows;
+}
+
+/** what the app emailed fenty on its own, as the proposal tab lists it */
+function fentyDemoLetters(): SentLetter[] {
+  const demo = fentyDemoProposal();
+  if (!demo.paid) return [];
+  const email = demo.clientEmail ?? "events@fentybeauty.com";
+  return [
+    {
+      id: "fenty-booked-letter",
+      line: sentLetterLine("paid_letter", { to: email, booking: true }),
+      at: demo.paidAt ?? demo.signedAt ?? iso(0),
+      // locally, the line opens the letter as they received it
+      href: "/email-preview?letter=paid in full at once",
+    },
+  ];
+}
+
+/** once the fenty demo is paid, its proposal, signed agreement and receipt sit in the files tab */
+function fentyDemoFiles(inquiryId: string) {
+  const demo = fentyDemoProposal();
+  if (!demo.paid) return [];
+  const paidAt = demo.paidAt ?? demo.signedAt ?? iso(0);
+  return [
+    ["proposal", `say-sukii-proposal-${demo.number}.pdf`, "/attachments/fenty-beauty-proposal.pdf"],
+    ["agreement", `floral-service-agreement-${demo.number}.pdf`, "/dev-file/agreement"],
+    ["receipt", `say-sukii-receipt-${demo.number}.pdf`, "/dev-file/receipt"],
+  ].map(([key, name, url]) => ({
+    id: `file-fenty-${key}`,
+    owner_type: "inquiry" as const,
+    owner_id: inquiryId,
+    file_path: `clients/fenty/${name}`,
+    file_type: "application/pdf",
+    uploaded_by: null,
+    created_at: paidAt,
+    name: name ?? "",
+    signed_url: (url ?? null) as string | null,
+  }));
+}
+
+/** the fenty demo's proposal, read the way the summary reads a real one */
+function fentyDemoForSummary(): InquirySummaryProposal {
+  const demo = fentyDemoProposal();
+  const accepted = demo.status === "accepted";
+  return {
+    status: demo.status,
+    created_at: demo.sentAt ?? iso(-3),
+    sent_at: demo.sentAt ?? iso(-3),
+    viewed_at: demo.viewedAt ?? null,
+    accepted_at: accepted ? (demo.acceptedAt ?? demo.signedAt ?? null) : null,
+    signed_at: demo.signedAt,
+    total_cents: demo.totalCents,
+    paid_cents: demo.paid ? demo.depositCents : 0,
+    paid_at: demo.paid ? (demo.paidAt ?? demo.signedAt) : null,
+  };
+}
+
 function withReview(inquiry: InquiryRow): InquiryRow {
+  // the fenty inquiry is booked once its demo proposal is paid
+  if (inquiry.id === PREVIEW_IDS.inquiryFenty && fentyDemoProposal().paid) {
+    return { ...inquiry, status: "booked", booked_at: inquiry.booked_at ?? iso(0) };
+  }
   const patch = reviewDecisions.get(inquiry.id);
   const status = previewStatuses.get(inquiry.id);
   const next = patch ? { ...inquiry, ...patch } : inquiry;
@@ -1324,6 +1498,8 @@ export function getDevPreviewInquiryWorkspace(id: string) {
     });
   }
 
+  if (inquiry.id === PREVIEW_IDS.inquiryFenty) messages.push(...fentyDemoMessages(inquiry.id));
+
   const proposalRows = proposals
     .filter((item) => item.inquiry_id === inquiry.id)
     .map((item) => ({
@@ -1341,13 +1517,22 @@ export function getDevPreviewInquiryWorkspace(id: string) {
       pdf_url: null,
       file_name: "",
       invoice_number: null,
+      signed: null as null | {
+        at: string;
+        signature: string;
+        signer: { first: string; last: string } | null;
+      },
+      payments: [] as Array<{ amount_cents: number; paid_at: string | null }>,
     }));
   const summary = resolveInquirySummaryText(
     buildInquirySummaryFacts({
       status: inquiry.status,
       contacted_at: inquiry.contacted_at,
       messages,
-      proposals: proposals.filter((item) => item.inquiry_id === inquiry.id),
+      proposals:
+        inquiry.id === PREVIEW_IDS.inquiryFenty
+          ? [fentyDemoForSummary()]
+          : proposals.filter((item) => item.inquiry_id === inquiry.id),
       meetings: [],
       details: {
         clientName: client?.name ?? null,
@@ -1372,23 +1557,31 @@ export function getDevPreviewInquiryWorkspace(id: string) {
     client,
     messages,
     proposals: proposalRows,
+    sentLetters: inquiry.id === PREVIEW_IDS.inquiryFenty ? fentyDemoLetters() : [],
     files:
-      inquiry.id === PREVIEW_IDS.inquiryWedding
-        ? [
-            {
-              id: "file-amelia-1",
-              owner_type: "inquiry" as const,
-              owner_id: inquiry.id,
-              file_path: "inquiries/amelia-moodboard.pdf",
-              file_type: "application/pdf",
-              uploaded_by: null,
-              created_at: iso(-4),
-              name: "amelia-moodboard.pdf",
-              signed_url: null,
-            },
-          ]
-        : [],
+      inquiry.id === PREVIEW_IDS.inquiryFenty
+        ? fentyDemoFiles(inquiry.id)
+        : inquiry.id === PREVIEW_IDS.inquiryWedding
+          ? [
+              {
+                id: "file-amelia-1",
+                owner_type: "inquiry" as const,
+                owner_id: inquiry.id,
+                file_path: "inquiries/amelia-moodboard.pdf",
+                file_type: "application/pdf",
+                uploaded_by: null,
+                created_at: iso(-4),
+                name: "amelia-moodboard.pdf",
+                signed_url: null as string | null,
+              },
+            ]
+          : [],
     gmailConnected: false,
+    // a stand-in for the owner's signature from settings
+    studioSignature: { name: "Sukii", image: PREVIEW_STUDIO_SIGNATURE } as {
+      name: string;
+      image: string;
+    } | null,
     invoices: [] as Array<{
       id: string;
       number: string;

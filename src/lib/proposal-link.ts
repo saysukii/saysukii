@@ -124,3 +124,11 @@ export function readFileDataUrl(file: File) {
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * The largest proposal PDF the studio can upload. It rides along with the booking email (with the
+ * agreement and receipt), so this keeps that email well under gmail's 25MB limit.
+ */
+export const PROPOSAL_MAX_BYTES = 15 * 1024 * 1024;
+export const PROPOSAL_TOO_BIG =
+  "keep the proposal under 15MB so the booking email always goes through. try compressing the pdf.";

@@ -93,6 +93,7 @@ export function SquarePay({
   fallbackHref,
   summary,
   onPaid,
+  demo = false,
 }: {
   token: string;
   amountCents: number;
@@ -102,6 +103,8 @@ export function SquarePay({
   fallbackHref?: string | null;
   summary: PaySummary;
   onPaid: () => void;
+  /** the local preview: the same pop-up with stand-in card fields, and nothing is charged */
+  demo?: boolean;
 }) {
   const fetchConfig = useServerFn(getSquarePayConfig);
   const pay = useServerFn(payProposalDeposit);
@@ -122,6 +125,11 @@ export function SquarePay({
   // square's fields are made when the pop-up opens, and taken down when it closes
   useEffect(() => {
     if (!open) return;
+    if (demo) {
+      setReady(true);
+      setHasApplePay(true);
+      return;
+    }
     let gone = false;
     void (async () => {
       try {
@@ -160,10 +168,15 @@ export function SquarePay({
       setReady(false);
       setHasApplePay(false);
     };
-  }, [amount, fetchConfig, open]);
+  }, [amount, demo, fetchConfig, open]);
 
   async function charge() {
     setProblem("");
+    if (demo) {
+      setPhase("paying");
+      window.setTimeout(() => setPhase("paid"), 1800);
+      return;
+    }
     const [first = "", ...rest] = clientName.trim().split(/\s+/);
     const result =
       method === "apple"
@@ -329,11 +342,22 @@ export function SquarePay({
                 onClick={() => void charge()}
               />
             ) : null}
-            <div
-              ref={cardHost}
-              className="client-packet-card"
-              hidden={method === "apple" && hasApplePay}
-            />
+            {demo ? (
+              method === "card" ? (
+                <div className="client-pay-mock-card" aria-hidden="true">
+                  <span>Card number</span>
+                  <span>MM/YY</span>
+                  <span>CVV</span>
+                  <span>ZIP</span>
+                </div>
+              ) : null
+            ) : (
+              <div
+                ref={cardHost}
+                className="client-packet-card"
+                hidden={method === "apple" && hasApplePay}
+              />
+            )}
             {!ready && !unavailable ? (
               <p className="client-packet-pay-note">Opening secure checkout…</p>
             ) : null}

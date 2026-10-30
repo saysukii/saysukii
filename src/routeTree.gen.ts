@@ -14,6 +14,7 @@ import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookRouteImport } from './routes/book'
+import { Route as BookingStudiesRouteImport } from './routes/booking-studies'
 import { Route as EmailPreviewRouteImport } from './routes/email-preview'
 import { Route as InquireRouteImport } from './routes/inquire'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -26,8 +27,10 @@ import { Route as AuthenticatedLoadingRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedShelfRouteImport } from './routes/_authenticated/shelf'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as DevFileKindRouteImport } from './routes/dev-file.$kind'
 import { Route as InquireIndexRouteImport } from './routes/inquire.index'
 import { Route as InquirePreviewRouteImport } from './routes/inquire.preview'
+import { Route as LetterIdRouteImport } from './routes/letter.$id'
 import { Route as ProposalTokenRouteImport } from './routes/proposal.$token'
 import { Route as AuthenticatedClientsIdRouteImport } from './routes/_authenticated/clients.$id'
 import { Route as AuthenticatedDirectoriesClientsRouteImport } from './routes/_authenticated/directories.clients'
@@ -70,6 +73,11 @@ const AuthRoute = AuthRouteImport.update({
 const BookRoute = BookRouteImport.update({
   id: '/book',
   path: '/book',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingStudiesRoute = BookingStudiesRouteImport.update({
+  id: '/booking-studies',
+  path: '/booking-studies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmailPreviewRoute = EmailPreviewRouteImport.update({
@@ -132,6 +140,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/callback',
   getParentRoute: () => AuthRoute,
 } as any)
+const DevFileKindRoute = DevFileKindRouteImport.update({
+  id: '/dev-file/$kind',
+  path: '/dev-file/$kind',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InquireIndexRoute = InquireIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -141,6 +154,11 @@ const InquirePreviewRoute = InquirePreviewRouteImport.update({
   id: '/preview',
   path: '/preview',
   getParentRoute: () => InquireRoute,
+} as any)
+const LetterIdRoute = LetterIdRouteImport.update({
+  id: '/letter/$id',
+  path: '/letter/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProposalTokenRoute = ProposalTokenRouteImport.update({
   id: '/proposal/$token',
@@ -254,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/$slug': typeof SlugRoute
   '/auth': typeof AuthRouteWithChildren
   '/book': typeof BookRoute
+  '/booking-studies': typeof BookingStudiesRoute
   '/email-preview': typeof EmailPreviewRoute
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
@@ -266,7 +285,9 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/dev-file/$kind': typeof DevFileKindRoute
   '/inquire/preview': typeof InquirePreviewRoute
+  '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire/': typeof InquireIndexRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
@@ -293,6 +314,7 @@ export interface FileRoutesByTo {
   '/$slug': typeof SlugRoute
   '/auth': typeof AuthRouteWithChildren
   '/book': typeof BookRoute
+  '/booking-studies': typeof BookingStudiesRoute
   '/email-preview': typeof EmailPreviewRoute
   '/onboarding': typeof OnboardingRoute
   '/pay-studies': typeof PayStudiesRoute
@@ -304,7 +326,9 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/dev-file/$kind': typeof DevFileKindRoute
   '/inquire/preview': typeof InquirePreviewRoute
+  '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire': typeof InquireIndexRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
@@ -331,6 +355,7 @@ export interface FileRoutesById {
   '/$slug': typeof SlugRoute
   '/auth': typeof AuthRouteWithChildren
   '/book': typeof BookRoute
+  '/booking-studies': typeof BookingStudiesRoute
   '/email-preview': typeof EmailPreviewRoute
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
@@ -343,7 +368,9 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/dev-file/$kind': typeof DevFileKindRoute
   '/inquire/preview': typeof InquirePreviewRoute
+  '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire/': typeof InquireIndexRoute
   '/_authenticated/clients/$id': typeof AuthenticatedClientsIdRoute
@@ -372,6 +399,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/auth'
     | '/book'
+    | '/booking-studies'
     | '/email-preview'
     | '/inquire'
     | '/onboarding'
@@ -384,7 +412,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shelf'
     | '/auth/callback'
+    | '/dev-file/$kind'
     | '/inquire/preview'
+    | '/letter/$id'
     | '/proposal/$token'
     | '/inquire/'
     | '/clients/$id'
@@ -411,6 +441,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/auth'
     | '/book'
+    | '/booking-studies'
     | '/email-preview'
     | '/onboarding'
     | '/pay-studies'
@@ -422,7 +453,9 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shelf'
     | '/auth/callback'
+    | '/dev-file/$kind'
     | '/inquire/preview'
+    | '/letter/$id'
     | '/proposal/$token'
     | '/inquire'
     | '/clients/$id'
@@ -448,6 +481,7 @@ export interface FileRouteTypes {
     | '/$slug'
     | '/auth'
     | '/book'
+    | '/booking-studies'
     | '/email-preview'
     | '/inquire'
     | '/onboarding'
@@ -460,7 +494,9 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/shelf'
     | '/auth/callback'
+    | '/dev-file/$kind'
     | '/inquire/preview'
+    | '/letter/$id'
     | '/proposal/$token'
     | '/inquire/'
     | '/_authenticated/clients/$id'
@@ -489,11 +525,14 @@ export interface RootRouteChildren {
   SlugRoute: typeof SlugRoute
   AuthRoute: typeof AuthRouteWithChildren
   BookRoute: typeof BookRoute
+  BookingStudiesRoute: typeof BookingStudiesRoute
   EmailPreviewRoute: typeof EmailPreviewRoute
   InquireRoute: typeof InquireRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
   PayStudiesRoute: typeof PayStudiesRoute
   ScheduleRoute: typeof ScheduleRoute
+  DevFileKindRoute: typeof DevFileKindRoute
+  LetterIdRoute: typeof LetterIdRoute
   ProposalTokenRoute: typeof ProposalTokenRoute
   ApiCronBalanceRemindersRoute: typeof ApiCronBalanceRemindersRoute
   ApiCronGmailInboundRoute: typeof ApiCronGmailInboundRoute
@@ -540,6 +579,13 @@ declare module '@tanstack/react-router' {
       path: '/book'
       fullPath: '/book'
       preLoaderRoute: typeof BookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/booking-studies': {
+      id: '/booking-studies'
+      path: '/booking-studies'
+      fullPath: '/booking-studies'
+      preLoaderRoute: typeof BookingStudiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/email-preview': {
@@ -626,6 +672,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/dev-file/$kind': {
+      id: '/dev-file/$kind'
+      path: '/dev-file/$kind'
+      fullPath: '/dev-file/$kind'
+      preLoaderRoute: typeof DevFileKindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inquire/': {
       id: '/inquire/'
       path: '/'
@@ -639,6 +692,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/inquire/preview'
       preLoaderRoute: typeof InquirePreviewRouteImport
       parentRoute: typeof InquireRoute
+    }
+    '/letter/$id': {
+      id: '/letter/$id'
+      path: '/letter/$id'
+      fullPath: '/letter/$id'
+      preLoaderRoute: typeof LetterIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/proposal/$token': {
       id: '/proposal/$token'
@@ -876,11 +936,14 @@ const rootRouteChildren: RootRouteChildren = {
   SlugRoute: SlugRoute,
   AuthRoute: AuthRouteWithChildren,
   BookRoute: BookRoute,
+  BookingStudiesRoute: BookingStudiesRoute,
   EmailPreviewRoute: EmailPreviewRoute,
   InquireRoute: InquireRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
   PayStudiesRoute: PayStudiesRoute,
   ScheduleRoute: ScheduleRoute,
+  DevFileKindRoute: DevFileKindRoute,
+  LetterIdRoute: LetterIdRoute,
   ProposalTokenRoute: ProposalTokenRoute,
   ApiCronBalanceRemindersRoute: ApiCronBalanceRemindersRoute,
   ApiCronGmailInboundRoute: ApiCronGmailInboundRoute,

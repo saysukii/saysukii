@@ -21,6 +21,8 @@ import type {
   RoutingLabelKind,
   RoutingLabelSource,
 } from "../../integrations/supabase/types";
+import { subjectStart } from "@/lib/email-templates";
+
 import { BOOK_DETECTION_STATUSES } from "./inquiry-detection";
 import { belongsInReview, inboundAsk, isAutomatedSender } from "./inquiry-mail";
 import { lessonVerdict, makeLesson, type InquiryLesson } from "./inquiry-lessons";
@@ -103,6 +105,8 @@ export type RoutingStore = {
   }): Promise<void>;
   logNegative(row: InquiryRoutingLabelRow): Promise<void>;
   listLessons(): Promise<InquiryLesson[]>;
+  /** the subjects the studio saved for the letters the app sends on its own */
+  listAutomaticSubjects?(): Promise<string[]>;
 };
 
 export type MemoryRoutingState = {
@@ -710,15 +714,31 @@ function firstRecipient(to: string | null | undefined) {
   return normalizeSenderEmail(direct.split(",")[0]);
 }
 
-// notes the app sends by itself (a booking confirmation, the studio's own notices); the bell covers them
-const AUTOMATED_STUDIO_SUBJECT = /^(you[’']re booked|someone wrote in|a call was booked)\b/i;
+// notes the app sends by itself: a call's confirmation, the studio's own notices, and the client's
+// receipts and balance reminders. the bell, the summary, and the proposal tab's "sent" list cover
+// them, so they stay out of the conversation. letters the studio sends by hand stay in it.
+const AUTOMATED_STUDIO_SUBJECT =
+  /^(you[’']re booked|someone wrote in|a call was booked|your project is booked · receipt|thank you · receipt|a gentle reminder · your balance|due today · your balance)\b/i;
+
+/** the subject starts the way one of the studio's saved automatic letters does */
+async function savedAutomaticSubject(subject: string, store: RoutingStore) {
+  if (!subject || !store.listAutomaticSubjects) return false;
+  const saved = await store.listAutomaticSubjects().catch(() => []);
+  const lower = subject.toLowerCase();
+  return saved.some((item) => {
+    const start = subjectStart(item).toLowerCase();
+    // a start this short could catch a letter written by hand
+    return start.length >= 8 && lower.startsWith(start);
+  });
+}
 
 /** A letter the studio sent from gmail on a new thread belongs to that client's one open inquiry. */
 async function studioLetterDecision(
   message: InboundMessageRow,
   store: RoutingStore,
 ): Promise<RoutingDecision> {
-  if (AUTOMATED_STUDIO_SUBJECT.test(message.subject?.trim() ?? "")) {
+  const subject = message.subject?.trim() ?? "";
+  if (AUTOMATED_STUDIO_SUBJECT.test(subject) || (await savedAutomaticSubject(subject, store))) {
     return {
       action: "ignored",
       matched_inquiry_id: null,
@@ -1174,6 +1194,12 @@ export function liveRoutingStore(): RoutingStore {
       const fromDb = await loadInquiryLessonsFromSupabase();
       if (fromDb) return fromDb;
       return [];
+    },
+    async listAutomaticSubjects() {
+      if (!supabaseConfigured()) return [];
+      const { loadEmailTemplates } = await import("@/lib/os/email-templates.server");
+      const templates = await loadEmailTemplates();
+      return templates.filter((item) => item.group === "automatic").map((item) => item.subject);
     },
   };
 }
