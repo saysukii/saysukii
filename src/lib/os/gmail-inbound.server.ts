@@ -22,6 +22,8 @@ export type CapturedInbound = {
   to_addr: string | null;
   subject: string | null;
   body: string | null;
+  /** the letter as their mail app drew it */
+  body_html?: string | null;
   received_at: string;
 };
 
@@ -176,7 +178,8 @@ export function parseGmailMessage(message: GmailApiMessage): CapturedInbound | n
   if (!id) return null;
   const bodies = { plain: [] as string[], html: [] as string[] };
   collectBodies(message.payload, bodies);
-  const body = bodies.plain.join("\n\n").trim() || htmlToText(bodies.html.join("\n"));
+  const html = bodies.html.join("\n").trim();
+  const body = bodies.plain.join("\n\n").trim() || htmlToText(html);
   const internal = message.internalDate ? Number(message.internalDate) : NaN;
   const receivedAt = Number.isFinite(internal)
     ? new Date(internal).toISOString()
@@ -192,6 +195,8 @@ export function parseGmailMessage(message: GmailApiMessage): CapturedInbound | n
     ),
     subject: headerValue(message.payload, "Subject"),
     body: body || null,
+    // a very long letter keeps its text only
+    body_html: html && html.length <= 500_000 ? html : null,
     received_at: receivedAt,
   };
 }
@@ -474,25 +479,30 @@ async function insertSupabaseMessages(rows: CapturedInbound[]) {
   if (!supabaseConfigured()) return null;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("inbound_messages")
-      .upsert(
-        rows.map((row) => ({
-          gmail_message_id: row.gmail_message_id,
-          gmail_thread_id: row.gmail_thread_id,
-          from_addr: row.from_addr,
-          from_name: row.from_name,
-          to_addr: row.to_addr,
-          subject: row.subject,
-          body: row.body,
-          received_at: row.received_at,
-          processed_at: null,
-          routing_result: null,
-          matched_inquiry_id: null,
-        })),
-        { onConflict: "gmail_message_id", ignoreDuplicates: true },
-      )
-      .select("gmail_message_id");
+    const save = (withHtml: boolean) =>
+      supabaseAdmin
+        .from("inbound_messages")
+        .upsert(
+          rows.map((row) => ({
+            gmail_message_id: row.gmail_message_id,
+            gmail_thread_id: row.gmail_thread_id,
+            from_addr: row.from_addr,
+            from_name: row.from_name,
+            to_addr: row.to_addr,
+            subject: row.subject,
+            body: row.body,
+            ...(withHtml ? { body_html: row.body_html ?? null } : {}),
+            received_at: row.received_at,
+            processed_at: null,
+            routing_result: null,
+            matched_inquiry_id: null,
+          })),
+          { onConflict: "gmail_message_id", ignoreDuplicates: true },
+        )
+        .select("gmail_message_id");
+    let { data, error } = await save(true);
+    // before the html migration has run, the letter is still kept, as text
+    if (error && /body_html/.test(error.message)) ({ data, error } = await save(false));
     if (error) {
       console.error("[gmail-inbound] insert failed:", error.message);
       return null;

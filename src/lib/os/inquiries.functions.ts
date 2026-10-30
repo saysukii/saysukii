@@ -858,7 +858,24 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
       }
     }
 
-    const messages = messagesResult.data ?? [];
+    // each email as their mail app drew it, so the conversation shows it the way gmail does
+    const mailIds = (messagesResult.data ?? [])
+      .filter((message) => message.channel === "email" && message.gmail_message_id)
+      .map((message) => message.gmail_message_id!);
+    const drawn = new Map<string, string>();
+    if (mailIds.length) {
+      const htmlResult = await context.supabase
+        .from("inbound_messages")
+        .select("gmail_message_id, body_html")
+        .in("gmail_message_id", mailIds);
+      for (const row of htmlResult.error ? [] : (htmlResult.data ?? [])) {
+        if (row.body_html) drawn.set(row.gmail_message_id, row.body_html);
+      }
+    }
+    const messages = (messagesResult.data ?? []).map((message) => {
+      const html = message.gmail_message_id ? drawn.get(message.gmail_message_id) : undefined;
+      return html ? { ...message, body_html: html } : message;
+    });
     const proposalRows = proposalsResult.data ?? [];
     const proposalIds = proposalRows.map((proposal) => proposal.id);
     const invoiceResult = proposalIds.length

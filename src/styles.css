@@ -9244,6 +9244,15 @@ button.studio-metric:hover {
   grid-column: 1 / -1;
 }
 
+/* a client's letter as their mail app drew it, sized to its own height */
+.studio-mail-html {
+  display: block;
+  width: 100%;
+  min-width: min(100%, 520px);
+  border: 0;
+  background: transparent;
+}
+
 .studio-record-contact + .studio-record-contact {
   margin-top: 10px;
 }

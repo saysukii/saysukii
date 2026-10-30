@@ -8,6 +8,7 @@ import { proposalCards } from "@/lib/proposal-link";
 import { shareNote } from "@/lib/os/inquiry-desk";
 import { cn } from "@/lib/utils";
 import { MailFile, MailSignature, MailBody } from "@/components/inquiry/lead/composer";
+import { MailHtml } from "@/components/inquiry/lead/mail-html";
 import {
   PORTAL_FILES,
   withoutSignoff,
@@ -258,7 +259,12 @@ export function MailFace({
                   {!mail.note && !hiddenSubject(mail.subject) && !/^re:/i.test(mail.subject) ? (
                     <p className="studio-mail-subject">{mail.subject}</p>
                   ) : null}
-                  {text ? (
+                  {mail.html && !mail.note ? (
+                    <MailHtml
+                      html={mail.html}
+                      fallback={text ? <MailBody body={proposalCards(text).text} /> : null}
+                    />
+                  ) : text ? (
                     <MailBody
                       body={
                         proposalCards(studio && !mail.relayed ? withoutSignoff(text) : text).text

@@ -312,6 +312,8 @@ export type InquiryMessageRow = {
   created_by: string | null;
   created_at: string;
   send_payload?: Json | null;
+  /** an email's html as it arrived, added when the inquiry loads; never stored here */
+  body_html?: string | null;
 };
 
 export type EmailIntegrationRow = {
@@ -337,6 +339,8 @@ export type InboundMessageRow = {
   to_addr: string | null;
   subject: string | null;
   body: string | null;
+  /** the letter as their mail app drew it, when it came with html */
+  body_html?: string | null;
   received_at: string;
   processed_at: string | null;
   routing_result: InboundRoutingResult | null;

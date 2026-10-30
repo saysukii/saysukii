@@ -336,6 +336,9 @@ export function mailParty(message: InquiryMessageRow, clientName: string | null 
       const inbound = (message.direction === "inbound" && message.channel !== "form") || relayed;
       return { ...split, text: inbound ? clientReplyText(split.text) : split.text };
     })(),
+    // a client's letter (or a teammate's from gmail) as their mail app drew it
+    html:
+      (message.direction === "inbound" || relayed) && message.body_html ? message.body_html : null,
     waiting: message.status === "queued",
     failed: message.status === "failed",
   };
