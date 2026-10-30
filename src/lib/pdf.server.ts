@@ -546,6 +546,8 @@ export async function renderInvoicePdf(args: {
   sharedOn?: string | null;
   /** "Booking for … per approved proposal.", the line under the title */
   booking?: string | null;
+  /** the 4% convenience fee on the whole; the deposit and balance already carry their share */
+  feeCents?: number;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Say Sukii Invoice ${args.meta.number}`);
@@ -643,12 +645,20 @@ export async function renderInvoicePdf(args: {
   });
   y -= 22;
 
-  const rows: Array<[string, string, boolean]> = [["Invoice total", money(args.amountCents), true]];
-  if (args.depositCents > 0 && args.depositCents < args.amountCents) {
+  const fee = args.feeCents ?? 0;
+  // with the 4% convenience fee: the amount, the fee, then the total the card is charged
+  const rows: Array<[string, string, boolean]> = fee
+    ? [
+        ["Subtotal", money(args.amountCents), false],
+        ["Convenience fee (4%)", money(fee), false],
+        ["Invoice total", money(args.amountCents + fee), true],
+      ]
+    : [["Invoice total", money(args.amountCents), true]];
+  if (args.depositCents > 0 && args.depositCents < args.amountCents + fee) {
     rows.push(["Deposit due now (50%)", money(args.depositCents), false]);
     rows.push(["Balance due before event", money(args.balanceCents), false]);
   } else {
-    rows.push(["Amount due now", money(args.amountCents), false]);
+    rows.push(["Amount due now", money(args.amountCents + fee), false]);
   }
   for (const [label, value, emphasize] of rows) {
     const size = emphasize ? 14 : 10.5;
@@ -727,6 +737,8 @@ export async function renderReceiptPdf(args: {
   createdOn: string;
   /** "Booking for … per approved proposal.", the line under the title */
   booking?: string | null;
+  /** the 4% convenience fee on the whole, when its payments carried it */
+  feeCents?: number;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Say Sukii Receipt ${args.number}`);
@@ -809,7 +821,7 @@ export async function renderReceiptPdf(args: {
     [
       "Receipt details",
       [
-        money(args.totalCents),
+        money(args.totalCents + (args.feeCents ?? 0)),
         ...(args.eventDate ? [`Event date ${args.eventDate}`] : []),
         ...(args.venue ? [args.venue] : []),
       ],
@@ -873,11 +885,18 @@ export async function renderReceiptPdf(args: {
   const subtotal = args.items.reduce((sum, item) => sum + item.lineTotalCents, 0);
   draw("Subtotal", M, y, 9, light);
   draw(money(subtotal), end, y, 9, light, { align: "right" });
+  const fee = args.feeCents ?? 0;
+  if (fee > 0) {
+    // the 4% convenience fee on the whole, which each payment carries its share of
+    y -= 18;
+    draw("Convenience fee (4%)", M, y, 9, light);
+    draw(money(fee), end, y, 9, light, { align: "right" });
+  }
   y -= 18;
   rule(y);
   y -= 26;
   draw(args.balance ? "Total" : "Total Paid", M, y, 16, regular);
-  draw(money(args.totalCents), end, y, 16, regular, { align: "right" });
+  draw(money(args.totalCents + fee), end, y, 16, regular, { align: "right" });
   y -= 18;
 
   // every payment, and what's left, in a blush card

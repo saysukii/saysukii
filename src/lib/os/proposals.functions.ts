@@ -12,6 +12,7 @@ import type {
   VenueRow,
 } from "@/integrations/supabase/types";
 import { buildAgreementContent } from "@/lib/agreement-templates";
+import { CONVENIENCE_FEE_LABEL, convenienceFee, paymentFee, withFee } from "@/lib/convenience-fee";
 import { invoiceTitle, squareInvoiceNumber } from "@/lib/invoice-title";
 import {
   freeProposalSlug,
@@ -654,17 +655,23 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
       .eq("proposal_id", bundle.proposal.id)
       .maybeSingle();
     if (invoiceError || !invoice) throw new Error("The invoice could not be opened.");
+    // the card carries the 4% convenience fee, its own line in square
+    const fee = paymentFee(due, paid);
+    const charge = due + fee;
     const { createSquareOrder, createSquareCardPayment } = await import("./square.server");
+    const lines = paid > 0 ? balanceOrder(bundle, due) : depositOrder(bundle, due);
     const order = await createSquareOrder({
-      idempotencyKey: `${paid > 0 ? "balance" : "deposit"}-${bundle.proposal.id}-${due}`.slice(
+      idempotencyKey: `${paid > 0 ? "balance" : "deposit"}-${bundle.proposal.id}-${charge}`.slice(
         0,
         45,
       ),
       // square writes its invoice numbers with a dash: SS-751
       referenceId: squareInvoiceNumber(invoiceNumber),
-      ...(paid > 0 ? balanceOrder(bundle, due) : depositOrder(bundle, due)),
+      ...lines,
+      lines: [...lines.lines, { name: CONVENIENCE_FEE_LABEL, amountCents: fee }],
     });
-    if (order.totalCents !== due) throw new Error("The amount due changed. Reload and try again.");
+    if (order.totalCents !== charge)
+      throw new Error("The amount due changed. Reload and try again.");
     await supabaseAdmin
       .from("invoices")
       .update({ square_order_id: order.orderId })
@@ -676,7 +683,7 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
         sourceId: data.source_id,
         verificationToken: data.verification_token,
         idempotencyKey: crypto.randomUUID(),
-        amountCents: due,
+        amountCents: charge,
         orderId: order.orderId,
         referenceId: invoiceNumber,
         buyerEmail: data.receipt_email ?? bundle.client.email,
@@ -694,7 +701,11 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
       return { paid: false as const, status: payment.status ?? "PENDING" };
     }
     const { settleSquarePayment } = await import("./square-paid.server");
-    await settleSquarePayment(payment, { receiptEmail: data.receipt_email ?? null });
+    await settleSquarePayment(payment, {
+      receiptEmail: data.receipt_email ?? null,
+      baseCents: due,
+      feeCents: fee,
+    });
     return { paid: true as const };
   });
 
@@ -1305,7 +1316,14 @@ function proposalOccasion(bundle: ProposalBundle) {
  */
 export async function sendPaidLetters(
   proposalId: string,
-  payment: { amountCents: number; paidAt: string; booking: boolean; receiptEmail?: string | null },
+  payment: {
+    amountCents: number;
+    /** the 4% convenience fee this payment carried */
+    feeCents?: number;
+    paidAt: string;
+    booking: boolean;
+    receiptEmail?: string | null;
+  },
 ) {
   const { paidAt } = payment;
   const bundle = await loadProposalBundleById(proposalId);
@@ -1336,8 +1354,20 @@ export async function sendPaidLetters(
     studioPaidSubject,
   } = await import("./paid-email.server");
   const { loadEmailTemplate } = await import("./email-templates.server");
+  // a payment carried the 4% convenience fee: what the card was charged, beside what it paid toward
+  const charged = (row: { amount_cents: number | null; raw_payload: unknown }) =>
+    Number(
+      (row.raw_payload as { amount_money?: { amount?: number | string } } | null)?.amount_money
+        ?.amount ??
+        row.amount_cents ??
+        0,
+    );
+  const carriesFee =
+    (payment.feeCents ?? 0) > 0 ||
+    (payments ?? []).some((row) => charged(row) > (row.amount_cents ?? 0));
   const letter = {
     template: await loadEmailTemplate(payment.booking ? "booked" : "paid-in-full"),
+    ...(carriesFee ? { feeCents: payment.feeCents ?? 0 } : {}),
     clientName: bundle.client.name,
     invoiceNumber,
     amountCents: payment.amountCents,
@@ -1364,13 +1394,19 @@ export async function sendPaidLetters(
     venue: documentMeta(bundle, "Invoice", invoiceNumber).venue,
     items: invoiceItems(bundle),
     totalCents: bundle.proposal.total_cents,
+    ...(carriesFee ? { feeCents: convenienceFee(bundle.proposal.total_cents) } : {}),
     payments: (payments ?? []).map((row) => ({
-      amountCents: row.amount_cents ?? 0,
+      amountCents: charged(row),
       paidOn: letterDate(row.paid_at ?? paidAt),
       method: paidWith(row.raw_payload),
     })),
     balance:
-      left > 0 ? { amountCents: left, due: letterDate(balanceDueDate(eventDate)) || null } : null,
+      left > 0
+        ? {
+            amountCents: carriesFee ? withFee(left, paid) : left,
+            due: letterDate(balanceDueDate(eventDate)) || null,
+          }
+        : null,
     createdOn: letterDate(new Date().toISOString()),
   });
   files.push({
@@ -1515,7 +1551,8 @@ async function balanceLetter(
     ),
     clientName: bundle.client.name,
     invoiceNumber: invoiceTitle(invoice?.number ?? bundle.proposal.number),
-    balanceCents: balance,
+    // what the page will charge: the balance and its share of the 4% convenience fee
+    balanceCents: withFee(balance, bundle.proposal.total_cents - balance),
     occasion: proposalOccasion(bundle),
     eventDate,
     when,
@@ -1708,7 +1745,8 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
     const square = await createSquarePaymentLink({
       idempotencyKey: `proposal-${bundle.proposal.id}`,
       label: invoiceNumber,
-      amountCents: bundle.proposal.deposit_amount_cents,
+      // the backup checkout carries the 4% convenience fee like the page does
+      amountCents: withFee(bundle.proposal.deposit_amount_cents),
     });
     paymentLink = square.url;
     await supabaseAdmin
@@ -1732,8 +1770,12 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
     meta: documentMeta(bundle, "Invoice", invoiceNumber),
     items,
     amountCents: bundle.proposal.total_cents,
-    depositCents: bundle.proposal.deposit_amount_cents,
-    balanceCents: Math.max(0, bundle.proposal.total_cents - bundle.proposal.deposit_amount_cents),
+    feeCents: convenienceFee(bundle.proposal.total_cents),
+    depositCents: withFee(bundle.proposal.deposit_amount_cents),
+    balanceCents: withFee(
+      Math.max(0, bundle.proposal.total_cents - bundle.proposal.deposit_amount_cents),
+      bundle.proposal.deposit_amount_cents,
+    ),
     dueDate: null,
     sharedOn: invoiceSharedDate(bundle.proposal.sent_at),
     paymentLink,

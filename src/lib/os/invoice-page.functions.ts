@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { CONVENIENCE_FEE_LABEL, convenienceFee, paymentFee } from "@/lib/convenience-fee";
 import { invoiceTitle, squareInvoiceNumber } from "@/lib/invoice-title";
 import { invoiceDueNow, invoiceItemRows } from "@/lib/os/invoice-paid.server";
 
@@ -28,6 +29,9 @@ export const getInvoicePage = createServerFn({ method: "GET" })
       event_date: string | null;
       clients: { name: string; email: string | null } | null;
     } | null;
+    const payments = (row.payments ?? []) as Array<{ fee_cents?: number }>;
+    const carriesFee =
+      row.paid_cents === 0 || payments.some((payment) => (payment.fee_cents ?? 0) > 0);
     return {
       number: invoiceTitle(row.number),
       clientName: inquiry?.clients?.name ?? "",
@@ -45,6 +49,11 @@ export const getInvoicePage = createServerFn({ method: "GET" })
       totalCents: row.total_cents,
       paidCents: row.paid_cents,
       dueCents: Math.max(0, invoiceDueNow(row)),
+      // the 4% convenience fee: on the whole, and on what's due now. an invoice already paid
+      // before the fee began keeps reading as it was paid
+      feeCents: carriesFee ? convenienceFee(row.total_cents) : 0,
+      dueFeeCents: carriesFee ? paymentFee(Math.max(0, invoiceDueNow(row)), row.paid_cents) : 0,
+      feePaidCents: carriesFee ? convenienceFee(row.paid_cents) : 0,
       payInFull: row.pay_in_full,
       sentAt: row.sent_at,
     };
@@ -71,22 +80,28 @@ export const payInquiryInvoice = createServerFn({ method: "POST" })
     const number = invoiceTitle(row.number);
     const items = invoiceItemRows(row.items);
     const firstPayment = row.paid_cents === 0;
+    // the card carries the 4% convenience fee, its own line in square
+    const fee = paymentFee(due, row.paid_cents);
+    const charge = due + fee;
     // paying it all at once lists every item; a deposit or the rest after it is one clear line
     const itemized = firstPayment && due === row.total_cents;
     const { createSquareOrder, createSquareCardPayment } = await import("./square.server");
     const order = await createSquareOrder({
-      idempotencyKey: `addon-${row.id}-${row.paid_cents}-${due}`.slice(0, 45),
+      idempotencyKey: `addon-${row.id}-${row.paid_cents}-${charge}`.slice(0, 45),
       referenceId: squareInvoiceNumber(number),
       ...(itemized
         ? {
-            lines: items.map((item) => {
-              const quantity = item.quantity ?? 1;
-              return {
-                name: `${item.name || "Custom item"}${quantity > 1 ? ` × ${quantity}` : ""}`,
-                ...(item.note ? { note: item.note } : {}),
-                amountCents: (item.unit_cents ?? 0) * quantity,
-              };
-            }),
+            lines: [
+              ...items.map((item) => {
+                const quantity = item.quantity ?? 1;
+                return {
+                  name: `${item.name || "Custom item"}${quantity > 1 ? ` × ${quantity}` : ""}`,
+                  ...(item.note ? { note: item.note } : {}),
+                  amountCents: (item.unit_cents ?? 0) * quantity,
+                };
+              }),
+              { name: CONVENIENCE_FEE_LABEL, amountCents: fee },
+            ],
             discountCents: row.courtesy_cents,
           }
         : {
@@ -96,10 +111,12 @@ export const payInquiryInvoice = createServerFn({ method: "POST" })
                 ...(row.booking ? { note: row.booking } : {}),
                 amountCents: due,
               },
+              { name: CONVENIENCE_FEE_LABEL, amountCents: fee },
             ],
           }),
     });
-    if (order.totalCents !== due) throw new Error("The amount due changed. Reload and try again.");
+    if (order.totalCents !== charge)
+      throw new Error("The amount due changed. Reload and try again.");
     await supabaseAdmin
       .from("inquiry_invoices")
       .update({ square_order_id: order.orderId })
@@ -111,7 +128,7 @@ export const payInquiryInvoice = createServerFn({ method: "POST" })
         sourceId: data.source_id,
         verificationToken: data.verification_token,
         idempotencyKey: crypto.randomUUID(),
-        amountCents: due,
+        amountCents: charge,
         orderId: order.orderId,
         referenceId: number,
         buyerEmail: data.receipt_email ?? null,
@@ -131,6 +148,8 @@ export const payInquiryInvoice = createServerFn({ method: "POST" })
     const { settleInquiryInvoicePayment } = await import("./invoice-paid.server");
     await settleInquiryInvoicePayment(row.id, payment, {
       receiptEmail: data.receipt_email ?? null,
+      baseCents: due,
+      feeCents: fee,
     });
     return { paid: true as const };
   });

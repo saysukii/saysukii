@@ -4,6 +4,7 @@ import {
   templateWords,
   type EmailTemplate,
 } from "@/lib/email-templates";
+import { withFee } from "@/lib/convenience-fee";
 import { emailKind, renderSaySukiiEmail, studioLinkOrigin } from "@/lib/os/email-layout";
 
 export type PaidLetter = {
@@ -30,6 +31,8 @@ export type PaidLetter = {
   addOn?: boolean;
   /** the studio's saved words for this letter; the app's own when there are none */
   template?: EmailTemplate;
+  /** the 4% convenience fee this payment carried; set once payments carry it */
+  feeCents?: number;
 };
 
 /** every date in these letters reads MM/DD/YY */
@@ -64,10 +67,16 @@ export function balanceLine(cents: number, eventDate: string | null | undefined)
 /** the payment with its date, and after a deposit, the balance with its due date */
 function paidFacts(letter: PaidLetter) {
   const left = letter.totalCents - letter.paidCents;
+  const fee = letter.feeCents ?? 0;
+  // what the card was charged, and what's left with its share of the 4% fee
+  const leftCharge = letter.feeCents != null ? withFee(left, letter.paidCents) : left;
   return [
     { label: "invoice", value: letter.invoiceNumber },
-    { label: "paid", value: `${money(letter.amountCents)} on ${letterDate(letter.paidAt)}` },
-    ...(left > 0 ? [{ label: "balance", value: balanceLine(left, letter.eventDate) }] : []),
+    {
+      label: "paid",
+      value: `${money(letter.amountCents + fee)} on ${letterDate(letter.paidAt)}${fee ? ` (incl. ${money(fee)} convenience fee)` : ""}`,
+    },
+    ...(left > 0 ? [{ label: "balance", value: balanceLine(leftCharge, letter.eventDate) }] : []),
     { label: "for", value: forLine(letter) },
   ];
 }
@@ -160,6 +169,8 @@ export function studioPaidSubject(letter: PaidLetter) {
 
 export function paidText(letter: PaidLetter) {
   const left = letter.totalCents - letter.paidCents;
+  const fee = letter.feeCents ?? 0;
+  const leftCharge = letter.feeCents != null ? withFee(left, letter.paidCents) : left;
   const words = paidWords(letter);
   return [
     words.headline,
@@ -167,8 +178,8 @@ export function paidText(letter: PaidLetter) {
     words.body,
     "",
     `invoice: ${letter.invoiceNumber}`,
-    `paid: ${money(letter.amountCents)} on ${letterDate(letter.paidAt)}`,
-    ...(left > 0 ? [`balance: ${balanceLine(left, letter.eventDate)}`] : []),
+    `paid: ${money(letter.amountCents + fee)} on ${letterDate(letter.paidAt)}`,
+    ...(left > 0 ? [`balance: ${balanceLine(leftCharge, letter.eventDate)}`] : []),
     `for: ${forLine(letter)}`,
   ].join("\n");
 }

@@ -1,7 +1,16 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { pushProjectToGoogleCalendar } from "@/lib/os/google.server";
+import { splitCharge } from "@/lib/convenience-fee";
 import type { SquareCompletedPayment } from "@/lib/os/square.server";
+
+type SettleOptions = {
+  receiptEmail?: string | null;
+  /** what the payment paid toward the total, when the page that charged it already knows */
+  baseCents?: number;
+  /** its 4% convenience fee */
+  feeCents?: number;
+};
 
 /**
  * A completed square payment: mark it paid, open the project, and tell the client their date is held.
@@ -9,7 +18,7 @@ import type { SquareCompletedPayment } from "@/lib/os/square.server";
  */
 export async function settleSquarePayment(
   payment: SquareCompletedPayment,
-  options: { receiptEmail?: string | null } = {},
+  options: SettleOptions = {},
 ) {
   if (!payment.order_id) throw new Error("Square payment is missing an order");
   if (await settleLeadInvoice(payment, options)) return;
@@ -30,7 +39,19 @@ export async function settleSquarePayment(
     .maybeSingle();
   if (known) return;
 
-  const amount = Number(payment.amount_money?.amount ?? invoice.amount_cents);
+  // what the card was charged, taken apart: what it paid toward the proposal, and the 4% fee
+  const charged = Number(payment.amount_money?.amount ?? invoice.amount_cents);
+  const { data: earlier } = await supabaseAdmin
+    .from("payments")
+    .select("amount_cents")
+    .eq("proposal_id", invoice.proposal_id)
+    .eq("status", "completed");
+  const paidBefore = (earlier ?? []).reduce((sum, row) => sum + (row.amount_cents ?? 0), 0);
+  const split =
+    options.baseCents != null
+      ? { baseCents: options.baseCents, feeCents: options.feeCents ?? 0 }
+      : splitCharge(charged, paidBefore);
+  const amount = split.baseCents;
   const paidAt = payment.updated_at ?? new Date().toISOString();
   const { data: paymentRow, error: paymentError } = await supabaseAdmin
     .from("payments")
@@ -68,6 +89,7 @@ export async function settleSquarePayment(
   const { sendPaidLetters } = await import("@/lib/os/proposals.functions");
   await sendPaidLetters(invoice.proposal_id, {
     amountCents: amount,
+    feeCents: split.feeCents,
     paidAt,
     booking: !before,
     receiptEmail: options.receiptEmail ?? null,
@@ -101,10 +123,7 @@ export async function settleSquarePayment(
  * A lead's own invoice. One paid on its page in the app is kept payment by payment, each once; an
  * older one sent through square's invoice page asks square where it stands instead.
  */
-async function settleLeadInvoice(
-  payment: SquareCompletedPayment,
-  options: { receiptEmail?: string | null },
-) {
+async function settleLeadInvoice(payment: SquareCompletedPayment, options: SettleOptions) {
   const { data: row, error } = await supabaseAdmin
     .from("inquiry_invoices")
     .select("id, square_invoice_id, inquiry_id")

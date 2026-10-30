@@ -50,7 +50,11 @@ export function AddOnInvoice({ token }: { token: string }) {
           <header className="client-invoice-head">
             <div>
               <p className="client-invoice-kicker">{paid ? "paid" : dueLabel.toLowerCase()}</p>
-              <strong>{formatMoneyExact(paid ? data.totalCents : data.dueCents)}</strong>
+              <strong>
+                {formatMoneyExact(
+                  paid ? data.totalCents + data.feeCents : data.dueCents + data.dueFeeCents,
+                )}
+              </strong>
               <em>
                 {data.number}
                 {sharedOn ? ` · shared ${sharedOn}` : ""}
@@ -106,20 +110,32 @@ export function AddOnInvoice({ token }: { token: string }) {
                 <span>−{formatMoneyExact(data.courtesyCents)}</span>
               </div>
             ) : null}
+            {data.feeCents > 0 ? (
+              <>
+                <div>
+                  <span>subtotal</span>
+                  <span>{formatMoneyExact(data.totalCents)}</span>
+                </div>
+                <div>
+                  <span>convenience fee (4%)</span>
+                  <span>{formatMoneyExact(data.feeCents)}</span>
+                </div>
+              </>
+            ) : null}
             <div>
               <span>total</span>
-              <span>{formatMoneyExact(data.totalCents)}</span>
+              <span>{formatMoneyExact(data.totalCents + data.feeCents)}</span>
             </div>
             {depositIn ? (
               <div>
                 <span>paid</span>
-                <span>−{formatMoneyExact(data.paidCents)}</span>
+                <span>−{formatMoneyExact(data.paidCents + data.feePaidCents)}</span>
               </div>
             ) : null}
             <div className="is-due">
               <span>{dueLabel.toLowerCase()}</span>
               <span>
-                {formatMoneyExact(paid ? 0 : data.dueCents)}
+                {formatMoneyExact(paid ? 0 : data.dueCents + data.dueFeeCents)}
                 {paid ? <span className="client-packet-paid">Paid</span> : null}
               </span>
             </div>
@@ -136,12 +152,13 @@ export function AddOnInvoice({ token }: { token: string }) {
                 <SquarePay
                   invoice
                   token={token}
-                  amountCents={data.dueCents}
+                  amountCents={data.dueCents + data.dueFeeCents}
                   clientName={data.clientName}
                   clientEmail={data.clientEmail}
                   summary={{
                     service: depositIn ? `${service} · balance` : service,
                     eventDate: eventShort,
+                    feeCents: data.dueFeeCents,
                   }}
                   onPaid={() => void queryClient.invalidateQueries({ queryKey })}
                 />

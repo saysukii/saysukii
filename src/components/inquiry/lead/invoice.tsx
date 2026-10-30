@@ -15,6 +15,7 @@ import {
   type StatementOfWork,
 } from "@/lib/floral-agreement";
 import { dollarsToCents, formatDollarInput } from "@/lib/proposal-link";
+import { convenienceFee, withFee } from "@/lib/convenience-fee";
 import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
 import {
   customItem,
@@ -183,13 +184,17 @@ export function InvoicePreview({
   catalog?: ItemCatalog;
   onItems?: (next: InvoiceItem[]) => void;
   /** which payment this invoice asks for, and when it was paid, once a deposit splits it in two */
-  due?: { label: string; cents: number; paidOn?: string | null };
+  due?: { label: string; cents: number; paidOn?: string | null; paidBeforeCents?: number };
 }) {
   const dueLabel =
     dueOverride?.label ??
     (depositCents >= totalCents && totalCents > 0 ? "due in full" : "deposit due");
   const total = formatMoneyExact(totalCents);
-  const due = formatMoneyExact(dueOverride?.cents ?? depositCents);
+  // the client's card carries the 4% convenience fee: on the whole, and each payment its share
+  const feeCents = convenienceFee(totalCents);
+  const due = formatMoneyExact(
+    withFee(dueOverride?.cents ?? depositCents, dueOverride?.paidBeforeCents ?? 0),
+  );
   const paidOn = dueOverride?.paidOn ?? null;
   const shared = invoiceSharedDate(issuedOn);
   // with no items picked yet, the amount typed above stands in as one line
@@ -378,6 +383,14 @@ export function InvoicePreview({
         <span>{total}</span>
       </div>
       <div>
+        <span>convenience fee (4%)</span>
+        <span>{formatMoneyExact(feeCents)}</span>
+      </div>
+      <div>
+        <span>total</span>
+        <span>{formatMoneyExact(totalCents + feeCents)}</span>
+      </div>
+      <div>
         <span>
           {dueLabel}
           {paidOn ? ` · paid ${paidOn}` : ""}
@@ -469,7 +482,12 @@ export function PacketPreview({
   /** the owner's signature, which countersigns once the client has signed */
   studioSigned?: { name: string; image: string } | null;
   /** for a deposit, which of the two invoices this is */
-  invoiceDue?: { label: string; cents: number; paidOn?: string | null } | null;
+  invoiceDue?: {
+    label: string;
+    cents: number;
+    paidOn?: string | null;
+    paidBeforeCents?: number;
+  } | null;
 }) {
   const pages = stored?.pageUrls ?? [];
   const frame = fileUrl || stored?.pdfDataUrl || "";
@@ -665,6 +683,7 @@ export function SignedPacket({
       ? {
           label: balanceDue ? `balance due ${balanceDue}` : "balance due",
           cents: packet.totalCents - packet.depositCents,
+          paidBeforeCents: packet.depositCents,
           paidOn: second?.paid_at ? formatDateNumeric(second.paid_at) : null,
         }
       : {
@@ -683,7 +702,10 @@ export function SignedPacket({
         : `paid in full ${formatDateNumeric(packet.payments.at(-1)?.paid_at ?? first.paid_at)}`
       : "deposit not paid yet",
     ...(first && balanceCents > 0
-      ? [`${formatMoneyExact(balanceCents)} due${balanceDue ? ` ${balanceDue}` : ""}`]
+      ? [
+          // what the client's card will be charged: the balance and its share of the 4% fee
+          `${formatMoneyExact(withFee(balanceCents, paidCents))} due${balanceDue ? ` ${balanceDue}` : ""}`,
+        ]
       : []),
   ];
 

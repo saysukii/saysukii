@@ -22,6 +22,7 @@ import {
   INVOICE_THANKS,
 } from "@/lib/floral-agreement";
 import { invoiceTitle } from "@/lib/invoice-title";
+import { convenienceFee, withFee } from "@/lib/convenience-fee";
 import { formatMoneyExact } from "@/lib/money";
 import {
   acceptPreviewProposal,
@@ -302,6 +303,12 @@ export function ProposalPacket({ token }: { token: string }) {
     data?.proposal.deposit_amount_cents ??
     optionDeposit(totalCents, payPercent);
   const listCents = totalCents + courtesyCents;
+  // the 4% convenience fee goes on the whole; the deposit is half of that total, the balance the rest
+  const feeCents = convenienceFee(totalCents);
+  const depositCharge = withFee(depositCents, 0);
+  const depositFee = depositCharge - depositCents;
+  const balanceCharge = withFee(balanceLeft, paidCents);
+  const laterBalance = Math.max(0, totalCents - depositCents);
   const packageName = floralPackageName(work.occasion || occasion);
   const eventShort = shortDate(preview?.eventDate ?? data?.proposal.event_date ?? "");
   const bookingLine = invoiceBookingLine(
@@ -469,12 +476,24 @@ export function ProposalPacket({ token }: { token: string }) {
           <span>Proposal total</span>
           <span>{formatMoneyExact(totalCents)}</span>
         </div>
+        <div className="client-packet-row">
+          <span>Convenience fee (4%)</span>
+          <span>{formatMoneyExact(feeCents)}</span>
+        </div>
+        <div className="client-packet-row">
+          <span>Total</span>
+          <span>{formatMoneyExact(totalCents + feeCents)}</span>
+        </div>
         <div className="client-packet-row client-packet-total">
           <span>
-            {paid ? "Balance due" : depositCents >= totalCents ? "Due in full" : "Deposit due"}
+            {paid || depositIn
+              ? "Balance due"
+              : depositCents >= totalCents
+                ? "Due in full"
+                : "Deposit due"}
           </span>
           <span>
-            {formatMoneyExact(paid ? 0 : depositCents)}
+            {formatMoneyExact(paid ? 0 : depositIn ? balanceCharge : depositCharge)}
             {paid ? <span className="client-packet-paid">Paid</span> : null}
           </span>
         </div>
@@ -649,7 +668,7 @@ export function ProposalPacket({ token }: { token: string }) {
             ) : depositIn ? (
               <div className="client-packet-balance">
                 <p className="client-packet-stamp" style={{ marginTop: 0 }}>
-                  Deposit received. {formatMoneyExact(balanceLeft)} remaining
+                  Deposit received. {formatMoneyExact(balanceCharge)} remaining
                   {data?.balanceDue ? `, due ${shortDate(data.balanceDue)}` : ""}.
                 </p>
                 <p className="client-packet-client">
@@ -657,10 +676,14 @@ export function ProposalPacket({ token }: { token: string }) {
                 </p>
                 <SquarePay
                   token={token}
-                  amountCents={balanceLeft}
+                  amountCents={balanceCharge}
                   clientName={clientName}
                   clientEmail={clientEmail}
-                  summary={{ service: `${packageName} · balance`, eventDate: eventShort }}
+                  summary={{
+                    service: `${packageName} · balance`,
+                    eventDate: eventShort,
+                    feeCents: balanceCharge - balanceLeft,
+                  }}
                   onPaid={() =>
                     void queryClient.invalidateQueries({ queryKey: ["public-proposal", token] })
                   }
@@ -670,16 +693,17 @@ export function ProposalPacket({ token }: { token: string }) {
               <SquarePay
                 demo
                 token={token}
-                amountCents={depositCents}
+                amountCents={depositCharge}
                 clientName={clientName}
                 clientEmail={clientEmail}
                 summary={{
                   service: packageName,
                   eventDate: eventShort,
+                  feeCents: depositFee,
                   balance:
                     depositCents < totalCents && preview.eventDate
                       ? {
-                          amountCents: totalCents - depositCents,
+                          amountCents: withFee(laterBalance, depositCents),
                           due: previewBalanceDue(preview.eventDate),
                         }
                       : null,
@@ -689,16 +713,20 @@ export function ProposalPacket({ token }: { token: string }) {
             ) : (
               <SquarePay
                 token={token}
-                amountCents={depositCents}
+                amountCents={depositCharge}
                 clientName={clientName}
                 clientEmail={clientEmail}
                 fallbackHref={link}
                 summary={{
                   service: packageName,
                   eventDate: eventShort,
+                  feeCents: depositFee,
                   balance:
                     depositCents < totalCents && data?.balanceDue
-                      ? { amountCents: totalCents - depositCents, due: shortDate(data.balanceDue) }
+                      ? {
+                          amountCents: withFee(laterBalance, depositCents),
+                          due: shortDate(data.balanceDue),
+                        }
                       : null,
                 }}
                 onPaid={() =>

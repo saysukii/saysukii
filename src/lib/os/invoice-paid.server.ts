@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { InquiryInvoicePayment, InquiryInvoiceRow, Json } from "@/integrations/supabase/types";
+import { convenienceFee, splitCharge, withFee } from "@/lib/convenience-fee";
 import { floralPackageName } from "@/lib/floral-agreement";
 import { invoiceTitle } from "@/lib/invoice-title";
 import type { SquareCompletedPayment } from "@/lib/os/square.server";
@@ -29,7 +30,7 @@ export function invoiceDueNow(
 export async function settleInquiryInvoicePayment(
   invoiceId: string,
   payment: SquareCompletedPayment,
-  options: { receiptEmail?: string | null } = {},
+  options: { receiptEmail?: string | null; baseCents?: number; feeCents?: number } = {},
 ) {
   const { data: row, error } = await supabaseAdmin
     .from("inquiry_invoices")
@@ -41,13 +42,20 @@ export async function settleInquiryInvoicePayment(
   if (kept.some((item) => item.square_payment_id === payment.id)) return;
 
   const { paidWith } = await import("./proposals.functions");
-  const amount = Number(payment.amount_money?.amount ?? 0);
+  // what the card was charged, taken apart: what it paid toward the invoice, and the 4% fee
+  const charged = Number(payment.amount_money?.amount ?? 0);
+  const split =
+    options.baseCents != null
+      ? { baseCents: options.baseCents, feeCents: options.feeCents ?? 0 }
+      : splitCharge(charged, row.paid_cents);
+  const amount = split.baseCents;
   const paidAt = payment.updated_at ?? new Date().toISOString();
   const payments = [
     ...kept,
     {
       square_payment_id: payment.id,
       amount_cents: amount,
+      fee_cents: split.feeCents,
       paid_at: paidAt,
       method: paidWith(payment),
     },
@@ -109,6 +117,8 @@ async function sendInvoiceReceipt(
   } = await import("./paid-email.server");
   const { renderReceiptPdf } = await import("@/lib/pdf.server");
   const left = Math.max(0, row.total_cents - row.paid_cents);
+  // once its payments carry the 4% convenience fee, the receipt shows it
+  const carriesFee = payments.some((item) => (item.fee_cents ?? 0) > 0);
   const receipt = await renderReceiptPdf({
     number,
     title: [
@@ -149,12 +159,16 @@ async function sendInvoiceReceipt(
         : []),
     ],
     totalCents: row.total_cents,
+    ...(carriesFee ? { feeCents: convenienceFee(row.total_cents) } : {}),
     payments: payments.map((item) => ({
-      amountCents: item.amount_cents,
+      amountCents: item.amount_cents + (item.fee_cents ?? 0),
       paidOn: letterDate(item.paid_at),
       method: item.method,
     })),
-    balance: left > 0 ? { amountCents: left, due: null } : null,
+    balance:
+      left > 0
+        ? { amountCents: carriesFee ? withFee(left, row.paid_cents) : left, due: null }
+        : null,
     createdOn: letterDate(new Date().toISOString()),
   });
   const files = [
@@ -170,6 +184,7 @@ async function sendInvoiceReceipt(
   ).catch((fileError: unknown) => console.error("[add-on paid] client file:", fileError));
 
   const letter = {
+    ...(carriesFee ? { feeCents: payments.at(-1)?.fee_cents ?? 0 } : {}),
     clientName: client?.name ?? "",
     invoiceNumber: number,
     amountCents: amount,

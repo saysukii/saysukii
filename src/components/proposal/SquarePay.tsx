@@ -78,6 +78,8 @@ function loadSquare(src: string) {
 export type PaySummary = {
   service: string;
   eventDate: string;
+  /** the 4% convenience fee inside the amount due now */
+  feeCents?: number;
   /** after this payment, what's left and when it's due (a deposit) */
   balance?: { amountCents: number; due: string } | null;
 };
@@ -309,6 +311,12 @@ export function SquarePay({
                   <div>
                     <dt>event</dt>
                     <dd>{summary.eventDate}</dd>
+                  </div>
+                ) : null}
+                {summary.feeCents ? (
+                  <div>
+                    <dt>fee</dt>
+                    <dd>includes {formatMoneyExact(summary.feeCents)} convenience fee (4%)</dd>
                   </div>
                 ) : null}
                 {summary.balance ? (

@@ -197,6 +197,8 @@ export type InquiryInvoiceStatus = "sent" | "deposit_paid" | "paid" | "canceled"
 export type InquiryInvoicePayment = {
   square_payment_id: string;
   amount_cents: number;
+  /** the 4% convenience fee it carried, on top of amount_cents */
+  fee_cents?: number;
   paid_at: string;
   method: string | null;
 };
