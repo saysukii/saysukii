@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, FileRow } from "@/integrations/supabase/types";
+import { appFileLink } from "@/lib/app-file-link";
 import { invoiceTitle } from "@/lib/invoice-title";
 import { clientSlugs } from "@/lib/os/inquiry-desk";
 
@@ -207,7 +208,7 @@ async function signedUrls(supabase: SupabaseClient<Database>, bucket: string, pa
   if (paths.length === 0) return links;
   const { data } = await supabase.storage.from(bucket).createSignedUrls(paths, 60 * 30);
   for (const row of data ?? []) {
-    if (row.path && row.signedUrl) links.set(row.path, row.signedUrl);
+    if (row.path && row.signedUrl) links.set(row.path, appFileLink(row.signedUrl)!);
   }
   return links;
 }

@@ -18,6 +18,7 @@ import { Route as BookingStudiesRouteImport } from './routes/booking-studies'
 import { Route as EmailPreviewRouteImport } from './routes/email-preview'
 import { Route as InquireRouteImport } from './routes/inquire'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PayMockRouteImport } from './routes/pay-mock'
 import { Route as PayStudiesRouteImport } from './routes/pay-studies'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
@@ -28,6 +29,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedShelfRouteImport } from './routes/_authenticated/shelf'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as DevFileKindRouteImport } from './routes/dev-file.$kind'
+import { Route as FileSplatRouteImport } from './routes/file.$'
 import { Route as InquireIndexRouteImport } from './routes/inquire.index'
 import { Route as InquirePreviewRouteImport } from './routes/inquire.preview'
 import { Route as LetterIdRouteImport } from './routes/letter.$id'
@@ -95,6 +97,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PayMockRoute = PayMockRouteImport.update({
+  id: '/pay-mock',
+  path: '/pay-mock',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PayStudiesRoute = PayStudiesRouteImport.update({
   id: '/pay-studies',
   path: '/pay-studies',
@@ -143,6 +150,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
 const DevFileKindRoute = DevFileKindRouteImport.update({
   id: '/dev-file/$kind',
   path: '/dev-file/$kind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FileSplatRoute = FileSplatRouteImport.update({
+  id: '/file/$',
+  path: '/file/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InquireIndexRoute = InquireIndexRouteImport.update({
@@ -276,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/email-preview': typeof EmailPreviewRoute
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/pay-mock': typeof PayMockRoute
   '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
   '/calendar': typeof AuthenticatedCalendarRoute
@@ -286,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/dev-file/$kind': typeof DevFileKindRoute
+  '/file/$': typeof FileSplatRoute
   '/inquire/preview': typeof InquirePreviewRoute
   '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
@@ -317,6 +331,7 @@ export interface FileRoutesByTo {
   '/booking-studies': typeof BookingStudiesRoute
   '/email-preview': typeof EmailPreviewRoute
   '/onboarding': typeof OnboardingRoute
+  '/pay-mock': typeof PayMockRoute
   '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
   '/calendar': typeof AuthenticatedCalendarRoute
@@ -327,6 +342,7 @@ export interface FileRoutesByTo {
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/dev-file/$kind': typeof DevFileKindRoute
+  '/file/$': typeof FileSplatRoute
   '/inquire/preview': typeof InquirePreviewRoute
   '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
@@ -359,6 +375,7 @@ export interface FileRoutesById {
   '/email-preview': typeof EmailPreviewRoute
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/pay-mock': typeof PayMockRoute
   '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
@@ -369,6 +386,7 @@ export interface FileRoutesById {
   '/_authenticated/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/dev-file/$kind': typeof DevFileKindRoute
+  '/file/$': typeof FileSplatRoute
   '/inquire/preview': typeof InquirePreviewRoute
   '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
@@ -403,6 +421,7 @@ export interface FileRouteTypes {
     | '/email-preview'
     | '/inquire'
     | '/onboarding'
+    | '/pay-mock'
     | '/pay-studies'
     | '/schedule'
     | '/calendar'
@@ -413,6 +432,7 @@ export interface FileRouteTypes {
     | '/shelf'
     | '/auth/callback'
     | '/dev-file/$kind'
+    | '/file/$'
     | '/inquire/preview'
     | '/letter/$id'
     | '/proposal/$token'
@@ -444,6 +464,7 @@ export interface FileRouteTypes {
     | '/booking-studies'
     | '/email-preview'
     | '/onboarding'
+    | '/pay-mock'
     | '/pay-studies'
     | '/schedule'
     | '/calendar'
@@ -454,6 +475,7 @@ export interface FileRouteTypes {
     | '/shelf'
     | '/auth/callback'
     | '/dev-file/$kind'
+    | '/file/$'
     | '/inquire/preview'
     | '/letter/$id'
     | '/proposal/$token'
@@ -485,6 +507,7 @@ export interface FileRouteTypes {
     | '/email-preview'
     | '/inquire'
     | '/onboarding'
+    | '/pay-mock'
     | '/pay-studies'
     | '/schedule'
     | '/_authenticated/calendar'
@@ -495,6 +518,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shelf'
     | '/auth/callback'
     | '/dev-file/$kind'
+    | '/file/$'
     | '/inquire/preview'
     | '/letter/$id'
     | '/proposal/$token'
@@ -529,9 +553,11 @@ export interface RootRouteChildren {
   EmailPreviewRoute: typeof EmailPreviewRoute
   InquireRoute: typeof InquireRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  PayMockRoute: typeof PayMockRoute
   PayStudiesRoute: typeof PayStudiesRoute
   ScheduleRoute: typeof ScheduleRoute
   DevFileKindRoute: typeof DevFileKindRoute
+  FileSplatRoute: typeof FileSplatRoute
   LetterIdRoute: typeof LetterIdRoute
   ProposalTokenRoute: typeof ProposalTokenRoute
   ApiCronBalanceRemindersRoute: typeof ApiCronBalanceRemindersRoute
@@ -609,6 +635,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pay-mock': {
+      id: '/pay-mock'
+      path: '/pay-mock'
+      fullPath: '/pay-mock'
+      preLoaderRoute: typeof PayMockRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pay-studies': {
       id: '/pay-studies'
       path: '/pay-studies'
@@ -677,6 +710,13 @@ declare module '@tanstack/react-router' {
       path: '/dev-file/$kind'
       fullPath: '/dev-file/$kind'
       preLoaderRoute: typeof DevFileKindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/file/$': {
+      id: '/file/$'
+      path: '/file/$'
+      fullPath: '/file/$'
+      preLoaderRoute: typeof FileSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inquire/': {
@@ -940,9 +980,11 @@ const rootRouteChildren: RootRouteChildren = {
   EmailPreviewRoute: EmailPreviewRoute,
   InquireRoute: InquireRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  PayMockRoute: PayMockRoute,
   PayStudiesRoute: PayStudiesRoute,
   ScheduleRoute: ScheduleRoute,
   DevFileKindRoute: DevFileKindRoute,
+  FileSplatRoute: FileSplatRoute,
   LetterIdRoute: LetterIdRoute,
   ProposalTokenRoute: ProposalTokenRoute,
   ApiCronBalanceRemindersRoute: ApiCronBalanceRemindersRoute,

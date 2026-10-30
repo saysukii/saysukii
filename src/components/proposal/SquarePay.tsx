@@ -94,6 +94,7 @@ export function SquarePay({
   summary,
   onPaid,
   demo = false,
+  startOpen = false,
 }: {
   token: string;
   amountCents: number;
@@ -105,13 +106,15 @@ export function SquarePay({
   onPaid: () => void;
   /** the local preview: the same pop-up with stand-in card fields, and nothing is charged */
   demo?: boolean;
+  /** opens the pop-up straight away, for a mock of it */
+  startOpen?: boolean;
 }) {
   const fetchConfig = useServerFn(getSquarePayConfig);
   const pay = useServerFn(payProposalDeposit);
   const cardHost = useRef<HTMLDivElement>(null);
   const card = useRef<SquareCard | null>(null);
   const applePay = useRef<SquareApplePay | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [ready, setReady] = useState(false);
   const [hasApplePay, setHasApplePay] = useState(false);
   const [unavailable, setUnavailable] = useState(false);

@@ -21,6 +21,7 @@ import type {
   RoutingLabelKind,
   RoutingLabelSource,
 } from "../../integrations/supabase/types";
+import { capitalizeName } from "@/lib/name-case";
 import { subjectStart } from "@/lib/email-templates";
 
 import { BOOK_DETECTION_STATUSES } from "./inquiry-detection";
@@ -1411,7 +1412,7 @@ async function createCandidateSupabase(input: {
       const { data: created, error: createError } = await supabaseAdmin
         .from("clients")
         .insert({
-          name,
+          name: capitalizeName(name),
           email,
           type: clientTypeFromEvent(eventType),
           source: "gmail",

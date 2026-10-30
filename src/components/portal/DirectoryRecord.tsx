@@ -1,8 +1,12 @@
 import { Link } from "@tanstack/react-router";
+import { X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
+import { PersonName } from "@/components/studio/PersonName";
 import { PlaceLink } from "@/components/studio/PlaceLink";
+import type { DirectoryContact } from "@/integrations/supabase/types";
+import { formatPhone, typePhone } from "@/lib/phone";
 import { withoutCountry } from "@/lib/place-text";
 
 /** A vendor or venue laid out like a client: the work on the left, the facts on the right. */
@@ -163,5 +167,87 @@ export function RecordEmail({ email }: { email: string | null | undefined }) {
         {address}
       </a>
     </p>
+  );
+}
+
+export function RecordContacts({ contacts }: { contacts: DirectoryContact[] }) {
+  if (!contacts.length) return <p className="studio-empty">no contact yet.</p>;
+  return contacts.map((person, index) => (
+    <div key={`${person.email}-${index}`} className="studio-record-contact">
+      {person.name ? (
+        <p>
+          <PersonName name={person.name} />
+        </p>
+      ) : null}
+      {person.phone ? <p>{formatPhone(person.phone)}</p> : null}
+      <RecordEmail email={person.email} />
+    </div>
+  ));
+}
+
+/** the contact fields in an edit form, with room to add another person */
+export function ContactFields({
+  contacts,
+  onChange,
+}: {
+  contacts: DirectoryContact[];
+  onChange: (contacts: DirectoryContact[]) => void;
+}) {
+  const rows = contacts.length ? contacts : [{ name: "", email: "", phone: "" }];
+  const change = (index: number, patch: Partial<DirectoryContact>) =>
+    onChange(rows.map((person, at) => (at === index ? { ...person, ...patch } : person)));
+  return (
+    <>
+      {rows.map((person, index) => (
+        <div key={index} className="studio-contact-fields is-wide">
+          {index > 0 ? (
+            <div className="studio-contact-head">
+              <span>contact {index + 1}</span>
+              <button
+                type="button"
+                className="studio-file-remove"
+                aria-label={`remove contact ${index + 1}`}
+                onClick={() => onChange(rows.filter((_, at) => at !== index))}
+              >
+                <X aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
+          <label className="studio-field">
+            <span>contact</span>
+            <input
+              className="studio-input"
+              value={person.name}
+              onChange={(event) => change(index, { name: event.target.value })}
+            />
+          </label>
+          <label className="studio-field">
+            <span>phone</span>
+            <input
+              className="studio-input"
+              type="tel"
+              value={person.phone}
+              onChange={(event) => change(index, { phone: typePhone(event.target.value) })}
+            />
+          </label>
+          <label className="studio-field">
+            <span>email</span>
+            <input
+              className="studio-input"
+              type="email"
+              value={person.email}
+              onChange={(event) => change(index, { email: event.target.value })}
+            />
+          </label>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="studio-template-add studio-contact-add"
+        onClick={() => onChange([...rows, { name: "", email: "", phone: "" }])}
+      >
+        + add a contact
+      </button>
+    </>
   );
 }

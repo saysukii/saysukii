@@ -8,6 +8,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       position="bottom-left"
       offset={24}
+      duration={3000}
       toastOptions={{
         unstyled: true,
         classNames: {

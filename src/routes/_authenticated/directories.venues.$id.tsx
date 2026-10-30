@@ -7,20 +7,23 @@ import { toast } from "sonner";
 import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
 import { DirectoryHome } from "@/components/portal/DirectoryHome";
 import {
+  ContactFields,
   DirectoryRecord,
   EditablePlace,
-  RecordEmail,
+  RecordContacts,
   RecordFact,
   RecordNotes,
   RecordWebsite,
 } from "@/components/portal/DirectoryRecord";
 import { PersonName, isPersonType } from "@/components/studio/PersonName";
 import { PlaceLink } from "@/components/studio/PlaceLink";
+import type { DirectoryContact } from "@/integrations/supabase/types";
 import { getDevPreviewDirectories, getDevPreviewPipeline } from "@/lib/dev-preview";
 import { formatDate } from "@/lib/money";
 import { archiveVenue, listDirectories, saveVenue } from "@/lib/os/clients.functions";
 import { listInquiryPipeline } from "@/lib/os/inquiries.functions";
 import { EVENT_LABEL, STATUS_LABEL } from "@/lib/os/inquiry-desk";
+import { contactsForSave, recordContacts } from "@/lib/directory-contacts";
 import { withoutCountry } from "@/lib/place-text";
 import { useDevPreview } from "@/lib/use-dev-preview";
 
@@ -51,9 +54,7 @@ function VenuePage() {
     address: "",
     website: "",
     capacity: "",
-    contact_name: "",
-    contact_email: "",
-    contact_phone: "",
+    contacts: [] as DirectoryContact[],
     load_in_notes: "",
   });
 
@@ -79,9 +80,7 @@ function VenuePage() {
       address: venue.address ?? "",
       website: venue.website ?? "",
       capacity: venue.capacity ?? "",
-      contact_name: venue.contact_name ?? "",
-      contact_email: venue.contact_email ?? "",
-      contact_phone: venue.contact_phone ?? "",
+      contacts: recordContacts(venue),
       load_in_notes: venue.load_in_notes ?? "",
     });
   }, [venue, editing]);
@@ -89,6 +88,8 @@ function VenuePage() {
   const save = useMutation({
     mutationFn: async () => {
       if (!form.name.trim()) throw new Error("a venue needs a name.");
+      const { contacts, ...fields } = form;
+      const saved = { ...fields, ...contactsForSave(contacts) };
       if (devPreview) {
         // preview keeps the edit on screen so the page can be tried
         queryClient.setQueryData<Directories>(queryKey, (current) =>
@@ -96,14 +97,14 @@ function VenuePage() {
             ? {
                 ...current,
                 venues: current.venues.map((item) =>
-                  item.id === id ? { ...item, ...form } : item,
+                  item.id === id ? { ...item, ...saved } : item,
                 ),
               }
             : current,
         );
         return false;
       }
-      await submitVenue({ data: { id, ...form } });
+      await submitVenue({ data: { id, ...saved } });
       return true;
     },
     onSuccess: (saved) => {
@@ -263,32 +264,10 @@ function VenuePage() {
                 onChange={(event) => setForm({ ...form, capacity: event.target.value })}
               />
             </label>
-            <label className="studio-field">
-              <span>contact</span>
-              <input
-                className="studio-input"
-                value={form.contact_name}
-                onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>phone</span>
-              <input
-                className="studio-input"
-                type="tel"
-                value={form.contact_phone}
-                onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>email</span>
-              <input
-                className="studio-input"
-                type="email"
-                value={form.contact_email}
-                onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
-              />
-            </label>
+            <ContactFields
+              contacts={form.contacts}
+              onChange={(contacts) => setForm((current) => ({ ...current, contacts }))}
+            />
             <label className="studio-field is-wide">
               <span>load-in notes</span>
               <textarea
@@ -306,16 +285,7 @@ function VenuePage() {
       rail={
         <>
           <RecordFact label="contact">
-            {venue.contact_name ? (
-              <p>
-                <PersonName name={venue.contact_name} />
-              </p>
-            ) : null}
-            {venue.contact_phone ? <p>{venue.contact_phone}</p> : null}
-            <RecordEmail email={venue.contact_email} />
-            {!venue.contact_name && !venue.contact_phone && !venue.contact_email ? (
-              <p className="studio-empty">no contact yet.</p>
-            ) : null}
+            <RecordContacts contacts={recordContacts(venue)} />
           </RecordFact>
           <p className="studio-home-label">location</p>
           <EditablePlace

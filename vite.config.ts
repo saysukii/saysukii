@@ -8,6 +8,20 @@ import { nitro } from "nitro/vite";
 export default defineConfig(({ command }) => {
   const nitroPreset =
     process.env["NETLIFY"] || process.env["NITRO_PRESET"] === "netlify" ? "netlify" : undefined;
+  // studio files open on the studio's own address: /file/… is passed straight through to storage's
+  // signed link (token and all), so a large proposal never runs through the app's server
+  const storage = (process.env["SUPABASE_URL"] ?? process.env["VITE_SUPABASE_URL"] ?? "").replace(
+    /\/$/,
+    "",
+  );
+  const routeRules = storage
+    ? Object.fromEntries(
+        ["project-files", "documents"].map((bucket) => [
+          `/file/${bucket}/**`,
+          { proxy: `${storage}/storage/v1/object/sign/${bucket}/**` },
+        ]),
+      )
+    : {};
 
   return {
     server: {
@@ -38,7 +52,9 @@ export default defineConfig(({ command }) => {
         },
         server: { entry: "server" },
       }),
-      ...(command === "build" ? [nitro(nitroPreset ? { preset: nitroPreset } : {})] : []),
+      ...(command === "build"
+        ? [nitro({ ...(nitroPreset ? { preset: nitroPreset } : {}), routeRules })]
+        : []),
       viteReact(),
     ],
   };

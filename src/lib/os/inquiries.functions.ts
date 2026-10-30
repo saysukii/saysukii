@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, EventType, InquiryStatus } from "@/integrations/supabase/types";
+import { appFileLink } from "@/lib/app-file-link";
+import { capitalizeName } from "@/lib/name-case";
 import { inquirySlugs, isRecordUuid, shareNote } from "@/lib/os/inquiry-desk";
 import { belongsInReview } from "@/lib/os/inquiry-mail";
 import { lessonVerdict } from "@/lib/os/inquiry-lessons";
@@ -116,7 +118,7 @@ async function findOrCreateClient(client: StudioClient, input: InquiryDetails) {
   const { data: created, error: createError } = await client
     .from("clients")
     .insert({
-      name: input.name.trim(),
+      name: capitalizeName(input.name),
       email: normalizedEmail,
       phone: input.phone || null,
       organization: input.organization || null,
@@ -838,7 +840,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
         return {
           ...file,
           name: file.file_path.split("/").pop() ?? "file",
-          signed_url: signed.data?.signedUrl ?? null,
+          signed_url: appFileLink(signed.data?.signedUrl),
         };
       }),
     );
@@ -921,7 +923,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
         );
         return {
           ...proposal,
-          pdf_url: signed?.data?.signedUrl ?? null,
+          pdf_url: appFileLink(signed?.data?.signedUrl),
           file_name: fileNameFromNotes(proposal.notes),
           invoice_number: invoiceNumber ? invoiceTitle(invoiceNumber) : null,
           signed:

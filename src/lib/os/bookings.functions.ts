@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { capitalizeName } from "@/lib/name-case";
 
 const bookingInput = z.object({
   startsAt: z.string().datetime(),
@@ -74,7 +75,7 @@ export const bookAppointment = createServerFn({ method: "POST" })
         .from("appointments")
         .insert({
           starts_at: data.startsAt,
-          guest_name: data.name,
+          guest_name: capitalizeName(data.name),
           guest_email: data.email,
           note: data.note || null,
         })
@@ -90,7 +91,7 @@ export const bookAppointment = createServerFn({ method: "POST" })
     const mail = {
       template: await loadEmailTemplate("call-booked"),
       startsAt: data.startsAt,
-      name: data.name,
+      name: capitalizeName(data.name),
       email: data.email,
       note: data.note,
       durationMinutes,

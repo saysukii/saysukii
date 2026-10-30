@@ -807,14 +807,11 @@ export async function renderReceiptPdf(args: {
     [
       "Payment",
       [
-        `Paid ${payment.paidOn}`,
-        money(payment.amountCents),
-        ...(args.balance
-          ? [
-              args.balance.due ? `Balance due ${args.balance.due}` : "Balance due",
-              money(args.balance.amountCents),
-            ]
-          : ["Paid in full"]),
+        // each on one line: "Paid 10/30/26 • $2,305.00"
+        `Paid ${payment.paidOn} • ${money(payment.amountCents)}`,
+        args.balance
+          ? `Balance${args.balance.due ? ` ${args.balance.due}` : ""} • ${money(args.balance.amountCents)}`
+          : "Paid in full",
       ],
     ],
   ];

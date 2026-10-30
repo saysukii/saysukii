@@ -30,7 +30,7 @@ export function formatSendAt(value: string) {
   });
 }
 
-export const MAIL_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g;
+export const MAIL_LINK = /\[([^\]\n]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/g;
 
 export function normalizeHref(value: string) {
   const href = value.trim();

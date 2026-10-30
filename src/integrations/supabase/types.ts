@@ -79,6 +79,9 @@ export type ClientRow = {
   updated_at: string;
 };
 
+/** one more person to reach at a venue or vendor */
+export type DirectoryContact = { name: string; email: string; phone: string };
+
 export type VenueRow = {
   id: string;
   name: string;
@@ -86,6 +89,8 @@ export type VenueRow = {
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  /** everyone to reach after the first contact */
+  more_contacts?: DirectoryContact[] | null;
   load_in_notes: string | null;
   category?: string | null;
   website?: string | null;
@@ -102,6 +107,8 @@ export type VendorRow = {
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  /** everyone to reach after the first contact */
+  more_contacts?: DirectoryContact[] | null;
   ordering_method: string | null;
   address?: string | null;
   archived: boolean;

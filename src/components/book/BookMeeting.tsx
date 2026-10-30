@@ -51,11 +51,11 @@ export function BookMeeting({
 
   const fetchBusy = useServerFn(listMeetingBusy);
   const fetchSettings = useServerFn(getCalendarSettings);
-  const { data: availability } = useQuery({
+  const { data: availability, isPending: busyPending } = useQuery({
     queryKey: ["meeting-busy"],
     queryFn: () => fetchBusy(),
   });
-  const { data: remoteSettings } = useQuery({
+  const { data: remoteSettings, isPending: settingsPending } = useQuery({
     queryKey: ["calendar-settings"],
     queryFn: () => fetchSettings().catch(() => null),
   });
@@ -74,6 +74,24 @@ export function BookMeeting({
     // a new booking lands in this browser's store, so it re-reads the store when one is made
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availability?.busy, booked, settings.durationMinutes]);
+  // the page opens on the first day with an opening, so a full or closed day never greets them
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || day || busyPending || settingsPending) return;
+    opened.current = true;
+    const start = new Date();
+    start.setHours(12, 0, 0, 0);
+    for (let ahead = 0; ahead <= settings.horizonDays; ahead += 1) {
+      const next = new Date(start);
+      next.setDate(start.getDate() + ahead);
+      if (!isBookableDay(next, settings)) continue;
+      if (!daySlots(next, new Set(), windows, settings).length) continue;
+      setDay(next);
+      setCursor(next);
+      return;
+    }
+  }, [busyPending, day, settings, settingsPending, windows]);
+
   const cells = monthCells(cursor);
   const slots = day ? daySlots(day, new Set(), windows, settings) : [];
   const month = cursor

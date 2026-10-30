@@ -21,6 +21,7 @@ import {
 import { Wordmark } from "@/components/portal/bits";
 import { PersonName } from "@/components/studio/PersonName";
 import { mailRecord, uniqueMails } from "@/lib/os/mail-people";
+import { linkPlainMail } from "@/lib/os/mail-reply";
 import {
   isStudioOwner,
   SIGNATURE_COPYRIGHT,
@@ -211,7 +212,7 @@ export function MailSignature({ name, tone = "white" }: { name: string; tone?: "
 }
 
 export function MailBody({ body, personName }: { body: string; personName?: string | null }) {
-  const paragraphs = mailParagraphs(body);
+  const paragraphs = mailParagraphs(linkPlainMail(body));
   return (
     <div className="studio-mail-body">
       {paragraphs.map((paragraph, index) => (

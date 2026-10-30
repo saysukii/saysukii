@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { readMailLine, replyAllPeople } from "./mail-people";
-import { clientReplyText, mailPieces } from "./mail-reply";
+import { clientReplyText, linkPlainMail, mailPieces } from "./mail-reply";
 
 describe("client reply text", () => {
   it("keeps their note and drops the letter they were answering", () => {
@@ -104,5 +104,37 @@ describe("reply all", () => {
       clientReplyText("the gallery is here https://example.com/gallery"),
       "the gallery is here https://example.com/gallery",
     );
+  });
+});
+
+describe("links in a plain-text letter", () => {
+  it("links the words a plain-text letter wrote its link after", () => {
+    const body = [
+      "email: andrea@atwasi.com [andrea@atwasi.com]",
+      "web: www.atwasi.com [http://www.atwasi.com]",
+      "see the deck [https://example.com/deck]",
+    ].join("\n");
+    assert.equal(
+      linkPlainMail(body),
+      [
+        "email: [andrea@atwasi.com](mailto:andrea@atwasi.com)",
+        "web: [www.atwasi.com](http://www.atwasi.com)",
+        "[see the deck](https://example.com/deck)",
+      ].join("\n"),
+    );
+  });
+
+  it("drops a signature picture's address and links bare ones", () => {
+    assert.equal(
+      linkPlainMail(
+        "CEO\n[https://ci3.googleusercontent.com/mail-sig/AIorK4xMRLTWs]\nor write paul@greenmaru.com.",
+      ),
+      "CEO\n\nor write [paul@greenmaru.com](mailto:paul@greenmaru.com).",
+    );
+  });
+
+  it("leaves a link already written the studio's way alone", () => {
+    const body = "[your proposal](https://inside.saysukii.com/maya-chen) <3";
+    assert.equal(linkPlainMail(body), body);
   });
 });

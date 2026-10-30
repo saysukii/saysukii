@@ -14,7 +14,30 @@ export function changeRequestedLine(contactName: string | null | undefined) {
 }
 
 const KEY = "say-sukii-studio-notices";
+// every notice this browser has had, even one cleared from the bell, so it never comes back
+const SEEN_KEY = "say-sukii-studio-notices-seen";
 const EVENT = "say-sukii-notice";
+
+function readSeen(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function remember(ids: string[]) {
+  const seen = readSeen();
+  const fresh = ids.filter((id) => !seen.includes(id));
+  if (!fresh.length) return;
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...fresh, ...seen].slice(0, 400)));
+  } catch {
+    // nothing to remember it in
+  }
+}
 
 function read(): StudioNotice[] {
   if (typeof window === "undefined") return [];
@@ -27,6 +50,7 @@ function read(): StudioNotice[] {
 }
 
 function write(notices: StudioNotice[]) {
+  remember(notices.map((notice) => notice.id));
   localStorage.setItem(KEY, JSON.stringify(notices.slice(0, 40)));
   window.dispatchEvent(new Event(EVENT));
 }
@@ -35,9 +59,9 @@ export function readNotices() {
   return read().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-/** whether this browser already has the notice, so a moment isn't celebrated twice */
+/** whether this browser has had the notice, so a moment isn't celebrated twice */
 export function hasNotice(id: string) {
-  return read().some((notice) => notice.id === id);
+  return read().some((notice) => notice.id === id) || readSeen().includes(id);
 }
 
 export function pushNotice(input: {
@@ -49,9 +73,8 @@ export function pushNotice(input: {
   toasted?: boolean;
 }) {
   const current = read();
-  if (input.id && current.some((notice) => notice.id === input.id)) {
-    return current.find((notice) => notice.id === input.id) ?? current[0];
-  }
+  // one already here, or one cleared from the bell, isn't shown again
+  if (input.id && hasNotice(input.id)) return;
   const notice: StudioNotice = {
     id: input.id ?? crypto.randomUUID(),
     title: input.title,

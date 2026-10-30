@@ -307,7 +307,8 @@ export function TodayHome({
   const [tasking, setTasking] = useState(false);
   const [added, setAdded] = useState<TaskRow[]>([]);
   const [retired, setRetired] = useState<string[]>([]);
-  const [pickedId, setPickedId] = useState(data.desk[0]?.id ?? "");
+  // nothing picked yet means the newest task, the one on top of the list
+  const [pickedId, setPickedId] = useState("");
   const [day, setDay] = useState(() => {
     const now = new Date();
     return stamp(now.getFullYear(), now.getMonth(), now.getDate());

@@ -7,16 +7,17 @@ import { toast } from "sonner";
 import { FloridaAddressPicker } from "@/components/inquiry/FloridaAddressPicker";
 import { DirectoryHome } from "@/components/portal/DirectoryHome";
 import {
+  ContactFields,
   DirectoryRecord,
-  RecordEmail,
+  RecordContacts,
   RecordFact,
   RecordNotes,
   RecordPlace,
 } from "@/components/portal/DirectoryRecord";
-import { PersonName } from "@/components/studio/PersonName";
-import type { VendorRow } from "@/integrations/supabase/types";
+import type { DirectoryContact, VendorRow } from "@/integrations/supabase/types";
 import { getDevPreviewDirectories } from "@/lib/dev-preview";
 import { archiveVendor, listDirectories, saveVendor } from "@/lib/os/clients.functions";
+import { contactsForSave, recordContacts } from "@/lib/directory-contacts";
 import { withoutCountry } from "@/lib/place-text";
 import { useDevPreview } from "@/lib/use-dev-preview";
 
@@ -45,9 +46,7 @@ function VendorPage() {
   const [form, setForm] = useState({
     name: "",
     type: "wholesaler" as VendorRow["type"],
-    contact_name: "",
-    contact_email: "",
-    contact_phone: "",
+    contacts: [] as DirectoryContact[],
     address: "",
     ordering_method: "",
   });
@@ -65,9 +64,7 @@ function VendorPage() {
     setForm({
       name: vendor.name,
       type: vendor.type,
-      contact_name: vendor.contact_name ?? "",
-      contact_email: vendor.contact_email ?? "",
-      contact_phone: vendor.contact_phone ?? "",
+      contacts: recordContacts(vendor),
       address: vendor.address ?? "",
       ordering_method: vendor.ordering_method ?? "",
     });
@@ -76,6 +73,8 @@ function VendorPage() {
   const save = useMutation({
     mutationFn: async () => {
       if (!form.name.trim()) throw new Error("a vendor needs a name.");
+      const { contacts, ...fields } = form;
+      const saved = { ...fields, ...contactsForSave(contacts) };
       if (devPreview) {
         // preview keeps the edit on screen so the page can be tried
         queryClient.setQueryData<Directories>(queryKey, (current) =>
@@ -83,14 +82,14 @@ function VendorPage() {
             ? {
                 ...current,
                 vendors: current.vendors.map((item) =>
-                  item.id === id ? { ...item, ...form } : item,
+                  item.id === id ? { ...item, ...saved } : item,
                 ),
               }
             : current,
         );
         return false;
       }
-      await submitVendor({ data: { id, ...form } });
+      await submitVendor({ data: { id, ...saved } });
       return true;
     },
     onSuccess: (saved) => {
@@ -179,32 +178,10 @@ function VendorPage() {
                 ))}
               </select>
             </label>
-            <label className="studio-field">
-              <span>contact</span>
-              <input
-                className="studio-input"
-                value={form.contact_name}
-                onChange={(event) => setForm({ ...form, contact_name: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>phone</span>
-              <input
-                className="studio-input"
-                type="tel"
-                value={form.contact_phone}
-                onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
-              />
-            </label>
-            <label className="studio-field">
-              <span>email</span>
-              <input
-                className="studio-input"
-                type="email"
-                value={form.contact_email}
-                onChange={(event) => setForm({ ...form, contact_email: event.target.value })}
-              />
-            </label>
+            <ContactFields
+              contacts={form.contacts}
+              onChange={(contacts) => setForm((current) => ({ ...current, contacts }))}
+            />
             <div className="studio-field">
               <span>location</span>
               <FloridaAddressPicker
@@ -231,16 +208,7 @@ function VendorPage() {
       rail={
         <>
           <RecordFact label="contact">
-            {vendor.contact_name ? (
-              <p>
-                <PersonName name={vendor.contact_name} />
-              </p>
-            ) : null}
-            {vendor.contact_phone ? <p>{vendor.contact_phone}</p> : null}
-            <RecordEmail email={vendor.contact_email} />
-            {!vendor.contact_name && !vendor.contact_phone && !vendor.contact_email ? (
-              <p className="studio-empty">no contact yet.</p>
-            ) : null}
+            <RecordContacts contacts={recordContacts(vendor)} />
           </RecordFact>
           {place ? (
             <RecordFact label="location">

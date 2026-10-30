@@ -84,6 +84,7 @@ import {
   readFileDataUrl,
 } from "@/lib/proposal-link";
 import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
+import { formatPhone, typePhone } from "@/lib/phone";
 import {
   EMPTY_INVOICE_DRAFT,
   PREVIEW_CATALOG,
@@ -1207,7 +1208,14 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     .join(" · ");
 
   function keepPlace(next: string) {
+    const before = placeDraft ?? inquiry.venue_text ?? "";
     setPlaceDraft(next);
+    // the proposal's venue follows the place, unless it was written differently there
+    if (!signedPacket) {
+      setWork((current) =>
+        !current.venue.trim() || current.venue === before ? { ...current, venue: next } : current,
+      );
+    }
     if (next === (inquiry.venue_text ?? "")) return;
     saveMoment.mutate({ venue_text: next });
   }
@@ -2051,7 +2059,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                             maxLength={40}
                             autoComplete="tel"
                             onChange={(event) =>
-                              setClientForm({ ...clientForm, phone: event.target.value })
+                              setClientForm({ ...clientForm, phone: typePhone(event.target.value) })
                             }
                           />
                         </label>
@@ -2108,7 +2116,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 {client?.phone ? (
                   <div>
                     <dt>phone</dt>
-                    <dd>{client.phone}</dd>
+                    <dd>{formatPhone(client.phone)}</dd>
                   </div>
                 ) : null}
               </dl>

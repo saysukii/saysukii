@@ -112,6 +112,12 @@ export function FloridaAddressPicker({
               setQuery(next);
               onChange(next);
             }}
+            onKeyDown={(event) => {
+              // enter keeps what's typed, found on the map or not
+              if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              event.currentTarget.blur();
+            }}
           />
         </div>
       </label>
@@ -136,7 +142,17 @@ export function FloridaAddressPicker({
             </li>
           ))}
           {!loading && results.length === 0 ? (
-            <li className="inquire-address-status">no places found yet</li>
+            <li>
+              <button
+                type="button"
+                className="inquire-address-option"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectSuggestion(query.trim())}
+              >
+                <MapPin className="size-3.5 shrink-0 opacity-45" aria-hidden="true" />
+                <span>not on the map · keep “{query.trim()}”</span>
+              </button>
+            </li>
           ) : null}
           {fromGoogle ? <li className="inquire-address-credit">powered by google</li> : null}
         </ul>

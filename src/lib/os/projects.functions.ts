@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
+import { appFileLink } from "@/lib/app-file-link";
 import { archiveTasksForClient } from "@/lib/os/tasks.functions";
 
 const projectStatus = z.enum(["pre_production", "production", "post_production", "archived"]);
@@ -111,7 +112,7 @@ export const getProject = createServerFn({ method: "GET" })
         const signed = await context.supabase.storage
           .from("project-files")
           .createSignedUrl(file.file_path, 60 * 30);
-        return { ...file, signed_url: signed.data?.signedUrl ?? null };
+        return { ...file, signed_url: appFileLink(signed.data?.signedUrl) };
       }),
     );
 

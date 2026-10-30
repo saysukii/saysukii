@@ -29,6 +29,7 @@ import { archiveVenue, importVenues, listDirectories, saveVenue } from "@/lib/os
 import { csvImportNote, readVenueCsv } from "@/lib/os/directory-csv";
 import { withoutCountry } from "@/lib/place-text";
 import { useDevPreview } from "@/lib/use-dev-preview";
+import { typePhone } from "@/lib/phone";
 import { useDirectorySelection } from "@/lib/use-directory-selection";
 
 export const Route = createFileRoute("/_authenticated/directories/venues/")({
@@ -322,7 +323,9 @@ function VenueDirectoryPage() {
                   value={form.contact_phone}
                   maxLength={50}
                   autoComplete="tel"
-                  onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, contact_phone: typePhone(event.target.value) })
+                  }
                 />
               </AskField>
               <AskField label="load-in" className="studio-ask-span">

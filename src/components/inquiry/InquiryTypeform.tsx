@@ -15,6 +15,7 @@ import {
   interestLabel,
   toInquirySubmitValues,
 } from "@/lib/os/inquiry-schema";
+import { formatPhone, typePhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 type ChoiceOption = { value: string; label: string };
@@ -82,7 +83,7 @@ function buildSteps(interest: InquiryFormValues["interest"]): Step[] {
       kind: "tel",
       field: "phone",
       label: "What’s a good phone number?",
-      placeholder: "(305) 555-0100",
+      placeholder: "305.555.0100",
       required: true,
     },
     {
@@ -455,7 +456,12 @@ export function InquiryTypeform({
                   placeholder={step.placeholder}
                   autoFocus
                   disabled={disabled}
-                  onChange={(event) => updateField(step.field, event.target.value)}
+                  onChange={(event) =>
+                    updateField(
+                      step.field,
+                      step.kind === "tel" ? typePhone(event.target.value) : event.target.value,
+                    )
+                  }
                 />
               </div>
             </label>
@@ -563,7 +569,7 @@ export function InquiryTypeform({
                 </div>
                 <div>
                   <dt>Phone</dt>
-                  <dd>{values.phone}</dd>
+                  <dd>{formatPhone(values.phone)}</dd>
                 </div>
                 <div>
                   <dt>Interested in</dt>

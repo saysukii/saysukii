@@ -482,7 +482,6 @@ function useNoticeModal(notices: StudioNotice[]) {
         const href = notice.href;
         toast(notice.title, {
           description: notice.body,
-          duration: 20000,
           ...(href
             ? {
                 action: {

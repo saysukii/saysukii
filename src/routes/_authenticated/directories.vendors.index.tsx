@@ -32,6 +32,7 @@ import {
 } from "@/lib/os/clients.functions";
 import { csvImportNote, readVendorCsv } from "@/lib/os/directory-csv";
 import { useDevPreview } from "@/lib/use-dev-preview";
+import { typePhone } from "@/lib/phone";
 import { useDirectorySelection } from "@/lib/use-directory-selection";
 
 export const Route = createFileRoute("/_authenticated/directories/vendors/")({
@@ -344,7 +345,9 @@ function VendorDirectoryPage() {
                   value={form.contact_phone}
                   maxLength={50}
                   autoComplete="tel"
-                  onChange={(event) => setForm({ ...form, contact_phone: event.target.value })}
+                  onChange={(event) =>
+                    setForm({ ...form, contact_phone: typePhone(event.target.value) })
+                  }
                 />
               </AskField>
               <AskField label="how to order" className="studio-ask-span">

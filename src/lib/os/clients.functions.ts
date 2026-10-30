@@ -3,7 +3,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, DirectoryContact } from "@/integrations/supabase/types";
+import { appFileLink } from "@/lib/app-file-link";
+import { capitalizeName } from "@/lib/name-case";
 import { clientSlugs, inquirySlugs, isRecordUuid } from "@/lib/os/inquiry-desk";
 
 const clientType = z.enum(["individual", "brand", "corporate", "venue_partner"]);
@@ -21,6 +23,17 @@ const clientInput = z.object({
   notes: nullableText(5000),
 });
 
+const moreContacts = z
+  .array(
+    z.object({
+      name: z.string().trim().max(160),
+      email: z.string().trim().email().max(320).or(z.literal("")),
+      phone: z.string().trim().max(50),
+    }),
+  )
+  .max(20)
+  .optional();
+
 const venueInput = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(200),
@@ -31,6 +44,7 @@ const venueInput = z.object({
   contact_name: nullableText(160),
   contact_email: z.string().trim().email().max(320).nullable().optional().or(z.literal("")),
   contact_phone: nullableText(50),
+  more_contacts: moreContacts,
   load_in_notes: nullableText(5000),
 });
 
@@ -41,11 +55,28 @@ const vendorInput = z.object({
   contact_name: nullableText(160),
   contact_email: z.string().trim().email().max(320).nullable().optional().or(z.literal("")),
   contact_phone: nullableText(50),
+  more_contacts: moreContacts,
   ordering_method: nullableText(5000),
   address: nullableText(500),
 });
 
 const archiveInput = z.object({ ids: z.array(z.string().uuid()).min(1).max(1000) });
+
+/** the people after the first, without empty rows */
+function keptContacts(rows: z.infer<typeof moreContacts>): {
+  more_contacts?: DirectoryContact[];
+} {
+  return rows === undefined
+    ? {}
+    : { more_contacts: rows.filter((row) => row.name || row.email || row.phone) };
+}
+
+/** a save that adds people before the contacts migration has run says so */
+function directoryError(message: string) {
+  return /more_contacts/.test(message)
+    ? "Run the directory contacts migration in Supabase first."
+    : message;
+}
 
 function optional(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -130,7 +161,7 @@ export const getClient = createServerFn({ method: "GET" })
         const signed = await context.supabase.storage
           .from("project-files")
           .createSignedUrl(file.file_path, 60 * 30);
-        return { ...file, signed_url: signed.data?.signedUrl ?? null };
+        return { ...file, signed_url: appFileLink(signed.data?.signedUrl) };
       }),
     );
 
@@ -165,7 +196,7 @@ export const saveClient = createServerFn({ method: "POST" })
   .validator((input: unknown) => clientInput.parse(input))
   .handler(async ({ data, context }) => {
     const payload = {
-      name: data.name,
+      name: capitalizeName(data.name),
       email: data.email,
       phone: optional(data.phone),
       organization: optional(data.organization),
@@ -260,7 +291,7 @@ export const importClients = createServerFn({ method: "POST" })
     if (fresh.length === 0) return { added: 0, skipped: data.length };
     const { error } = await context.supabase.from("clients").insert(
       fresh.map((row) => ({
-        name: row.name,
+        name: capitalizeName(row.name),
         email: row.email,
         phone: optional(row.phone),
         organization: optional(row.organization),
@@ -309,6 +340,7 @@ export const saveVenue = createServerFn({ method: "POST" })
       contact_email: optional(data.contact_email),
       contact_phone: optional(data.contact_phone),
       load_in_notes: optional(data.load_in_notes),
+      ...keptContacts(data.more_contacts),
       ...(data.category !== undefined ? { category: optional(data.category) } : {}),
       ...(data.website !== undefined ? { website: optional(data.website) } : {}),
       ...(data.capacity !== undefined ? { capacity: optional(data.capacity) } : {}),
@@ -317,7 +349,7 @@ export const saveVenue = createServerFn({ method: "POST" })
       ? context.supabase.from("venues").update(payload).eq("id", data.id).select("*").single()
       : context.supabase.from("venues").insert(payload).select("*").single();
     const { data: row, error } = await query;
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(directoryError(error.message));
     return row;
   });
 
@@ -344,13 +376,14 @@ export const saveVendor = createServerFn({ method: "POST" })
       contact_email: optional(data.contact_email),
       contact_phone: optional(data.contact_phone),
       ordering_method: optional(data.ordering_method),
+      ...keptContacts(data.more_contacts),
       ...(data.address !== undefined ? { address: optional(data.address) } : {}),
     };
     const query = data.id
       ? context.supabase.from("vendors").update(payload).eq("id", data.id).select("*").single()
       : context.supabase.from("vendors").insert(payload).select("*").single();
     const { data: row, error } = await query;
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(directoryError(error.message));
     return row;
   });
 

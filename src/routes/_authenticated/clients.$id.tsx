@@ -20,6 +20,7 @@ import {
 } from "@/lib/preview-clients";
 import { EVENT_LABEL, STATUS_LABEL } from "@/lib/os/inquiry-desk";
 import { useDevPreview } from "@/lib/use-dev-preview";
+import { formatPhone, typePhone } from "@/lib/phone";
 
 export const Route = createFileRoute("/_authenticated/clients/$id")({
   head: () => ({
@@ -237,7 +238,7 @@ function ClientDetailPage() {
               <input
                 className="studio-input"
                 value={form.phone}
-                onChange={(event) => setForm({ ...form, phone: event.target.value })}
+                onChange={(event) => setForm({ ...form, phone: typePhone(event.target.value) })}
               />
             </label>
             <label className="studio-field">
@@ -345,7 +346,7 @@ function ClientDetailPage() {
           <aside className="studio-ledger-rail">
             <p className="studio-home-label">contact</p>
             <RecordEmail email={client.email} />
-            {phone ? <p>{phone}</p> : null}
+            {phone ? <p>{formatPhone(phone)}</p> : null}
             <EditablePlace
               value={savedAddress}
               label="address"

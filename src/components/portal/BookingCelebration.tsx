@@ -51,7 +51,7 @@ export function celebrateBooking(style: CelebrationStyle, booking: NewBooking) {
     if (style === "ribbon") glitter({ stream: { x: width / 2, y: 84, spread: 300 }, ms: 3600 });
   }
   toast.custom((id) => <BookingToast style={style} booking={booking} id={id} />, {
-    duration: 12000,
+    duration: 3000,
     position: style === "ribbon" ? "top-center" : "bottom-right",
     unstyled: true,
     className: "is-celebration",

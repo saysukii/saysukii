@@ -816,6 +816,22 @@
   opacity: 0.55;
 }
 
+/* a browser filling in a saved phone or email keeps the field's own size and look */
+.auth-input input:-webkit-autofill,
+.auth-input input:-webkit-autofill:hover,
+.auth-input input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--auth-ink);
+  font-size: 12px;
+  font-weight: 300;
+  transition: background-color 600000s 0s;
+}
+
+.auth-input input:-webkit-autofill::first-line {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 300;
+}
+
 .auth-input button {
   display: grid;
   width: 30px;
@@ -9202,6 +9218,36 @@ button.studio-metric:hover {
   width: auto;
 }
 
+/* each contact on a venue or vendor: its name and phone side by side, the email under */
+.studio-contact-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+
+.studio-contact-head {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--auth-muted);
+  font-size: 11px;
+  font-weight: 300;
+}
+
+.studio-contact-head .studio-file-remove {
+  opacity: 1;
+}
+
+.studio-client-edit .studio-contact-add {
+  grid-column: 1 / -1;
+}
+
+.studio-record-contact + .studio-record-contact {
+  margin-top: 10px;
+}
+
 .studio-client-edit .studio-input,
 .studio-client-edit .studio-select,
 .studio-client-edit .studio-textarea {
@@ -15376,16 +15422,14 @@ a.studio-kicker:hover {
   resize: vertical;
 }
 
-/* a phone zooms into any field under 16px; on touch screens the public forms stay at 16px so the page holds still */
+/* a phone zooms into any field under 16px; on touch screens every field across the app stays at
+   16px so the page holds still while typing */
 @media (hover: none) and (pointer: coarse) {
-  .book-meet-confirm input,
-  .book-meet-confirm textarea,
-  .book-meet-dialog input,
-  .book-meet-dialog textarea,
-  .client-packet-auth-names input,
-  .auth-scene input,
-  .auth-scene textarea,
-  .auth-scene select {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
+  textarea,
+  select,
+  [contenteditable="true"],
+  [contenteditable=""] {
     /* above every field's own size, which is what the phone measures */
     font-size: 16px !important;
   }
