@@ -279,13 +279,21 @@ function readSituation(
   const about = eventLine(f.event, now);
   const aboutBare = eventLine(f.event, now, false);
   const daysToEvent = f.event.date ? daysUntilDate(f.event.date, now) : null;
-  const repliedAfter = Boolean(
-    f.inboundAt && f.outboundAt && Date.parse(f.inboundAt) > Date.parse(f.outboundAt),
-  );
   const proposal = f.proposal;
   const total = f.proposalTotal ? `${f.proposalTotal} ` : "";
   // a paid deposit books it, whether or not the stage has caught up
   const booked = f.status === "booked" || Boolean(proposal?.paid_cents);
+  // signing and paying answer whatever was written before them; only a letter after still waits
+  const settledAt = [proposal?.paid_at, proposal?.signed_at]
+    .map((iso) => (iso ? Date.parse(iso) : NaN))
+    .filter((time) => !Number.isNaN(time))
+    .reduce((latest, time) => Math.max(latest, time), Number.NEGATIVE_INFINITY);
+  const repliedAfter = Boolean(
+    f.inboundAt &&
+    f.outboundAt &&
+    Date.parse(f.inboundAt) > Date.parse(f.outboundAt) &&
+    Date.parse(f.inboundAt) > settledAt,
+  );
 
   if (f.status === "closed") {
     const reason = f.details.closedReason?.trim();
@@ -398,16 +406,22 @@ function readSituation(
         nextMoveNote: "the invoice is still open.",
       };
     }
+    const paidWhen = proposal?.paid_at ? ` ${on(proposal.paid_at)}` : "";
+    // once they've paid, the summary says they're booked before anything else
+    const bookedLead = f.paidTotal
+      ? f.balance
+        ? `${client} signed and paid the ${f.paidTotal} deposit${paidWhen}, so they're booked. `
+        : `${client} signed and paid in full${paidWhen}, so they're booked. `
+      : "";
     if (daysToEvent != null && daysToEvent <= 14) {
       return {
         situation: "event_soon",
-        headline: `${theEvent} is ${on(f.event.date)}${f.event.venue ? ` at ${f.event.venue}` : ""}, under two weeks away.`,
+        headline: `${bookedLead}${theEvent} is ${on(f.event.date)}${f.event.venue ? ` at ${f.event.venue}` : ""}, under two weeks away.`,
         nextMoveTitle: "confirm the final details: timing, load-in, and final counts",
         nextMoveNote: "the day is close.",
       };
     }
     if (f.paidTotal) {
-      const paidWhen = proposal?.paid_at ? ` ${on(proposal.paid_at)}` : "";
       return {
         situation: "booked",
         headline: f.balance

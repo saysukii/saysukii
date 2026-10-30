@@ -9536,7 +9536,7 @@ button.studio-metric:hover {
   font-weight: 300;
 }
 
-.studio-summary-next > span {
+.studio-summary-next > span:not(.is-person) {
   flex: none;
   padding: 2px 9px;
   border-radius: 999px;
@@ -12803,6 +12803,14 @@ textarea.studio-letter-edit {
 .client-packet-paid {
   margin-left: 6px;
   color: var(--packet-pink);
+}
+
+/* an invoice's booking line, under its header */
+.client-packet-booking {
+  margin: 0 0 14px;
+  color: var(--packet-muted, rgba(36, 34, 31, 0.62));
+  font-size: 13px;
+  font-style: italic;
 }
 
 .client-packet-invoice-top {

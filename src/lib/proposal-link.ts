@@ -13,6 +13,7 @@ const TAKEN_PATHS = new Set([
   "email-preview",
   "file",
   "inquire",
+  "invoice",
   "letter",
   "library",
   "loading",

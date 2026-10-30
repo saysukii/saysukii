@@ -32,6 +32,7 @@ import { Route as DevFileKindRouteImport } from './routes/dev-file.$kind'
 import { Route as FileSplatRouteImport } from './routes/file.$'
 import { Route as InquireIndexRouteImport } from './routes/inquire.index'
 import { Route as InquirePreviewRouteImport } from './routes/inquire.preview'
+import { Route as InvoiceTokenRouteImport } from './routes/invoice.$token'
 import { Route as LetterIdRouteImport } from './routes/letter.$id'
 import { Route as ProposalTokenRouteImport } from './routes/proposal.$token'
 import { Route as AuthenticatedClientsIdRouteImport } from './routes/_authenticated/clients.$id'
@@ -167,6 +168,11 @@ const InquirePreviewRoute = InquirePreviewRouteImport.update({
   path: '/preview',
   getParentRoute: () => InquireRoute,
 } as any)
+const InvoiceTokenRoute = InvoiceTokenRouteImport.update({
+  id: '/invoice/$token',
+  path: '/invoice/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LetterIdRoute = LetterIdRouteImport.update({
   id: '/letter/$id',
   path: '/letter/$id',
@@ -301,6 +307,7 @@ export interface FileRoutesByFullPath {
   '/dev-file/$kind': typeof DevFileKindRoute
   '/file/$': typeof FileSplatRoute
   '/inquire/preview': typeof InquirePreviewRoute
+  '/invoice/$token': typeof InvoiceTokenRoute
   '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire/': typeof InquireIndexRoute
@@ -344,6 +351,7 @@ export interface FileRoutesByTo {
   '/dev-file/$kind': typeof DevFileKindRoute
   '/file/$': typeof FileSplatRoute
   '/inquire/preview': typeof InquirePreviewRoute
+  '/invoice/$token': typeof InvoiceTokenRoute
   '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire': typeof InquireIndexRoute
@@ -388,6 +396,7 @@ export interface FileRoutesById {
   '/dev-file/$kind': typeof DevFileKindRoute
   '/file/$': typeof FileSplatRoute
   '/inquire/preview': typeof InquirePreviewRoute
+  '/invoice/$token': typeof InvoiceTokenRoute
   '/letter/$id': typeof LetterIdRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire/': typeof InquireIndexRoute
@@ -434,6 +443,7 @@ export interface FileRouteTypes {
     | '/dev-file/$kind'
     | '/file/$'
     | '/inquire/preview'
+    | '/invoice/$token'
     | '/letter/$id'
     | '/proposal/$token'
     | '/inquire/'
@@ -477,6 +487,7 @@ export interface FileRouteTypes {
     | '/dev-file/$kind'
     | '/file/$'
     | '/inquire/preview'
+    | '/invoice/$token'
     | '/letter/$id'
     | '/proposal/$token'
     | '/inquire'
@@ -520,6 +531,7 @@ export interface FileRouteTypes {
     | '/dev-file/$kind'
     | '/file/$'
     | '/inquire/preview'
+    | '/invoice/$token'
     | '/letter/$id'
     | '/proposal/$token'
     | '/inquire/'
@@ -558,6 +570,7 @@ export interface RootRouteChildren {
   ScheduleRoute: typeof ScheduleRoute
   DevFileKindRoute: typeof DevFileKindRoute
   FileSplatRoute: typeof FileSplatRoute
+  InvoiceTokenRoute: typeof InvoiceTokenRoute
   LetterIdRoute: typeof LetterIdRoute
   ProposalTokenRoute: typeof ProposalTokenRoute
   ApiCronBalanceRemindersRoute: typeof ApiCronBalanceRemindersRoute
@@ -732,6 +745,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/inquire/preview'
       preLoaderRoute: typeof InquirePreviewRouteImport
       parentRoute: typeof InquireRoute
+    }
+    '/invoice/$token': {
+      id: '/invoice/$token'
+      path: '/invoice/$token'
+      fullPath: '/invoice/$token'
+      preLoaderRoute: typeof InvoiceTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/letter/$id': {
       id: '/letter/$id'
@@ -985,6 +1005,7 @@ const rootRouteChildren: RootRouteChildren = {
   ScheduleRoute: ScheduleRoute,
   DevFileKindRoute: DevFileKindRoute,
   FileSplatRoute: FileSplatRoute,
+  InvoiceTokenRoute: InvoiceTokenRoute,
   LetterIdRoute: LetterIdRoute,
   ProposalTokenRoute: ProposalTokenRoute,
   ApiCronBalanceRemindersRoute: ApiCronBalanceRemindersRoute,

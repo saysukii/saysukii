@@ -413,6 +413,32 @@ describe("inquiry summary situations", () => {
     assert.match(full.text, /camila signed and paid in full on sep 15\. they're booked for/);
   });
 
+  it("a letter before they signed and paid is settled by the booking; one after still waits", () => {
+    const signedProposal = {
+      status: "accepted",
+      created_at: at(-20),
+      accepted_at: at(-2),
+      signed_at: at(-2),
+      total_cents: 1_840_000,
+      paid_cents: 920_000,
+      paid_at: at(-1),
+    };
+    const before = read({
+      status: "booked",
+      messages: [form(-30), studio(-28), reply(-3, "it's lit. you may have my money <3")],
+      proposals: [signedProposal],
+    });
+    assert.equal(before.facts.situation, "booked");
+    assert.match(before.text, /camila signed and paid the \$9,200 deposit/);
+
+    const after = read({
+      status: "booked",
+      messages: [form(-30), studio(-28), reply(0, "Could we add a few bud vases?")],
+      proposals: [signedProposal],
+    });
+    assert.equal(after.facts.situation, "reply_owed");
+  });
+
   it("booked: unpaid deposit, held date, event soon, and event past", () => {
     const thread = [form(-60), studio(-58)];
     const unpaid = read({

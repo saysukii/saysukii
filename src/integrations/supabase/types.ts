@@ -194,6 +194,13 @@ export type EmailTemplateRow = {
 
 export type InquiryInvoiceStatus = "sent" | "deposit_paid" | "paid" | "canceled";
 
+export type InquiryInvoicePayment = {
+  square_payment_id: string;
+  amount_cents: number;
+  paid_at: string;
+  method: string | null;
+};
+
 export type InquiryInvoiceRow = {
   id: string;
   inquiry_id: string;
@@ -211,6 +218,12 @@ export type InquiryInvoiceRow = {
   paid_cents: number;
   sent_at: string;
   paid_at: string | null;
+  /** opens the invoice's own page: inside.saysukii.com/invoice/<token> */
+  access_token?: string | null;
+  /** every payment toward it, oldest first, for its receipts */
+  payments?: InquiryInvoicePayment[] | null;
+  /** "Booking for … per approved proposal." */
+  booking?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

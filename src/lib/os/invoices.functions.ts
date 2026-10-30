@@ -4,7 +4,6 @@ import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { fillTemplate } from "@/lib/email-templates";
-import { squareInvoiceNumber } from "@/lib/invoice-title";
 import { signatureName } from "@/lib/os/mail-signature";
 
 const item = z.object({
@@ -17,8 +16,8 @@ const item = z.object({
 });
 
 /**
- * Bills a lead through square without a proposal: an arrangement, a delivery. Square holds the invoice and the
- * payment page; the client gets Sukii's letter from gmail with a button to pay.
+ * Bills a lead for an add-on or on its own: an arrangement, a delivery. The invoice gets its own page
+ * in the app, and the client gets Sukii's letter from gmail with a button to it.
  */
 export const sendInquiryInvoice = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
@@ -67,29 +66,12 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
     const { claimInvoiceNumber } = await import("@/lib/os/invoice-number.server");
     const number = await claimInvoiceNumber();
 
-    const fallbackDue = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
-    const { createSquareInvoice } = await import("@/lib/os/square.server");
-    const square = await createSquareInvoice({
-      key: `inv-${crypto.randomUUID()}`,
-      number,
-      title: `say sukii · ${squareInvoiceNumber(number)}`,
-      description: data.booking || null,
-      customer: { name: person.data.name, email: person.data.email },
-      lines: data.items.map((line) => ({
-        name: line.name || "custom item",
-        note: line.note,
-        quantity: line.quantity,
-        unitCents: line.unit_cents,
-        // a catalog item keeps its link only while its price is the catalog's
-        catalogId: line.square_id && line.catalog_cents === line.unit_cents ? line.square_id : null,
-      })),
-      courtesyCents: data.courtesy_cents,
-      depositCents: data.pay_in_full ? null : dueNow,
-      balanceDue:
-        !inquiry.data.event_date_tbd && inquiry.data.event_date
-          ? inquiry.data.event_date
-          : fallbackDue,
-    });
+    // the invoice gets its own page in the app, paid in the same pop-up as a proposal's;
+    // square sees the payment as an itemized order numbered like the invoice (SS-751)
+    const { createPublicToken } = await import("@/lib/os/crypto.server");
+    const { publicOrigin } = await import("@/lib/os/proposals.functions");
+    const { token } = createPublicToken();
+    const pageUrl = `${publicOrigin()}/invoice/${token}`;
 
     const saved = await context.supabase.from("inquiry_invoices").insert({
       inquiry_id: data.inquiry_id,
@@ -100,19 +82,25 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
       total_cents: total,
       due_now_cents: dueNow,
       pay_in_full: data.pay_in_full,
-      square_invoice_id: square.invoiceId,
-      square_order_id: square.orderId,
-      public_url: square.url,
+      access_token: token,
+      booking: data.booking || null,
+      public_url: pageUrl,
       status: "sent",
       created_by: context.profile.id,
     });
-    if (saved.error) throw new Error(saved.error.message);
+    if (saved.error) {
+      throw new Error(
+        /access_token|booking|payments/.test(saved.error.message)
+          ? "Run the invoice pages migration in Supabase first."
+          : saved.error.message,
+      );
+    }
 
     const { deliverLetter } = await import("@/lib/os/letter-send.server");
     try {
       await deliverLetter(context.supabase, {
         inquiryId: data.inquiry_id,
-        body: `${fillTemplate(data.letter, { invoice: number })}\n\n[pay your invoice](${square.url})\n\n<3`,
+        body: `${fillTemplate(data.letter, { invoice: number })}\n\n[pay your invoice](${pageUrl})\n\n<3`,
         subject: fillTemplate(data.subject || "{invoice}", { invoice: number }),
         fresh: true,
         threadId: null,
@@ -125,8 +113,8 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
     } catch (error) {
       const reason = error instanceof Error ? error.message : "gmail didn't answer";
       throw new Error(
-        `${number} is in square, but the letter didn't send (${reason}). copy the pay link from the invoice tab.`,
+        `${number} is saved, but the letter didn't send (${reason}). copy the pay link from the invoice tab.`,
       );
     }
-    return { number, url: square.url };
+    return { number, url: pageUrl };
   });

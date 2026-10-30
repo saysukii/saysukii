@@ -12,7 +12,7 @@ export async function settleSquarePayment(
   options: { receiptEmail?: string | null } = {},
 ) {
   if (!payment.order_id) throw new Error("Square payment is missing an order");
-  if (await settleLeadInvoice(payment.order_id)) return;
+  if (await settleLeadInvoice(payment, options)) return;
   const { data: invoice, error: invoiceError } = await supabaseAdmin
     .from("invoices")
     .select("*, proposals(*, clients(name, email))")
@@ -97,14 +97,25 @@ export async function settleSquarePayment(
   }
 }
 
-/** A lead's own invoice: ask square where it stands rather than adding payments up, so a repeated event can't count twice. */
-async function settleLeadInvoice(orderId: string) {
+/**
+ * A lead's own invoice. One paid on its page in the app is kept payment by payment, each once; an
+ * older one sent through square's invoice page asks square where it stands instead.
+ */
+async function settleLeadInvoice(
+  payment: SquareCompletedPayment,
+  options: { receiptEmail?: string | null },
+) {
   const { data: row, error } = await supabaseAdmin
     .from("inquiry_invoices")
     .select("id, square_invoice_id, inquiry_id")
-    .eq("square_order_id", orderId)
+    .eq("square_order_id", payment.order_id!)
     .maybeSingle();
-  if (error || !row?.square_invoice_id) return false;
+  if (error || !row) return false;
+  if (!row.square_invoice_id) {
+    const { settleInquiryInvoicePayment } = await import("@/lib/os/invoice-paid.server");
+    await settleInquiryInvoicePayment(row.id, payment, options);
+    return true;
+  }
   const { readSquareInvoice } = await import("@/lib/os/square.server");
   const square = await readSquareInvoice(row.square_invoice_id);
   const status =

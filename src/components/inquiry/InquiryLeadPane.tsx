@@ -1563,7 +1563,26 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     setInvoiceShare(true);
   }
 
-  async function emailInvoice() {
+  /** the invoice waits ten seconds under the ribbon before it goes, like every letter */
+  function sendInvoiceSoon() {
+    const problem = invoiceProblem();
+    if (problem) {
+      setProposalError(problem);
+      return;
+    }
+    const words = invoiceWords;
+    setInvoiceShare(false);
+    queueLetter(
+      () => void emailInvoice(words),
+      () => {
+        setInvoiceWords(words);
+        setInvoiceShare(true);
+      },
+      client?.name,
+    );
+  }
+
+  async function emailInvoice(words: string | null = invoiceWords) {
     const problem = invoiceProblem();
     if (problem) {
       setProposalError(problem);
@@ -1590,7 +1609,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     setProposalError("");
     try {
       // the words as edited in the preview
-      const letter = invoiceWords?.trim() || invoiceLetter().text;
+      const letter = words?.trim() || invoiceLetter().text;
       const subject = invoiceLetter().subject;
       if (devPreview) {
         const number = `SS${String(100 + previewInvoices.length + 1)}`;
@@ -2395,6 +2414,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             <FileText aria-hidden="true" strokeWidth={1.5} />
             proposal
           </p>
+          {sendRibbon}
           {signedPacket ? (
             <SignedPacket
               packet={signedPacket}
@@ -2725,14 +2745,22 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                     type="button"
                     className="studio-today-go"
                     disabled={balanceInvoice.isPending}
-                    onClick={() =>
-                      balanceLetter &&
-                      balanceInvoice.mutate({
-                        proposalId: balanceLetter.proposalId,
-                        send: true,
-                        body: balanceLetter.words,
-                      })
-                    }
+                    onClick={() => {
+                      const letter = balanceLetter;
+                      if (!letter) return;
+                      // ten seconds to undo, then it goes
+                      setBalanceLetter(null);
+                      queueLetter(
+                        () =>
+                          balanceInvoice.mutate({
+                            proposalId: letter.proposalId,
+                            send: true,
+                            body: letter.words,
+                          }),
+                        () => setBalanceLetter(letter),
+                        client?.name,
+                      );
+                    }}
                   >
                     {balanceInvoice.isPending ? "sending" : "send"}
                   </button>
@@ -2893,6 +2921,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             <FileText aria-hidden="true" strokeWidth={1.5} />
             invoice
           </p>
+          {sendRibbon}
           <div className="studio-proposal-terms is-cards">
             <div className="studio-proposal-money">
               <label className="studio-ask-field">
@@ -3188,7 +3217,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 type="button"
                 className="studio-today-go"
                 disabled={proposalBusy || post.isPending}
-                onClick={() => void emailInvoice()}
+                onClick={sendInvoiceSoon}
               >
                 {proposalBusy || post.isPending ? "sending" : "send invoice"}
               </button>

@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatMoneyExact } from "@/lib/money";
+import { payInquiryInvoice } from "@/lib/os/invoice-page.functions";
 import { getSquarePayConfig, payProposalDeposit } from "@/lib/os/proposals.functions";
 import type { PayPhase } from "@/lib/pay-moments";
 
@@ -95,6 +96,7 @@ export function SquarePay({
   onPaid,
   demo = false,
   startOpen = false,
+  invoice = false,
 }: {
   token: string;
   amountCents: number;
@@ -108,9 +110,13 @@ export function SquarePay({
   demo?: boolean;
   /** opens the pop-up straight away, for a mock of it */
   startOpen?: boolean;
+  /** pays an add-on invoice (its page's token) rather than a proposal */
+  invoice?: boolean;
 }) {
   const fetchConfig = useServerFn(getSquarePayConfig);
-  const pay = useServerFn(payProposalDeposit);
+  const payProposal = useServerFn(payProposalDeposit);
+  const payInvoice = useServerFn(payInquiryInvoice);
+  const pay = invoice ? payInvoice : payProposal;
   const cardHost = useRef<HTMLDivElement>(null);
   const card = useRef<SquareCard | null>(null);
   const applePay = useRef<SquareApplePay | null>(null);

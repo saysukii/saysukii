@@ -1247,7 +1247,7 @@ function invoiceItems(bundle: ProposalBundle) {
 
 /** Keeps a document in the client's file, once, under a clear name. */
 /** Stores a document once and lists it in the client's file and the inquiry's files tab. */
-async function fileForClient(
+export async function fileForClient(
   owners: { clientId: string; inquiryId: string },
   name: string,
   data: Uint8Array,
@@ -1654,7 +1654,7 @@ function pdfItems(items: ProposalLineItemRow[]) {
 }
 
 /** "Visa 0523", from the card square charged */
-function paidWith(payload: unknown) {
+export function paidWith(payload: unknown) {
   const card = (payload as { card_details?: { card?: { card_brand?: string; last_4?: string } } })
     ?.card_details?.card;
   if (!card?.last_4) return null;
@@ -1784,7 +1784,7 @@ function appUrl() {
 }
 
 /** Proposal links always go out on inside.saysukii.com, except while developing locally. */
-function publicOrigin() {
+export function publicOrigin() {
   return import.meta.env.DEV ? appUrl() : PROPOSAL_ORIGIN;
 }
 
