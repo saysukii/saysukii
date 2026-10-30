@@ -479,6 +479,8 @@ describe("classify + route engine", () => {
         letter("reminder", "a gentle reminder · your balance for SS103"),
         letter("due", "due today · your balance for SS103"),
         letter("by-hand", "your remaining balance · SS103"),
+        letter("sign-in", "your studio link"),
+        letter("approved", "proposal approved · Ada"),
       ],
       clients: [client("cli-ada")],
       inquiries: [inquiry("inq-wedding", "cli-ada")],
@@ -493,7 +495,7 @@ describe("classify + route engine", () => {
       },
     });
 
-    assert.equal(result.ignored, 4);
+    assert.equal(result.ignored, 6);
     assert.equal(result.attached, 1);
     const filed = state.messages.map((row) => row.gmail_message_id);
     assert.ok(filed.includes("gmail-by-hand"));

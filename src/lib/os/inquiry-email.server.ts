@@ -255,7 +255,7 @@ export async function sendInquiryReceivedEmail(details: InquiryEmailDetails) {
 
 /**
  * A note for the studio: placed straight in the studio inbox when that's where notices go,
- * otherwise sent through resend, and through gmail as the last resort.
+ * otherwise sent through the studio's gmail, and through resend only if it's still set up.
  */
 export async function deliverStudioNotice(
   subject: string,
@@ -275,6 +275,12 @@ export async function deliverStudioNotice(
     }
   }
 
+  try {
+    const sent = await sendNotice(raw);
+    if (sent) return { sent: true as const };
+  } catch (error) {
+    console.error("[Inquiry email] gmail send failed:", error);
+  }
   const apiKey = process.env["RESEND_API_KEY"];
   if (apiKey) {
     try {
@@ -300,11 +306,5 @@ export async function deliverStudioNotice(
     }
   }
 
-  try {
-    const sent = await sendNotice(raw);
-    if (sent) return { sent: true as const };
-  } catch (error) {
-    console.error("[Inquiry email] gmail send failed:", error);
-  }
   return { sent: false as const };
 }

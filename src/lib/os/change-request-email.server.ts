@@ -87,8 +87,14 @@ async function sendChangeRequestThroughGmail(input: ChangeRequestMail) {
 
 export async function sendChangeRequestEmail(input: ChangeRequestMail) {
   try {
+    // through the studio's gmail; resend is only a backup, when it's still set up
     const apiKey = process.env["RESEND_API_KEY"];
-    if (!apiKey) return sendChangeRequestThroughGmail(input);
+    const throughGmail = await sendChangeRequestThroughGmail(input).catch((error: unknown) => {
+      if (!apiKey) throw error;
+      console.error("[change-request] gmail did not send, trying resend:", error);
+      return null;
+    });
+    if (throughGmail || !apiKey) return throughGmail ?? { sent: false as const };
     const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
       from: process.env["RESEND_FROM_EMAIL"] ?? "Say Sukii <onboarding@resend.dev>",

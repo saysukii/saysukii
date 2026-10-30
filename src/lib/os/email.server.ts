@@ -1,5 +1,3 @@
-import { Resend } from "resend";
-
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 type SendInput = {
@@ -18,51 +16,41 @@ export function studioNotificationEmail() {
   return configured || STUDIO_INBOX;
 }
 
-function studioFrom() {
-  return process.env["RESEND_FROM_EMAIL"] ?? "Say Sukii <studio@saysukii.com>";
-}
-
+/** A note for the studio, delivered the way every studio notice is: the inbox, then gmail. */
 export async function sendStudioNotice(input: { subject: string; html: string; text: string }) {
-  const key = process.env["RESEND_API_KEY"];
-  if (!key) return { sent: false as const };
   try {
-    const resend = new Resend(key);
-    const { error } = await resend.emails.send({
-      from: studioFrom(),
-      to: studioNotificationEmail(),
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-    });
-    if (error) {
-      console.error("[studio notice]", error.message);
-      return { sent: false as const };
-    }
-    return { sent: true as const };
+    const { deliverStudioNotice } = await import("@/lib/os/inquiry-email.server");
+    return await deliverStudioNotice(input.subject, input.html, input.text);
   } catch (error) {
     console.error("[studio notice]", error);
     return { sent: false as const };
   }
 }
 
+/** A letter from the studio to a teammate, like a sign-in link, through the studio's gmail. */
 export async function sendStudioEmail(input: SendInput) {
-  const key = process.env["RESEND_API_KEY"];
-  if (!key) {
-    await logEmail(input, "failed", "RESEND_API_KEY is not configured");
-    return { skipped: true };
-  }
-
+  const { sendClientLetter } = await import("@/lib/os/paid-email.server");
+  const recipients = Array.isArray(input.to) ? input.to : [input.to];
+  const text = input.html
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, "$2: $1")
+    .replace(/<(br|\/p|\/div|\/h\d|\/tr)[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   try {
-    const resend = new Resend(key);
-    const { data, error } = await resend.emails.send({
-      from: studioFrom(),
-      to: input.to,
-      subject: input.subject,
-      html: input.html,
-    });
-    if (error) throw new Error(error.message);
+    let sent = true;
+    for (const to of recipients) {
+      const result = await sendClientLetter({ to, subject: input.subject, html: input.html, text });
+      sent &&= result.sent;
+    }
+    if (!sent) {
+      // neither gmail nor a backup could send it
+      await logEmail(input, "failed", "gmail isn't connected");
+      return { skipped: true };
+    }
     await logEmail(input, "succeeded");
-    return { skipped: false, id: data?.id };
+    return { skipped: false };
   } catch (error) {
     await logEmail(input, "failed", error instanceof Error ? error.message : String(error));
     throw error;
@@ -71,7 +59,7 @@ export async function sendStudioEmail(input: SendInput) {
 
 async function logEmail(input: SendInput, status: "succeeded" | "failed", errorMessage?: string) {
   await supabaseAdmin.from("integration_events").insert({
-    provider: "resend",
+    provider: "gmail",
     event_type: input.eventType,
     status,
     reference_type: input.referenceType ?? null,

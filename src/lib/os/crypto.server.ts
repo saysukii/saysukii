@@ -6,10 +6,24 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
+function keyFrom(secret: string) {
+  return createHash("sha256").update(secret).digest();
+}
+
 function encryptionKey() {
   const secret = process.env["INTEGRATION_ENCRYPTION_KEY"];
   if (!secret) throw new Error("INTEGRATION_ENCRYPTION_KEY is not configured");
-  return createHash("sha256").update(secret).digest();
+  return keyFrom(secret);
+}
+
+/**
+ * Every key a stored secret might be locked with: the current one first, then, while a key is
+ * being rotated, the one before it (INTEGRATION_ENCRYPTION_KEY_PREVIOUS). New secrets always use
+ * the current key; old ones still open until they're saved again.
+ */
+function decryptionKeys() {
+  const previous = process.env["INTEGRATION_ENCRYPTION_KEY_PREVIOUS"]?.trim();
+  return [encryptionKey(), ...(previous ? [keyFrom(previous)] : [])];
 }
 
 export function encryptSecret(value: string) {
@@ -21,18 +35,28 @@ export function encryptSecret(value: string) {
 }
 
 export function decryptSecret(value: string) {
+  return openSecret(value).value;
+}
+
+/** a stored secret, and whether it was still locked with the previous key */
+export function openSecret(value: string) {
   const [ivValue, tagValue, encryptedValue] = value.split(".");
   if (!ivValue || !tagValue || !encryptedValue) throw new Error("Invalid encrypted value");
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    encryptionKey(),
-    Buffer.from(ivValue, "base64url"),
-  );
-  decipher.setAuthTag(Buffer.from(tagValue, "base64url"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(encryptedValue, "base64url")),
-    decipher.final(),
-  ]).toString("utf8");
+  const keys = decryptionKeys();
+  for (const [index, key] of keys.entries()) {
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivValue, "base64url"));
+      decipher.setAuthTag(Buffer.from(tagValue, "base64url"));
+      const opened = Buffer.concat([
+        decipher.update(Buffer.from(encryptedValue, "base64url")),
+        decipher.final(),
+      ]).toString("utf8");
+      return { value: opened, stale: index > 0 };
+    } catch {
+      // not this key; try the one before it
+    }
+  }
+  throw new Error("This secret can't be opened with the current encryption key.");
 }
 
 export function createPublicToken() {

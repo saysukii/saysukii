@@ -94,6 +94,7 @@ export const sendSignInEmail = createServerFn({ method: "POST" })
         note: "didn't ask for this? you can let it be. nothing changes until the link is opened.",
       }),
     });
-    if (sent.skipped) throw new Error("Studio email isn't set up yet.");
+    // the studio's gmail isn't connected, so there's nothing to send it through
+    if (sent.skipped) throw new Error("We couldn't send that email. Try again in a moment.");
     return { sent: true };
   });

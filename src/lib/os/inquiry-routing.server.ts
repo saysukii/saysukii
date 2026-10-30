@@ -719,7 +719,7 @@ function firstRecipient(to: string | null | undefined) {
 // receipts and balance reminders. the bell, the summary, and the proposal tab's "sent" list cover
 // them, so they stay out of the conversation. letters the studio sends by hand stay in it.
 const AUTOMATED_STUDIO_SUBJECT =
-  /^(you[’']re booked|someone wrote in|a call was booked|your project is booked · receipt|thank you · receipt|a gentle reminder · your balance|due today · your balance)\b/i;
+  /^(you[’']re booked|someone wrote in|a call was booked|your project is booked · receipt|thank you · receipt|a gentle reminder · your balance|due today · your balance|your studio link|reset your password|proposal approved ·|changes requested —)/i;
 
 /** the subject starts the way one of the studio's saved automatic letters does */
 async function savedAutomaticSubject(subject: string, store: RoutingStore) {

@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test:gmail": "tsx --test src/lib/os/gmail.isolation.test.ts src/lib/os/gmail-inbound.isolation.test.ts src/lib/os/inquiry-routing.isolation.test.ts src/lib/os/inquiry-desk.isolation.test.ts src/lib/os/gmail-outbound.isolation.test.ts src/lib/os/inquiry-summary.isolation.test.ts src/lib/os/directory-csv.isolation.test.ts src/lib/os/mail-reply.isolation.test.ts src/lib/proposal-link.isolation.test.ts src/lib/after-sign-in.isolation.test.ts src/lib/email-templates.isolation.test.ts src/lib/phone.isolation.test.ts src/lib/name-case.isolation.test.ts"
+    "test:gmail": "tsx --test src/lib/os/gmail.isolation.test.ts src/lib/os/gmail-inbound.isolation.test.ts src/lib/os/inquiry-routing.isolation.test.ts src/lib/os/inquiry-desk.isolation.test.ts src/lib/os/gmail-outbound.isolation.test.ts src/lib/os/inquiry-summary.isolation.test.ts src/lib/os/directory-csv.isolation.test.ts src/lib/os/mail-reply.isolation.test.ts src/lib/proposal-link.isolation.test.ts src/lib/after-sign-in.isolation.test.ts src/lib/email-templates.isolation.test.ts src/lib/phone.isolation.test.ts src/lib/name-case.isolation.test.ts src/lib/os/crypto.isolation.test.ts"
   },
   "overrides": {
     "rolldown": "1.2.1"
