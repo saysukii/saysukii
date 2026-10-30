@@ -49,6 +49,8 @@ export type ProfileRow = {
   created_at: string;
   updated_at: string;
   last_seen_at: string | null;
+  /** the owner's drawn signature (a png data url), for countersigning agreements */
+  signature?: string | null;
 };
 
 export type TeamInviteRow = {

@@ -11,11 +11,33 @@ export type SaySukiiEmail = {
   headline: string;
   body: string;
   facts?: EmailFact[];
-  button?: { label: string; url: string; color?: string };
+  /** every button is hot pink */
+  button?: { label: string; url: string };
+  /** the kind of work, shown as a small label in its own pink */
+  kind?: EmailKind;
   note?: string;
   /** where the logo loads from; only the email preview page changes it */
   origin?: string;
 };
+
+export type EmailKind = "weddings" | "events" | "deliveries" | "flowers";
+
+// the same pinks as the footer words, one for each kind of work, each soft enough to carry dark text
+const KIND_PINK: Record<EmailKind, string> = {
+  weddings: "#FF5C89",
+  events: "#FB8CAC",
+  deliveries: "#F4B3C0",
+  flowers: "#FDA8BF",
+};
+
+/** wedding, events + activations (and styling), deliveries, and concierge + subscription flowers */
+export function emailKind(eventType: string | null | undefined): EmailKind | undefined {
+  if (!eventType) return undefined;
+  if (eventType === "wedding") return "weddings";
+  if (eventType === "other") return "deliveries";
+  if (eventType === "subscription") return "flowers";
+  return "events";
+}
 
 export function escapeEmail(value: string) {
   return value
@@ -44,7 +66,7 @@ export function renderSaySukiiEmail(input: SaySukiiEmail) {
     ? `<tr><td style="padding-bottom:28px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="background-color:#FFF8F9;border-radius:12px;padding:18px 20px;">${factsTable(facts)}</td></tr></table></td></tr>`
     : "";
   const button = input.button
-    ? `<tr><td align="center" style="padding-bottom:20px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background-color:${input.button.color ?? "#FF4D94"};border-radius:8px;"><a href="${escapeEmail(input.button.url)}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:14px;font-weight:600;color:#FFF8F9;text-decoration:none;border-radius:8px;">${escapeEmail(input.button.label)}</a></td></tr></table></td></tr>`
+    ? `<tr><td align="center" style="padding-bottom:20px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background-color:#FF4D94;border-radius:8px;"><a href="${escapeEmail(input.button.url)}" target="_blank" style="display:inline-block;padding:14px 32px;font-size:14px;font-weight:600;color:#FFF8F9;text-decoration:none;border-radius:8px;">${escapeEmail(input.button.label)}</a></td></tr></table></td></tr>`
     : "";
   const note = input.note?.trim()
     ? `<tr><td align="center"><span style="font-size:13px;line-height:1.6;color:#999999;">${escapeEmail(input.note).replaceAll("\n", "<br>")}</span></td></tr>`
@@ -58,7 +80,13 @@ export function renderSaySukiiEmail(input: SaySukiiEmail) {
     .replaceAll("{{body}}", escapeEmail(input.body).replaceAll("\n", "<br>"))
     .replaceAll("{{detail_block}}", detail)
     .replaceAll("{{button_block}}", button)
-    .replaceAll("{{note_block}}", note);
+    .replaceAll("{{note_block}}", note)
+    .replaceAll(
+      "{{kind_block}}",
+      input.kind
+        ? `<tr><td align="center" style="padding-bottom:12px;"><span style="display:inline-block;padding:4px 12px;border-radius:999px;background-color:${KIND_PINK[input.kind]};color:${input.kind === "weddings" ? "#FFFFFF" : "#24221F"};font-size:11px;letter-spacing:0.08em;">${input.kind}</span></td></tr>`
+        : "",
+    );
 }
 
 function factsTable(facts: EmailFact[]) {

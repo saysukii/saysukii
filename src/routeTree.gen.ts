@@ -17,6 +17,7 @@ import { Route as BookRouteImport } from './routes/book'
 import { Route as EmailPreviewRouteImport } from './routes/email-preview'
 import { Route as InquireRouteImport } from './routes/inquire'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PayStudiesRouteImport } from './routes/pay-studies'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -34,6 +35,7 @@ import { Route as AuthenticatedDirectoriesVendorsRouteImport } from './routes/_a
 import { Route as AuthenticatedDirectoriesVenuesRouteImport } from './routes/_authenticated/directories.venues'
 import { Route as AuthenticatedPipelineIndexRouteImport } from './routes/_authenticated/pipeline.index'
 import { Route as AuthenticatedPipelineIdRouteImport } from './routes/_authenticated/pipeline.$id'
+import { Route as ApiCronBalanceRemindersRouteImport } from './routes/api/cron/balance-reminders'
 import { Route as ApiCronGmailInboundRouteImport } from './routes/api/cron/gmail-inbound'
 import { Route as ApiCronGmailRouteRouteImport } from './routes/api/cron/gmail-route'
 import { Route as ApiCronScheduledLettersRouteImport } from './routes/api/cron/scheduled-letters'
@@ -83,6 +85,11 @@ const InquireRoute = InquireRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PayStudiesRoute = PayStudiesRouteImport.update({
+  id: '/pay-studies',
+  path: '/pay-studies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScheduleRoute = ScheduleRouteImport.update({
@@ -174,6 +181,11 @@ const AuthenticatedPipelineIdRoute = AuthenticatedPipelineIdRouteImport.update({
   path: '/pipeline/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiCronBalanceRemindersRoute = ApiCronBalanceRemindersRouteImport.update({
+  id: '/api/cron/balance-reminders',
+  path: '/api/cron/balance-reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronGmailInboundRoute = ApiCronGmailInboundRouteImport.update({
   id: '/api/cron/gmail-inbound',
   path: '/api/cron/gmail-inbound',
@@ -245,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/email-preview': typeof EmailPreviewRoute
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -261,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/directories/vendors': typeof AuthenticatedDirectoriesVendorsRouteWithChildren
   '/directories/venues': typeof AuthenticatedDirectoriesVenuesRouteWithChildren
   '/pipeline/$id': typeof AuthenticatedPipelineIdRoute
+  '/api/cron/balance-reminders': typeof ApiCronBalanceRemindersRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
@@ -281,6 +295,7 @@ export interface FileRoutesByTo {
   '/book': typeof BookRoute
   '/email-preview': typeof EmailPreviewRoute
   '/onboarding': typeof OnboardingRoute
+  '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -295,6 +310,7 @@ export interface FileRoutesByTo {
   '/clients/$id': typeof AuthenticatedClientsIdRoute
   '/directories/clients': typeof AuthenticatedDirectoriesClientsRoute
   '/pipeline/$id': typeof AuthenticatedPipelineIdRoute
+  '/api/cron/balance-reminders': typeof ApiCronBalanceRemindersRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
@@ -318,6 +334,7 @@ export interface FileRoutesById {
   '/email-preview': typeof EmailPreviewRoute
   '/inquire': typeof InquireRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -334,6 +351,7 @@ export interface FileRoutesById {
   '/_authenticated/directories/vendors': typeof AuthenticatedDirectoriesVendorsRouteWithChildren
   '/_authenticated/directories/venues': typeof AuthenticatedDirectoriesVenuesRouteWithChildren
   '/_authenticated/pipeline/$id': typeof AuthenticatedPipelineIdRoute
+  '/api/cron/balance-reminders': typeof ApiCronBalanceRemindersRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
@@ -357,6 +375,7 @@ export interface FileRouteTypes {
     | '/email-preview'
     | '/inquire'
     | '/onboarding'
+    | '/pay-studies'
     | '/schedule'
     | '/calendar'
     | '/dashboard'
@@ -373,6 +392,7 @@ export interface FileRouteTypes {
     | '/directories/vendors'
     | '/directories/venues'
     | '/pipeline/$id'
+    | '/api/cron/balance-reminders'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/scheduled-letters'
@@ -393,6 +413,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/email-preview'
     | '/onboarding'
+    | '/pay-studies'
     | '/schedule'
     | '/calendar'
     | '/dashboard'
@@ -407,6 +428,7 @@ export interface FileRouteTypes {
     | '/clients/$id'
     | '/directories/clients'
     | '/pipeline/$id'
+    | '/api/cron/balance-reminders'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/scheduled-letters'
@@ -429,6 +451,7 @@ export interface FileRouteTypes {
     | '/email-preview'
     | '/inquire'
     | '/onboarding'
+    | '/pay-studies'
     | '/schedule'
     | '/_authenticated/calendar'
     | '/_authenticated/dashboard'
@@ -445,6 +468,7 @@ export interface FileRouteTypes {
     | '/_authenticated/directories/vendors'
     | '/_authenticated/directories/venues'
     | '/_authenticated/pipeline/$id'
+    | '/api/cron/balance-reminders'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/scheduled-letters'
@@ -468,8 +492,10 @@ export interface RootRouteChildren {
   EmailPreviewRoute: typeof EmailPreviewRoute
   InquireRoute: typeof InquireRouteWithChildren
   OnboardingRoute: typeof OnboardingRoute
+  PayStudiesRoute: typeof PayStudiesRoute
   ScheduleRoute: typeof ScheduleRoute
   ProposalTokenRoute: typeof ProposalTokenRoute
+  ApiCronBalanceRemindersRoute: typeof ApiCronBalanceRemindersRoute
   ApiCronGmailInboundRoute: typeof ApiCronGmailInboundRoute
   ApiCronGmailRouteRoute: typeof ApiCronGmailRouteRoute
   ApiCronScheduledLettersRoute: typeof ApiCronScheduledLettersRoute
@@ -535,6 +561,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pay-studies': {
+      id: '/pay-studies'
+      path: '/pay-studies'
+      fullPath: '/pay-studies'
+      preLoaderRoute: typeof PayStudiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/schedule': {
@@ -655,6 +688,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/pipeline/$id'
       preLoaderRoute: typeof AuthenticatedPipelineIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/cron/balance-reminders': {
+      id: '/api/cron/balance-reminders'
+      path: '/api/cron/balance-reminders'
+      fullPath: '/api/cron/balance-reminders'
+      preLoaderRoute: typeof ApiCronBalanceRemindersRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/cron/gmail-inbound': {
       id: '/api/cron/gmail-inbound'
@@ -839,8 +879,10 @@ const rootRouteChildren: RootRouteChildren = {
   EmailPreviewRoute: EmailPreviewRoute,
   InquireRoute: InquireRouteWithChildren,
   OnboardingRoute: OnboardingRoute,
+  PayStudiesRoute: PayStudiesRoute,
   ScheduleRoute: ScheduleRoute,
   ProposalTokenRoute: ProposalTokenRoute,
+  ApiCronBalanceRemindersRoute: ApiCronBalanceRemindersRoute,
   ApiCronGmailInboundRoute: ApiCronGmailInboundRoute,
   ApiCronGmailRouteRoute: ApiCronGmailRouteRoute,
   ApiCronScheduledLettersRoute: ApiCronScheduledLettersRoute,

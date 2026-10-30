@@ -295,7 +295,11 @@ export function ProposalPacket({ token }: { token: string }) {
       : 50);
   const number = preview?.number ?? data?.proposal.number ?? "";
   const signedName = preview?.signedName ?? data?.agreement?.signedName ?? keptSignature;
-  const paid = preview?.paid ?? data?.invoice?.status === "paid";
+  // the deposit first, then the balance; paid means nothing is left
+  const paidCents = data?.paidCents ?? 0;
+  const balanceLeft = data ? Math.max(0, data.proposal.total_cents - paidCents) : 0;
+  const paid = preview?.paid ?? (paidCents > 0 && balanceLeft === 0);
+  const depositIn = !preview && paidCents > 0 && balanceLeft > 0;
   const link = paymentLink ?? data?.invoice?.paymentLink ?? null;
   const noted = Boolean(preview?.changeNote) || changes.isSuccess;
   const canRespond = status === "sent" || status === "viewed";
@@ -321,6 +325,7 @@ export function ProposalPacket({ token }: { token: string }) {
     optionDeposit(totalCents, payPercent);
   const listCents = totalCents + courtesyCents;
   const packageName = floralPackageName(work.occasion || occasion);
+  const eventShort = shortDate(preview?.eventDate ?? data?.proposal.event_date ?? "");
   const bookingLine = invoiceBookingLine(
     work.occasion || occasion,
     invoiceDateLabel(preview?.eventDate ?? data?.proposal.event_date ?? work.eventWhen),
@@ -640,8 +645,25 @@ export function ProposalPacket({ token }: { token: string }) {
               </p>
             ) : paid ? (
               <p className="client-packet-stamp" style={{ marginTop: 0 }}>
-                {depositCents >= totalCents ? "Paid in full." : "Deposit received."}
+                Paid in full. Thank you.
               </p>
+            ) : depositIn ? (
+              <div className="client-packet-balance">
+                <p className="client-packet-stamp" style={{ marginTop: 0 }}>
+                  Deposit received. {formatMoneyExact(balanceLeft)} remaining
+                  {data?.balanceDue ? `, due ${shortDate(data.balanceDue)}` : ""}.
+                </p>
+                <SquarePay
+                  token={token}
+                  amountCents={balanceLeft}
+                  clientName={clientName}
+                  clientEmail={clientEmail}
+                  summary={{ service: `${packageName} · balance`, eventDate: eventShort }}
+                  onPaid={() =>
+                    void queryClient.invalidateQueries({ queryKey: ["public-proposal", token] })
+                  }
+                />
+              </div>
             ) : preview ? (
               <button
                 type="button"
@@ -658,6 +680,14 @@ export function ProposalPacket({ token }: { token: string }) {
                 clientName={clientName}
                 clientEmail={clientEmail}
                 fallbackHref={link}
+                summary={{
+                  service: packageName,
+                  eventDate: eventShort,
+                  balance:
+                    depositCents < totalCents && data?.balanceDue
+                      ? { amountCents: totalCents - depositCents, due: shortDate(data.balanceDue) }
+                      : null,
+                }}
                 onPaid={() =>
                   void queryClient.invalidateQueries({ queryKey: ["public-proposal", token] })
                 }
@@ -668,4 +698,10 @@ export function ProposalPacket({ token }: { token: string }) {
       </div>
     </main>
   );
+}
+
+/** MM/DD/YY, the way the studio writes every date */
+function shortDate(value: string) {
+  const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return day ? `${day[2]}/${day[3]}/${day[1]!.slice(2)}` : value;
 }

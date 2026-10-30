@@ -16457,3 +16457,660 @@ a.studio-kicker:hover {
   text-align: center;
 }
 
+/* the pay moment: a quiet wait while it pays, then a simple sign that it's done */
+.pay-moment {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 14px 0 6px;
+  text-align: center;
+}
+
+.pay-moment-line {
+  margin: 10px 0 0;
+  color: #24221f;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+
+.pay-moment-note {
+  margin: 0;
+  color: rgba(36, 34, 31, 0.55);
+  font-size: 13px;
+}
+
+/* the circle */
+.pay-moment-circle {
+  width: 64px;
+  height: 64px;
+}
+
+.pay-moment-circle circle {
+  stroke: #ff4d94;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 40 124;
+  transform-origin: 32px 32px;
+  animation: pay-turn 1s linear infinite;
+}
+
+.pay-moment-circle path {
+  stroke: #ff4d94;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+}
+
+.pay-moment.is-circle.is-paid circle {
+  animation: pay-close 400ms ease-out forwards;
+}
+
+.pay-moment.is-circle.is-paid path {
+  animation: pay-draw 360ms 300ms ease-out forwards;
+}
+
+/* the dot */
+.pay-moment-dot {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ff4d94;
+  animation: pay-breathe 1.2s ease-in-out infinite;
+  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pay-moment-dot svg {
+  width: 26px;
+  height: 26px;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+}
+
+.pay-moment.is-dot.is-paid .pay-moment-dot {
+  width: 56px;
+  height: 56px;
+  animation: none;
+}
+
+.pay-moment.is-dot.is-paid .pay-moment-dot svg {
+  animation: pay-draw 320ms 300ms ease-out forwards;
+}
+
+/* the line */
+.pay-moment-amount {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(100%, 220px);
+}
+
+.pay-moment-amount p {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #24221f;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+  transition: color 300ms ease;
+}
+
+.pay-moment-amount svg {
+  width: 0;
+  height: 22px;
+  stroke: #ff4d94;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: width 300ms ease;
+}
+
+.pay-moment-bar {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(#ff4d94, #ff4d94) left / 0% 100% no-repeat rgba(255, 77, 148, 0.14);
+  animation: pay-fill 2.2s ease-in-out forwards;
+}
+
+.pay-moment.is-line.is-paid .pay-moment-amount p {
+  color: #ff4d94;
+}
+
+.pay-moment.is-line.is-paid .pay-moment-amount svg {
+  width: 22px;
+  animation: pay-draw 320ms 120ms ease-out forwards;
+}
+
+.pay-moment.is-line.is-paid .pay-moment-bar {
+  background-size: 100% 100%;
+  animation: none;
+}
+
+/* the button */
+.pay-moment-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 180px;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #24221f 40%, #4a4542 50%, #24221f 60%) 0 0 / 300% 100%;
+  color: #fff8f9;
+  font-size: 14px;
+  animation: pay-shimmer 1.4s linear infinite;
+  transition: background-color 300ms ease;
+}
+
+.pay-moment.is-button.is-paid .pay-moment-pill {
+  background: #ff4d94;
+  animation: none;
+}
+
+@keyframes pay-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pay-close {
+  to {
+    stroke-dasharray: 164 0;
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes pay-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pay-breathe {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+@keyframes pay-fill {
+  0% {
+    background-size: 0% 100%;
+  }
+  100% {
+    background-size: 85% 100%;
+  }
+}
+
+@keyframes pay-shimmer {
+  to {
+    background-position: -300% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pay-moment *,
+  .pay-moment *::before {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* the pay pop-up: the amount, apple pay, the card, and the moment it's paid */
+.client-pay-modal {
+  max-width: 440px;
+}
+
+.client-pay-form,
+.client-pay-moment {
+  display: grid;
+  gap: 12px;
+}
+
+.client-pay-form header {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.client-pay-form .client-packet-kicker {
+  margin: 0;
+}
+
+.client-pay-amount {
+  margin: 0;
+  color: #24221f;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+}
+
+.client-pay-for {
+  margin: 0;
+  color: rgba(36, 34, 31, 0.55);
+  font-size: 13px;
+}
+
+.client-pay-form .client-packet-accept,
+.client-pay-done {
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+}
+
+.client-pay-mock-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px 54px 64px;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fffafb;
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.14);
+  color: rgba(36, 34, 31, 0.4);
+  font-size: 14px;
+}
+
+.client-pay-modal.is-wide {
+  max-width: 760px;
+}
+
+.client-pay-head {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+}
+
+.client-pay-head .client-packet-kicker {
+  margin: 0;
+}
+
+.client-pay-summary {
+  display: grid;
+  margin: 0;
+  padding: 4px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, #ffdbdb 6%, rgba(255, 255, 255, 0.5));
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.06);
+}
+
+.client-pay-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+.client-pay-summary div + div {
+  border-top: 1px solid rgba(36, 34, 31, 0.06);
+}
+
+.client-pay-summary dt {
+  color: rgba(36, 34, 31, 0.6);
+}
+
+.client-pay-summary dd {
+  margin: 0;
+  color: #24221f;
+  font-variant-numeric: tabular-nums;
+}
+
+.client-pay-summary .is-strong dt,
+.client-pay-summary .is-strong dd {
+  color: #ff4d94;
+}
+
+.client-pay-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  color: rgba(36, 34, 31, 0.5);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+}
+
+.client-pay-back {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ff4d94;
+  font: inherit;
+  cursor: pointer;
+}
+
+.client-pay-checks {
+  display: grid;
+  gap: 6px;
+}
+
+.client-pay-checks p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: rgba(36, 34, 31, 0.7);
+  font-size: 13px;
+}
+
+.client-pay-checks svg {
+  width: 15px;
+  height: 15px;
+  color: #ff4d94;
+}
+
+.client-pay-side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.client-pay-side aside {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding-right: 24px;
+  border-right: 1px solid rgba(36, 34, 31, 0.08);
+}
+
+.client-pay-mark {
+  width: 110px;
+  justify-self: center;
+}
+
+@media (max-width: 640px) {
+  .client-pay-side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .client-pay-side aside {
+    padding: 0 0 16px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(36, 34, 31, 0.08);
+  }
+}
+
+.client-pay-hello {
+  margin: 0;
+  color: #ff4d94;
+  font-size: 13px;
+  text-align: center;
+}
+
+.client-pay-later {
+  margin: -4px 0 4px;
+  color: rgba(36, 34, 31, 0.55);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.client-pay-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 244, 246, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+}
+
+.client-pay-choice button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(36, 34, 31, 0.55);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.client-pay-choice button[aria-checked="true"] {
+  background: #fff;
+  color: #24221f;
+}
+
+.client-pay-email {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: rgba(36, 34, 31, 0.55);
+}
+
+.client-pay-email input {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 14px;
+  background: #fffafb;
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.14);
+  color: #24221f;
+  font: inherit;
+  font-size: 14px;
+}
+
+.client-pay-receipt {
+  margin: -2px 0 6px;
+  color: rgba(36, 34, 31, 0.55);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.client-pay-lock {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+/* the words above the payment */
+.client-pay-top {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.client-pay-top.is-dear,
+.client-pay-top.is-ledger {
+  gap: 10px;
+  text-align: left;
+}
+
+.client-pay-greeting {
+  margin: 0;
+  color: #ff4d94;
+  font-size: 15px;
+}
+
+.client-pay-words {
+  margin: 0;
+  color: rgba(36, 34, 31, 0.75);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.client-pay-due {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, #ffdbdb 6%, rgba(255, 255, 255, 0.5));
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.06);
+  color: rgba(36, 34, 31, 0.6);
+  font-size: 13px;
+}
+
+.client-pay-due b {
+  color: #24221f;
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.client-pay-due.is-big b {
+  color: #ff4d94;
+  font-size: 34px;
+  letter-spacing: -0.02em;
+}
+
+.client-pay-top.is-ledger dl {
+  display: grid;
+  margin: 0;
+}
+
+.client-pay-top.is-ledger dl div {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 2px;
+  font-size: 13px;
+}
+
+.client-pay-top.is-ledger dl div + div {
+  border-top: 1px solid rgba(36, 34, 31, 0.06);
+}
+
+.client-pay-top.is-ledger dt {
+  color: rgba(36, 34, 31, 0.5);
+}
+
+.client-pay-top.is-ledger dd {
+  margin: 0;
+  color: #24221f;
+}
+
+.client-pay-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.client-pay-pills span {
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(255, 244, 246, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+  color: rgba(36, 34, 31, 0.65);
+  font-size: 11.5px;
+}
+
+.client-pay-pills.is-receipt {
+  align-items: center;
+}
+
+.client-pay-pills button,
+.client-pay-receipt-line button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ff4d94;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.client-pay-receipt-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  color: rgba(36, 34, 31, 0.6);
+  font-size: 12.5px;
+}
+
+.client-pay-receipt-line b {
+  color: #24221f;
+  font-weight: 400;
+}
+
+/* the local pay studies page */
+.pay-studies-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pay-studies-tabs button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 244, 246, 0.8);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+  color: rgba(36, 34, 31, 0.55);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pay-studies-tabs button[aria-selected="true"] {
+  background: #fff;
+  color: #ff4d94;
+}
+
+.pay-studies-idea {
+  margin: 0 0 18px;
+  color: rgba(36, 34, 31, 0.55);
+  font-size: 13px;
+}
+
+.pay-studies-invoice {
+  display: grid;
+  gap: 12px;
+}
+
+.pay-studies-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(36, 34, 31, 0.08);
+  font-size: 14px;
+}
+
+.pay-studies-row.is-total {
+  font-weight: 400;
+}
+
+/* the owner's signature in settings */
+.studio-signature-pad {
+  --packet-ink: #24221f;
+  --packet-pink: #ff4d94;
+  margin: 12px 0;
+  padding: 8px 14px 12px;
+  border-radius: 16px;
+  background: #fffafb;
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.1);
+}
+
+
+/* the pay form steps aside while the circle plays, without losing square's fields */
+.client-pay-form[hidden],
+.client-packet-card[hidden] {
+  display: none;
+}

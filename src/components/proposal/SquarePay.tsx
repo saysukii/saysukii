@@ -1,8 +1,18 @@
 import { useServerFn } from "@tanstack/react-start";
+import { Lock, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { PayMoment } from "@/components/proposal/PayMoment";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatMoneyExact } from "@/lib/money";
 import { getSquarePayConfig, payProposalDeposit } from "@/lib/os/proposals.functions";
+import type { PayPhase } from "@/lib/pay-moments";
 
 // the small slice of square's web payments sdk this page uses
 type SquareTokenResult = {
@@ -64,9 +74,16 @@ function loadSquare(src: string) {
   });
 }
 
+export type PaySummary = {
+  service: string;
+  eventDate: string;
+  /** after this payment, what's left and when it's due (a deposit) */
+  balance?: { amountCents: number; due: string } | null;
+};
+
 /**
- * The deposit, paid right on the invoice: apple pay where the device has it, and square's secure
- * card fields in the studio's own look. Square processes the payment; the card never touches the app.
+ * The pay button, and the pop-up it opens: the ledger of what's due, apple pay or square's secure
+ * card fields, where the receipt goes, then the circle while it pays. The card never touches the app.
  */
 export function SquarePay({
   token,
@@ -74,6 +91,7 @@ export function SquarePay({
   clientName,
   clientEmail,
   fallbackHref,
+  summary,
   onPaid,
 }: {
   token: string;
@@ -82,6 +100,7 @@ export function SquarePay({
   clientEmail: string;
   /** square's own checkout page, if one was made, for when the fields here can't load */
   fallbackHref?: string | null;
+  summary: PaySummary;
   onPaid: () => void;
 }) {
   const fetchConfig = useServerFn(getSquarePayConfig);
@@ -89,14 +108,20 @@ export function SquarePay({
   const cardHost = useRef<HTMLDivElement>(null);
   const card = useRef<SquareCard | null>(null);
   const applePay = useRef<SquareApplePay | null>(null);
+  const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [hasApplePay, setHasApplePay] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [method, setMethod] = useState<"apple" | "card">("card");
+  const [receipt, setReceipt] = useState(clientEmail);
+  const [phase, setPhase] = useState<PayPhase | null>(null);
   const [problem, setProblem] = useState("");
   const amount = (amountCents / 100).toFixed(2);
+  const money = formatMoneyExact(amountCents);
 
+  // square's fields are made when the pop-up opens, and taken down when it closes
   useEffect(() => {
+    if (!open) return;
     let gone = false;
     void (async () => {
       try {
@@ -116,7 +141,10 @@ export function SquarePay({
             total: { amount, label: "Say Sukii" },
           });
           applePay.current = await payments.applePay(request);
-          if (!gone) setHasApplePay(true);
+          if (!gone) {
+            setHasApplePay(true);
+            setMethod("apple");
+          }
         } catch {
           // apple pay only shows in safari on a device with it set up
         }
@@ -128,91 +156,225 @@ export function SquarePay({
       gone = true;
       void card.current?.destroy().catch(() => false);
       card.current = null;
+      applePay.current = null;
+      setReady(false);
+      setHasApplePay(false);
     };
-  }, [amount, fetchConfig]);
+  }, [amount, fetchConfig, open]);
 
-  async function charge(source: "card" | "apple") {
+  async function charge() {
     setProblem("");
-    setBusy(true);
-    try {
-      const [first = "", ...rest] = clientName.trim().split(/\s+/);
-      const result =
-        source === "apple"
-          ? await applePay.current?.tokenize()
-          : await card.current?.tokenize({
-              amount,
-              currencyCode: "USD",
-              intent: "CHARGE",
-              customerInitiated: true,
-              sellerKeyedIn: false,
-              billingContact: {
-                givenName: first,
-                familyName: rest.join(" "),
-                ...(clientEmail ? { email: clientEmail } : {}),
-              },
-            });
-      if (!result || result.status !== "OK" || !result.token) {
-        // a closed apple pay sheet or an unfinished card form isn't an error worth shouting about
-        const message = result?.errors?.[0]?.message;
-        if (message) setProblem(message);
-        return;
-      }
-      const paid = await pay({ data: { token, source_id: result.token } });
-      if (paid.paid) onPaid();
-      else setProblem("The payment is still processing. This page will update once it clears.");
-    } catch (error) {
-      setProblem(error instanceof Error ? error.message : "The payment didn't go through.");
-    } finally {
-      setBusy(false);
+    const [first = "", ...rest] = clientName.trim().split(/\s+/);
+    const result =
+      method === "apple"
+        ? await applePay.current?.tokenize()
+        : await card.current?.tokenize({
+            amount,
+            currencyCode: "USD",
+            intent: "CHARGE",
+            customerInitiated: true,
+            sellerKeyedIn: false,
+            billingContact: {
+              givenName: first,
+              familyName: rest.join(" "),
+              ...(receipt ? { email: receipt } : {}),
+            },
+          });
+    if (!result || result.status !== "OK" || !result.token) {
+      // a closed apple pay sheet or an unfinished card isn't an error worth shouting about
+      const message = result?.errors?.[0]?.message;
+      if (message) setProblem(message);
+      return;
     }
+    setPhase("paying");
+    try {
+      const paid = await pay({
+        data: {
+          token,
+          source_id: result.token,
+          ...(receipt.trim() ? { receipt_email: receipt.trim() } : {}),
+        },
+      });
+      if (paid.paid) {
+        setPhase("paid");
+      } else {
+        setPhase(null);
+        setProblem("The payment is still processing. This page will update once it clears.");
+      }
+    } catch (error) {
+      setPhase(null);
+      setProblem(error instanceof Error ? error.message : "The payment didn't go through.");
+    }
+  }
+
+  function close() {
+    const finished = phase === "paid";
+    setOpen(false);
+    setPhase(null);
+    setProblem("");
+    if (finished) onPaid();
   }
 
   if (unavailable && fallbackHref) {
     return (
       <a href={fallbackHref} target="_blank" rel="noreferrer" className="client-packet-accept">
-        Pay {formatMoneyExact(amountCents)}
+        Pay {money}
       </a>
     );
   }
 
-  if (unavailable) {
-    return (
-      <p className="client-packet-client">
-        Payment isn't available here just yet. The studio will send payment instructions.
-      </p>
-    );
-  }
-
   return (
-    <div className="client-packet-pay" aria-busy={!ready || busy}>
-      {hasApplePay ? (
-        <>
-          <button
-            type="button"
-            className="client-packet-applepay"
-            aria-label={`Pay ${formatMoneyExact(amountCents)} with Apple Pay`}
-            disabled={busy}
-            onClick={() => void charge("apple")}
-          />
-          <p className="client-packet-pay-or">or pay by card</p>
-        </>
-      ) : null}
-      <div ref={cardHost} className="client-packet-card" />
-      {!ready ? <p className="client-packet-pay-note">Opening secure checkout…</p> : null}
-      {problem ? (
-        <p role="alert" className="client-packet-stamp">
-          {problem}
-        </p>
-      ) : null}
-      <button
-        type="button"
-        className="client-packet-accept"
-        disabled={!ready || busy}
-        onClick={() => void charge("card")}
-      >
-        {busy ? "Paying…" : `Pay ${formatMoneyExact(amountCents)}`}
+    <>
+      <button type="button" className="client-packet-accept" onClick={() => setOpen(true)}>
+        Pay {money}
       </button>
-      <p className="client-packet-pay-note">Payments are processed securely by Square.</p>
-    </div>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (phase === "paying") return;
+          if (next) setOpen(true);
+          else close();
+        }}
+      >
+        <DialogContent
+          overlayClassName="studio-task-veil"
+          className="studio-task-modal is-ask is-soft client-pay-modal"
+          hideClose
+        >
+          <div className="studio-task-head">
+            {phase === "paying" ? null : (
+              <DialogClose className="studio-task-close" aria-label="Close">
+                <X aria-hidden="true" />
+              </DialogClose>
+            )}
+          </div>
+          <DialogTitle className="sr-only">pay {money}</DialogTitle>
+          <DialogDescription className="sr-only">pay by apple pay or card.</DialogDescription>
+
+          {phase ? (
+            <div className="client-pay-moment">
+              <PayMoment style="circle" phase={phase} amount={money} />
+              {phase === "paid" ? (
+                <>
+                  <p className="client-pay-receipt">
+                    your receipt is on its way to {receipt || "your email"}.
+                  </p>
+                  <button
+                    type="button"
+                    className="client-packet-accept client-pay-done"
+                    onClick={close}
+                  >
+                    done
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* the form stays mounted under the moment, so square's fields survive a retry */}
+          <div className="client-pay-form" hidden={Boolean(phase)}>
+            <header className="client-pay-top is-ledger">
+              <div className="client-pay-due is-big">
+                <span>due now</span>
+                <b>{money}</b>
+              </div>
+              <dl>
+                <div>
+                  <dt>for</dt>
+                  <dd>{summary.service}</dd>
+                </div>
+                {summary.eventDate ? (
+                  <div>
+                    <dt>event</dt>
+                    <dd>{summary.eventDate}</dd>
+                  </div>
+                ) : null}
+                {summary.balance ? (
+                  <div>
+                    <dt>balance</dt>
+                    <dd>
+                      {formatMoneyExact(summary.balance.amountCents)} · due {summary.balance.due}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            </header>
+
+            {hasApplePay ? (
+              <div className="client-pay-choice" role="radiogroup" aria-label="pay with">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={method === "apple"}
+                  onClick={() => setMethod("apple")}
+                >
+                  apple pay
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={method === "card"}
+                  onClick={() => setMethod("card")}
+                >
+                  card
+                </button>
+              </div>
+            ) : null}
+
+            {method === "apple" && hasApplePay ? (
+              <button
+                type="button"
+                className="client-packet-applepay"
+                aria-label={`Pay ${money} with Apple Pay`}
+                onClick={() => void charge()}
+              />
+            ) : null}
+            <div
+              ref={cardHost}
+              className="client-packet-card"
+              hidden={method === "apple" && hasApplePay}
+            />
+            {!ready && !unavailable ? (
+              <p className="client-packet-pay-note">Opening secure checkout…</p>
+            ) : null}
+            {unavailable ? (
+              <p className="client-packet-client">
+                Payment isn't available here just yet. The studio will send payment instructions.
+              </p>
+            ) : null}
+
+            <label className="client-pay-email is-ledger">
+              <span>receipt</span>
+              <input
+                type="email"
+                value={receipt}
+                autoComplete="email"
+                onChange={(event) => setReceipt(event.target.value)}
+              />
+            </label>
+
+            {problem ? (
+              <p role="alert" className="client-packet-stamp">
+                {problem}
+              </p>
+            ) : null}
+
+            {method === "card" || !hasApplePay ? (
+              <button
+                type="button"
+                className="client-packet-accept"
+                disabled={!ready}
+                onClick={() => void charge()}
+              >
+                Pay {money}
+              </button>
+            ) : null}
+            <p className="client-packet-pay-note">
+              <Lock aria-hidden="true" className="client-pay-lock" /> processed securely by square
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

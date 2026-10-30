@@ -142,6 +142,32 @@ export const updateOwnProfile = createServerFn({ method: "POST" })
     return { fullName: data.fullName };
   });
 
+/** The owner's signature, drawn once, for countersigning the agreement copy each client keeps. */
+export const saveOwnSignature = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) =>
+    z
+      .object({
+        signature: z.string().startsWith("data:image/png;base64,").max(600_000).nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ signature: data.signature })
+      .eq("id", context.profile.id);
+    if (error) {
+      throw new Error(
+        /signature/.test(error.message)
+          ? "Run the signature migration in Supabase first."
+          : error.message,
+      );
+    }
+    return { saved: Boolean(data.signature) };
+  });
+
 export const deactivateTeamMember = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((input: unknown) => memberSchema.parse(input))

@@ -16,7 +16,31 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
     const { inquiryReceivedHtml } = await import("@/lib/os/inquiry-email.server");
     const { changeRequestHtml } = await import("@/lib/os/change-request-email.server");
     const { bookingHtml } = await import("@/lib/os/booking-email.server");
-    const { renderSaySukiiEmail } = await import("@/lib/os/email-layout");
+    const { balanceReminderHtml, clientPaidHtml, studioPaidHtml } =
+      await import("@/lib/os/paid-email.server");
+    // paid in october for a dinner next march, so the balance falls due in february
+    const paid = {
+      clientName: "Fenty Beauty",
+      invoiceNumber: "SS103",
+      amountCents: 400250,
+      paidCents: 400250,
+      totalCents: 400250,
+      booking: true,
+      occasion: "private dinner",
+      eventDate: "2027-03-12",
+      paidAt: "2026-10-29T21:20:00.000Z",
+      attachments: ["Say Sukii receipt SS103.pdf", "Floral Service Agreement.pdf"],
+      inquiryId: "fenty-beauty",
+      eventType: "private",
+    };
+    const deposit = { ...paid, amountCents: 200125, paidCents: 200125 };
+    const balance = {
+      ...paid,
+      amountCents: 200125,
+      booking: false,
+      paidAt: "2027-02-08T16:00:00.000Z",
+      attachments: ["Say Sukii receipt SS103.pdf"],
+    };
     const origin = data.origin.replace(/\/$/, "");
     return [
       {
@@ -32,6 +56,25 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
           origin,
         ),
       },
+      ...(
+        [
+          ["events", "Nia Okafor", "brand_activation", "Soho House, Miami Beach"],
+          ["deliveries", "Jordan Pierre", "other", "Little Haiti, Miami"],
+          ["flowers", "Ana Ruiz", "subscription", "Coconut Grove, Miami"],
+        ] as const
+      ).map(([kind, clientName, eventType, venue]) => ({
+        caption: `to the studio — someone writes in about ${kind}`,
+        html: inquiryReceivedHtml(
+          {
+            clientName,
+            email: `${clientName.split(" ")[0]?.toLowerCase()}@example.com`,
+            eventDate: "2027-02-06",
+            eventType,
+            venue,
+          },
+          origin,
+        ),
+      })),
       {
         caption: "to the studio — a client asks for a change",
         html: changeRequestHtml(
@@ -60,16 +103,50 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
         ),
       },
       {
-        caption: "to the client — the deposit is paid",
-        html: renderSaySukiiEmail({
-          origin,
-          eyebrow: "deposit",
-          eyebrowColor: "#6F8A72",
-          headline: "your date is held",
-          body: "thank you, Camila Reyes. your deposit is complete and your project has moved into the studio.",
-          facts: [{ label: "proposal", value: "SS-1042" }],
-        }),
+        caption:
+          "to the client — the deposit books the project (receipt + signed agreement attached)",
+        html: clientPaidHtml(deposit, origin),
       },
+      {
+        caption: "to the studio — a deposit books the project",
+        html: studioPaidHtml(deposit, origin),
+      },
+      {
+        caption:
+          "to the client — paid in full at once books the project (receipt + agreement attached)",
+        html: clientPaidHtml(paid, origin),
+      },
+      {
+        caption: "to the studio — paid in full at once books the project",
+        html: studioPaidHtml(paid, origin),
+      },
+      {
+        caption: "to the client — the balance is paid, a thank-you (receipt attached)",
+        html: clientPaidHtml(balance, origin),
+      },
+      {
+        caption: "to the studio — the balance is paid",
+        html: studioPaidHtml(balance, origin),
+      },
+      ...(["soon", "today"] as const).map((when) => ({
+        caption:
+          when === "soon"
+            ? "to the client — the balance is due in five days (35 days before the event)"
+            : "to the client — the balance is due today (30 days before the event)",
+        html: balanceReminderHtml(
+          {
+            clientName: "Fenty Beauty",
+            invoiceNumber: "SS103",
+            balanceCents: 200125,
+            occasion: "private dinner",
+            eventDate: "2027-03-12",
+            when,
+            payUrl: `${origin}/fenty-beauty`,
+            eventType: "private",
+          },
+          origin,
+        ),
+      })),
     ];
   });
 
@@ -84,19 +161,33 @@ function LetterFrame({ title, html }: { title: string; html: string }) {
   }
 
   return (
-    <iframe
-      ref={frame}
-      title={title}
-      srcDoc={html}
-      onLoad={fit}
-      style={{
-        display: "block",
-        width: "100%",
-        height,
-        border: 0,
-        background: "#f5e6e8",
-      }}
-    />
+    <>
+      {/* what this letter is, above it */}
+      <p
+        style={{
+          margin: 0,
+          padding: "28px 24px 0",
+          color: "rgba(36, 34, 31, 0.55)",
+          fontSize: 13,
+          textAlign: "center",
+        }}
+      >
+        {title}
+      </p>
+      <iframe
+        ref={frame}
+        title={title}
+        srcDoc={html}
+        onLoad={fit}
+        style={{
+          display: "block",
+          width: "100%",
+          height,
+          border: 0,
+          background: "#f5e6e8",
+        }}
+      />
+    </>
   );
 }
 
@@ -183,10 +274,44 @@ function EmailPreviewPage() {
     );
   }
 
+  // client letters first, then the studio's own notes, each under its own heading
+  const groups = [
+    {
+      title: "to clients",
+      letters: shown.filter((item) => item.caption.startsWith("to the client")),
+    },
+    {
+      title: "to the studio",
+      letters: shown.filter((item) => item.caption.startsWith("to the studio")),
+    },
+  ].filter((group) => group.letters.length);
+
   return (
     <main style={{ margin: 0, background: "#f5e6e8" }}>
-      {shown.map((item) => (
-        <LetterFrame key={item.caption} title={item.caption} html={item.html} />
+      {groups.map((group) => (
+        <section key={group.title} aria-label={group.title}>
+          <h2
+            style={{
+              margin: 0,
+              padding: "40px 24px 8px",
+              color: "#ff4d94",
+              fontSize: 13,
+              fontWeight: 500,
+              letterSpacing: "0.14em",
+              textAlign: "center",
+              textTransform: "uppercase",
+            }}
+          >
+            {group.title} · {group.letters.length}
+          </h2>
+          {group.letters.map((item) => (
+            <LetterFrame
+              key={item.caption}
+              title={item.caption.replace(/^to (the client|the studio) — /, "")}
+              html={item.html}
+            />
+          ))}
+        </section>
       ))}
     </main>
   );

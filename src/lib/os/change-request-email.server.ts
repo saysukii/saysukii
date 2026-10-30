@@ -16,46 +16,27 @@ function notificationRecipient() {
   return studioNotificationEmail();
 }
 
-function momentDate(value: string | null) {
-  const raw = value?.trim().slice(0, 10);
-  if (!raw) return "to be decided";
-  const date = new Date(`${raw}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return value?.trim() || "to be decided";
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric" }).toLowerCase();
-}
-
 export function changeRequestHtml(input: ChangeRequestMail, origin?: string) {
   const base = origin ?? studioLinkOrigin();
   return renderSaySukiiEmail({
     ...(origin ? { origin } : {}),
     eyebrow: "the moment",
-    eyebrowColor: "#C45D72",
     headline: "a change was requested",
     body: `${input.clientName} asked for a change on the proposal.`,
-    facts: [
-      { label: "client", value: input.clientName },
-      { label: "date", value: momentDate(input.eventDate) },
-      { label: "place", value: input.place?.trim() || "to be decided" },
-      { label: "investment", value: input.investment?.trim() || "—" },
-      { label: "change", value: input.note },
-    ],
+    // the card holds only what they asked to change; everything else is on the inquiry
+    facts: [{ label: "change", value: input.note.toLowerCase() }],
     button: {
       label: "open the book",
       url: `${base}/pipeline`,
-      color: "#C45D72",
     },
-    ...(input.clientEmail ? { note: input.clientEmail } : {}),
   });
 }
 
 export function changeRequestText(input: ChangeRequestMail) {
   return [
-    "the moment",
-    `client: ${input.clientName}`,
-    `date: ${momentDate(input.eventDate)}`,
-    `place: ${input.place?.trim() || "—"}`,
-    `investment: ${input.investment?.trim() || "—"}`,
-    `change requested: ${input.note}`,
+    "a change was requested",
+    `${input.clientName} asked for a change on the proposal.`,
+    `change: ${input.note.toLowerCase()}`,
     input.clientEmail || "",
   ]
     .filter(Boolean)

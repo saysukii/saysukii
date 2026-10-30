@@ -32,7 +32,7 @@ import {
   signedByLine,
   signerFromAgreement,
 } from "@/lib/floral-agreement";
-import { renderAgreementPdf, renderInvoicePdf } from "@/lib/pdf.server";
+import { renderAgreementPdf, renderInvoicePdf, renderReceiptPdf } from "@/lib/pdf.server";
 import { createPublicToken, hashToken } from "./crypto.server";
 import { createSquarePaymentLink } from "./square.server";
 import { syncInquiryAutoTaskFor } from "@/lib/os/tasks.functions";
@@ -539,6 +539,54 @@ export const findProposalSlug = createServerFn({ method: "GET" })
     return { slug };
   });
 
+/** Payments in the last day, for the studio's bell: who paid and whether it booked the project. */
+export const listFreshPayments = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }) => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await context.supabase
+      .from("payments")
+      .select(
+        "id, proposal_id, amount_cents, paid_at, proposals(inquiry_id, total_cents, clients(name))",
+      )
+      .eq("status", "completed")
+      .gte("paid_at", since)
+      .order("paid_at", { ascending: false })
+      .limit(8);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    // every payment on these proposals, so each notice knows if it was the deposit or the last of it
+    const { data: all } = rows.length
+      ? await context.supabase
+          .from("payments")
+          .select("id, proposal_id, amount_cents, paid_at")
+          .eq("status", "completed")
+          .in(
+            "proposal_id",
+            rows.map((row) => row.proposal_id),
+          )
+      : { data: [] };
+    return rows.map((row) => {
+      const proposal = row.proposals as unknown as {
+        inquiry_id: string;
+        total_cents: number;
+        clients: { name: string } | null;
+      } | null;
+      const upTo = (all ?? []).filter(
+        (other) =>
+          other.proposal_id === row.proposal_id && (other.paid_at ?? "") <= (row.paid_at ?? ""),
+      );
+      const paidSoFarCents = upTo.reduce((total, other) => total + other.amount_cents, 0);
+      return {
+        id: row.id,
+        name: proposal?.clients?.name ?? "a client",
+        inquiryId: proposal?.inquiry_id ?? null,
+        first: upTo.length <= 1,
+        inFull: proposal ? paidSoFarCents >= proposal.total_cents : false,
+      };
+    });
+  });
+
 /** Square's public settings, so the client's page can show its secure card fields and apple pay. */
 export const getSquarePayConfig = createServerFn({ method: "GET" }).handler(async () => {
   const { squareCheckoutConfig } = await import("./square.server");
@@ -556,6 +604,7 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
         token: z.string().min(32),
         source_id: z.string().trim().min(1).max(500),
         verification_token: z.string().trim().max(4000).optional(),
+        receipt_email: z.string().trim().email().max(320).optional(),
       })
       .parse(input),
   )
@@ -567,8 +616,11 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
       .eq("proposal_id", bundle.proposal.id)
       .maybeSingle();
     if (!agreement?.signed_name) throw new Error("Sign the agreement before paying.");
-    const due = bundle.proposal.deposit_amount_cents;
-    if (!(due > 0)) throw new Error("There's nothing to pay on this proposal.");
+    // the deposit first; once it's in, the rest of the balance
+    const paid = await paidSoFar(bundle.proposal.id);
+    const due =
+      paid > 0 ? bundle.proposal.total_cents - paid : bundle.proposal.deposit_amount_cents;
+    if (!(due > 0)) return { paid: true as const };
 
     const invoiceNumber = await ensureInvoiceNumber(bundle.proposal.id, due);
     const { data: invoice, error: invoiceError } = await supabaseAdmin
@@ -577,13 +629,14 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
       .eq("proposal_id", bundle.proposal.id)
       .maybeSingle();
     if (invoiceError || !invoice) throw new Error("The invoice could not be opened.");
-    if (invoice.status === "paid") return { paid: true as const };
-
     const { createSquareOrder, createSquareCardPayment } = await import("./square.server");
     const order = await createSquareOrder({
-      idempotencyKey: `deposit-${bundle.proposal.id}-${due}`.slice(0, 45),
+      idempotencyKey: `${paid > 0 ? "balance" : "deposit"}-${bundle.proposal.id}-${due}`.slice(
+        0,
+        45,
+      ),
       referenceId: invoiceNumber,
-      ...depositOrder(bundle, due),
+      ...(paid > 0 ? balanceOrder(bundle, due) : depositOrder(bundle, due)),
     });
     if (order.totalCents !== due) throw new Error("The amount due changed. Reload and try again.");
     await supabaseAdmin
@@ -600,7 +653,7 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
         amountCents: due,
         orderId: order.orderId,
         referenceId: invoiceNumber,
-        buyerEmail: bundle.client.email,
+        buyerEmail: data.receipt_email ?? bundle.client.email,
         note: `${invoiceNumber} · ${bundle.client.name}`,
       });
     } catch (error) {
@@ -615,7 +668,7 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
       return { paid: false as const, status: payment.status ?? "PENDING" };
     }
     const { settleSquarePayment } = await import("./square-paid.server");
-    await settleSquarePayment(payment);
+    await settleSquarePayment(payment, { receiptEmail: data.receipt_email ?? null });
     return { paid: true as const };
   });
 
@@ -623,6 +676,21 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
  * What square shows for the payment. Paying in full lists the service (and any courtesy discount);
  * a deposit is one clear line toward the total, since square's order total has to equal the charge.
  */
+/** The rest after a deposit: one line for the balance. */
+function balanceOrder(bundle: ProposalBundle, dueCents: number) {
+  const statement = statementFromNotes(bundle.proposal.notes);
+  const occasion = statement?.occasion || eventLabel(bundle.inquiry.event_type);
+  return {
+    lines: [
+      {
+        name: `Balance · ${floralPackageName(occasion)}`,
+        note: `The rest of the total of ${moneyLabel(bundle.proposal.total_cents)}.`,
+        amountCents: dueCents,
+      },
+    ],
+  };
+}
+
 function depositOrder(bundle: ProposalBundle, dueCents: number) {
   const statement = statementFromNotes(bundle.proposal.notes);
   const courtesy = courtesyFromNotes(bundle.proposal.notes);
@@ -728,7 +796,12 @@ export const getPublicProposal = createServerFn({ method: "GET" })
     ) {
       paymentLink = await ensureDepositInvoice(bundle).catch(() => null);
     }
+    // after the deposit, what's left and when it's due (30 days before the event)
+    const paidCents = await paidSoFar(bundle.proposal.id);
+    const { balanceDueDate } = await import("./paid-email.server");
     return {
+      paidCents,
+      balanceDue: balanceDueDate(proposalEventDate(bundle)),
       proposal: publicProposal(bundle.proposal),
       client: { name: bundle.client.name, email: bundle.client.email, phone: bundle.client.phone },
       venue: bundle.venue ? { name: bundle.venue.name, address: bundle.venue.address } : null,
@@ -816,7 +889,6 @@ export const acceptPublicProposal = createServerFn({ method: "POST" })
         .join("\n"),
       html: renderSaySukiiEmail({
         eyebrow: "proposal",
-        eyebrowColor: "#6F8A72",
         headline: "proposal approved",
         body: `${bundle.client.name} approved the proposal. the agreement is ready for their signature.`,
         facts: [
@@ -861,6 +933,15 @@ export const signPublicAgreement = createServerFn({ method: "POST" })
       typeLabel: "Standard Service Agreement",
       version: 1,
       content,
+      signatures: {
+        client: {
+          name: `${data.first_name} ${data.last_name}`,
+          image: data.signature,
+          signedAt,
+        },
+        // say sukii countersigns the copy the client keeps, dated the moment they signed
+        studio: await studioSignature(signedAt),
+      },
     });
     const agreementPath = `${bundle.proposal.id}/agreement-${bundle.proposal.number}.pdf`;
     await uploadDocument(agreementPath, agreementPdf);
@@ -980,6 +1061,22 @@ async function recordClientDecision(
   else await refreshInquirySummarySafe(supabaseAdmin, bundle.proposal.inquiry_id);
 }
 
+/** The owner's saved signature, if she has drawn one in settings. */
+async function studioSignature(signedAt: string) {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("full_name, signature")
+    .eq("role", "admin")
+    .eq("active", true)
+    .not("signature", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  // before the signature migration runs, the agreement simply goes out with the client's alone
+  if (error || !data?.signature) return null;
+  return { name: data.full_name?.trim() || "Say Sukii", image: data.signature, signedAt };
+}
+
 function moneyLabel(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
@@ -1062,6 +1159,299 @@ function documentMeta(
   };
 }
 
+/** What the invoice and receipt list: the proposal's own lines, or the service and any courtesy. */
+function invoiceItems(bundle: ProposalBundle) {
+  const statement = statementFromNotes(bundle.proposal.notes);
+  const courtesy = courtesyFromNotes(bundle.proposal.notes);
+  const occasion = statement?.occasion || eventLabel(bundle.inquiry.event_type);
+  const packageName = floralPackageName(occasion);
+  const booking = invoiceBookingLine(
+    occasion,
+    invoiceDateLabel(statement?.eventWhen || bundle.proposal.event_date || ""),
+  );
+  const listCents = bundle.proposal.subtotal_cents || bundle.proposal.total_cents + courtesy;
+  return bundle.items.length
+    ? pdfItems(bundle.items)
+    : [
+        {
+          name: booking ? `${packageName} — ${booking}` : packageName,
+          qty: 1,
+          unitPriceCents: listCents,
+          lineTotalCents: listCents,
+        },
+        ...(courtesy > 0
+          ? [
+              {
+                name: "Courtesy discount",
+                qty: 1,
+                unitPriceCents: -courtesy,
+                lineTotalCents: -courtesy,
+              },
+            ]
+          : []),
+      ];
+}
+
+/** Keeps a document in the client's file, once, under a clear name. */
+async function fileForClient(clientId: string, name: string, data: Uint8Array) {
+  const path = `clients/${clientId}/${name}`;
+  const { data: existing } = await supabaseAdmin
+    .from("files")
+    .select("id")
+    .eq("owner_type", "client")
+    .eq("owner_id", clientId)
+    .eq("file_path", path)
+    .maybeSingle();
+  const { error } = await supabaseAdmin.storage
+    .from("project-files")
+    .upload(path, data, { contentType: "application/pdf", upsert: true });
+  if (error) throw new Error(error.message);
+  if (existing) return;
+  const { error: rowError } = await supabaseAdmin.from("files").insert({
+    owner_type: "client",
+    owner_id: clientId,
+    file_path: path,
+    file_type: "application/pdf",
+  });
+  if (rowError) throw new Error(rowError.message);
+}
+
+/** What's been paid on a proposal so far, across the deposit and the balance. */
+async function paidSoFar(proposalId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("payments")
+    .select("amount_cents")
+    .eq("proposal_id", proposalId)
+    .eq("status", "completed");
+  if (error) throw new Error(error.message);
+  return (data ?? []).reduce((total, row) => total + (row.amount_cents ?? 0), 0);
+}
+
+function proposalEventDate(bundle: ProposalBundle) {
+  return bundle.proposal.event_date || bundle.inquiry.event_date || null;
+}
+
+function proposalOccasion(bundle: ProposalBundle) {
+  const statement = statementFromNotes(bundle.proposal.notes);
+  return (statement?.occasion || eventLabel(bundle.inquiry.event_type)).toLowerCase();
+}
+
+/**
+ * After a payment: the client's receipt and their signed agreement, attached to a branded letter,
+ * and a note to the studio that the project is booked.
+ */
+export async function sendPaidLetters(
+  proposalId: string,
+  payment: { amountCents: number; paidAt: string; booking: boolean; receiptEmail?: string | null },
+) {
+  const { paidAt } = payment;
+  const bundle = await loadProposalBundleById(proposalId);
+  // every payment so far, this one included, for the receipt's paid rows
+  const { data: payments, error: paymentsError } = await supabaseAdmin
+    .from("payments")
+    .select("amount_cents, paid_at")
+    .eq("proposal_id", proposalId)
+    .eq("status", "completed")
+    .order("paid_at", { ascending: true });
+  if (paymentsError) throw new Error(paymentsError.message);
+  const paid = (payments ?? []).reduce((total, row) => total + (row.amount_cents ?? 0), 0);
+  const { data: invoice } = await supabaseAdmin
+    .from("invoices")
+    .select("number")
+    .eq("proposal_id", proposalId)
+    .maybeSingle();
+  const invoiceNumber = invoiceTitle(invoice?.number ?? bundle.proposal.number);
+  const eventDate = proposalEventDate(bundle);
+  const {
+    balanceDueDate,
+    clientPaidHtml,
+    clientPaidSubject,
+    letterDate,
+    paidText,
+    sendClientLetter,
+    studioPaidHtml,
+    studioPaidSubject,
+  } = await import("./paid-email.server");
+  const letter = {
+    clientName: bundle.client.name,
+    invoiceNumber,
+    amountCents: payment.amountCents,
+    booking: payment.booking,
+    paidCents: paid,
+    totalCents: bundle.proposal.total_cents,
+    occasion: proposalOccasion(bundle),
+    eventDate,
+    paidAt,
+    inquiryId: bundle.proposal.inquiry_id,
+    eventType: bundle.inquiry.event_type,
+  };
+
+  const files = [];
+  const left = Math.max(0, bundle.proposal.total_cents - paid);
+  const receipt = await renderReceiptPdf({
+    number: invoiceNumber,
+    clientName: bundle.client.name,
+    occasion: letter.occasion,
+    eventDate: eventDate ? letterDate(eventDate) : null,
+    venue: documentMeta(bundle, "Invoice", invoiceNumber).venue,
+    items: invoiceItems(bundle),
+    totalCents: bundle.proposal.total_cents,
+    payments: (payments ?? []).map((row) => ({
+      amountCents: row.amount_cents ?? 0,
+      paidOn: letterDate(row.paid_at ?? paidAt),
+    })),
+    booking: payment.booking,
+    balance:
+      left > 0 ? { amountCents: left, due: letterDate(balanceDueDate(eventDate)) || null } : null,
+  });
+  files.push({
+    name: `Say Sukii receipt ${invoiceNumber}.pdf`,
+    type: "application/pdf",
+    data: receipt,
+  });
+  const { data: agreement } = await supabaseAdmin
+    .from("agreements")
+    .select("pdf_path")
+    .eq("proposal_id", proposalId)
+    .maybeSingle();
+  // the signed agreement goes with the payment that books the project; later it's the receipt alone
+  if (payment.booking && agreement?.pdf_path) {
+    const download = await supabaseAdmin.storage.from("documents").download(agreement.pdf_path);
+    if (download.data) {
+      files.push({
+        name: "Floral Service Agreement.pdf",
+        type: "application/pdf",
+        data: new Uint8Array(await download.data.arrayBuffer()),
+      });
+    }
+  }
+
+  // into the client's file: the proposal, the signed agreement, and every receipt
+  const keep = [
+    {
+      name: `say-sukii-receipt-${invoiceNumber}${payment.booking ? "" : "-balance"}.pdf`,
+      data: receipt,
+    },
+  ];
+  if (payment.booking) {
+    const agreementCopy = files.find((file) => file.name === "Floral Service Agreement.pdf");
+    if (agreementCopy) {
+      keep.push({
+        name: `floral-service-agreement-${bundle.proposal.number}.pdf`,
+        data: agreementCopy.data,
+      });
+    }
+    if (bundle.proposal.pdf_path) {
+      const proposalPdf = await supabaseAdmin.storage
+        .from("documents")
+        .download(bundle.proposal.pdf_path);
+      if (proposalPdf.data) {
+        keep.push({
+          name: `say-sukii-proposal-${bundle.proposal.number}.pdf`,
+          data: new Uint8Array(await proposalPdf.data.arrayBuffer()),
+        });
+      }
+    }
+  }
+  for (const file of keep) {
+    await fileForClient(bundle.client.id, file.name, file.data).catch((error: unknown) =>
+      console.error("[paid letters] client file:", error),
+    );
+  }
+
+  const withFiles = { ...letter, attachments: files.map((file) => file.name) };
+  const receiptTo = payment.receiptEmail || bundle.client.email;
+  if (receiptTo) {
+    await sendClientLetter({
+      to: receiptTo,
+      subject: clientPaidSubject(withFiles),
+      html: clientPaidHtml(withFiles),
+      text: paidText(withFiles),
+      attachments: files,
+    }).catch((error: unknown) => console.error("[paid letters] client letter:", error));
+  }
+  const { deliverStudioNotice } = await import("./inquiry-email.server");
+  await deliverStudioNotice(
+    studioPaidSubject(letter),
+    studioPaidHtml(letter),
+    paidText(letter),
+  ).catch((error: unknown) => console.error("[paid letters] studio note:", error));
+}
+
+/**
+ * The balance reminders, run once a day: five days before the balance is due (35 days before the
+ * event) and on the day it's due (30 days before). Each goes once per proposal.
+ */
+export async function sendBalanceReminders(now = new Date()) {
+  const { data: rows, error } = await supabaseAdmin
+    .from("proposals")
+    .select("id, event_date, total_cents, slug")
+    .eq("status", "accepted")
+    .eq("archived", false)
+    .not("event_date", "is", null);
+  if (error) throw new Error(error.message);
+  const today = now.toISOString().slice(0, 10);
+  const { balanceDueDate, balanceReminderHtml, balanceReminderSubject, sendClientLetter } =
+    await import("./paid-email.server");
+  let sent = 0;
+  for (const row of rows ?? []) {
+    const due = balanceDueDate(row.event_date);
+    if (!due) continue;
+    const soon = new Date(`${due}T12:00:00Z`);
+    soon.setUTCDate(soon.getUTCDate() - 5);
+    const when =
+      today === due ? "today" : today === soon.toISOString().slice(0, 10) ? "soon" : null;
+    if (!when) continue;
+    const paid = await paidSoFar(row.id);
+    const balance = row.total_cents - paid;
+    // nothing paid yet means no deposit, and nothing left means paid in full
+    if (paid <= 0 || balance <= 0) continue;
+    const key = `balance_reminder_${when}`;
+    const { data: already } = await supabaseAdmin
+      .from("integration_events")
+      .select("id")
+      .eq("event_type", key)
+      .eq("reference_id", row.id)
+      .limit(1);
+    if (already?.length) continue;
+    const bundle = await loadProposalBundleById(row.id);
+    if (!bundle.client.email) continue;
+    const slug = await ensureProposalSlug(row.id, bundle.client.name, row.slug);
+    const { data: invoice } = await supabaseAdmin
+      .from("invoices")
+      .select("number")
+      .eq("proposal_id", row.id)
+      .maybeSingle();
+    const reminder = {
+      clientName: bundle.client.name,
+      invoiceNumber: invoiceTitle(invoice?.number ?? bundle.proposal.number),
+      balanceCents: balance,
+      occasion: proposalOccasion(bundle),
+      eventDate: row.event_date as string,
+      when: when as "soon" | "today",
+      payUrl: proposalLink(publicOrigin(), slug),
+      eventType: bundle.inquiry.event_type,
+    };
+    const result = await sendClientLetter({
+      to: bundle.client.email,
+      subject: balanceReminderSubject(reminder),
+      html: balanceReminderHtml(reminder),
+      text: `${balanceReminderSubject(reminder)}\n${reminder.payUrl}`,
+    });
+    await supabaseAdmin.from("integration_events").insert({
+      provider: "studio",
+      event_type: key,
+      status: result.sent ? "succeeded" : "failed",
+      reference_type: "proposal",
+      reference_id: row.id,
+      attempts: 1,
+      payload: { balance_cents: balance, due },
+    });
+    if (result.sent) sent += 1;
+  }
+  return { sent };
+}
+
 function pdfItems(items: ProposalLineItemRow[]) {
   return items.map((item) => ({
     name: item.label,
@@ -1132,35 +1522,7 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
     });
   }
 
-  const statement = statementFromNotes(bundle.proposal.notes);
-  const courtesy = courtesyFromNotes(bundle.proposal.notes);
-  const occasion = statement?.occasion || eventLabel(bundle.inquiry.event_type);
-  const packageName = floralPackageName(occasion);
-  const booking = invoiceBookingLine(
-    occasion,
-    invoiceDateLabel(statement?.eventWhen || bundle.proposal.event_date || ""),
-  );
-  const listCents = bundle.proposal.subtotal_cents || bundle.proposal.total_cents + courtesy;
-  const items = bundle.items.length
-    ? pdfItems(bundle.items)
-    : [
-        {
-          name: booking ? `${packageName} — ${booking}` : packageName,
-          qty: 1,
-          unitPriceCents: listCents,
-          lineTotalCents: listCents,
-        },
-        ...(courtesy > 0
-          ? [
-              {
-                name: "Courtesy discount",
-                qty: 1,
-                unitPriceCents: -courtesy,
-                lineTotalCents: -courtesy,
-              },
-            ]
-          : []),
-      ];
+  const items = invoiceItems(bundle);
   const invoicePdf = await renderInvoicePdf({
     meta: documentMeta(bundle, "Invoice", invoiceNumber),
     items,

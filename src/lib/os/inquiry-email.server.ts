@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { Resend } from "resend";
 
 import type { EventType } from "@/integrations/supabase/types";
-import { renderSaySukiiEmail, studioLinkOrigin } from "@/lib/os/email-layout";
+import { emailKind, renderSaySukiiEmail, studioLinkOrigin } from "@/lib/os/email-layout";
 import { studioNotificationEmail } from "@/lib/os/email.server";
 import { encodeGmailRaw } from "@/lib/os/gmail-outbound.server";
 import { EVENT_LABEL, recordSlug } from "@/lib/os/inquiry-desk";
@@ -47,8 +47,10 @@ function inquiryLink(details: InquiryEmailDetails, origin?: string) {
 
 export function inquiryReceivedHtml(details: InquiryEmailDetails, origin?: string) {
   const kind = inquiryKind(details.eventType);
+  const label = emailKind(details.eventType);
   return renderSaySukiiEmail({
     ...(origin ? { origin } : {}),
+    ...(label ? { kind: label } : {}),
     eyebrow: "new inquiry",
     headline: "someone wrote in",
     body: `a new ${kind} inquiry just arrived.`,
@@ -207,10 +209,19 @@ async function sendNotice(raw: string) {
 }
 
 export async function sendInquiryReceivedEmail(details: InquiryEmailDetails) {
+  return deliverStudioNotice(
+    `someone wrote in · ${details.clientName}`,
+    inquiryReceivedHtml(details),
+    inquiryReceivedText(details),
+  );
+}
+
+/**
+ * A note for the studio: placed straight in the studio inbox when that's where notices go,
+ * otherwise sent through resend, and through gmail as the last resort.
+ */
+export async function deliverStudioNotice(subject: string, html: string, text: string) {
   const to = studioNotificationEmail();
-  const subject = `someone wrote in · ${details.clientName}`;
-  const html = inquiryReceivedHtml(details);
-  const text = inquiryReceivedText(details);
   const raw = noticeRfc822(subject, html, text, to);
 
   if (to === STUDIO_INBOX) {

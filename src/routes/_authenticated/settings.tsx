@@ -22,6 +22,7 @@ import {
 import { getInquiryForms, saveInquiryForms } from "@/lib/os/inquiry-forms.functions";
 import { INTEREST_OPTIONS } from "@/lib/os/inquiry-schema";
 import {
+  saveOwnSignature,
   beginGoogleOAuth,
   beginSquareOAuth,
   deactivateTeamMember,
@@ -32,6 +33,7 @@ import {
   updateOwnProfile,
 } from "@/lib/os/settings.functions";
 import { sendSignInEmail } from "@/lib/os/sign-in-email.functions";
+import { SignaturePad } from "@/components/proposal/SignaturePad";
 import { getDevPreviewSettings } from "@/lib/dev-preview";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
@@ -52,6 +54,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 const sections = [
   { id: "account", label: "account", blurb: "your name and password." },
+  { id: "signature", label: "signature", blurb: "how you sign the agreements." },
   { id: "connections", label: "connections", blurb: "google and square." },
   { id: "people", label: "people", blurb: "invite someone into the studio." },
   { id: "forms", label: "forms", blurb: "the questions a client answers." },
@@ -170,6 +173,17 @@ function SettingsPage() {
   const formTabRef = useRef(formTab);
   formTabRef.current = formTab;
   const saveName = useServerFn(updateOwnProfile);
+  const saveSignature = useServerFn(saveOwnSignature);
+  const [signature, setSignature] = useState<string | null>(profile.signature ?? null);
+  const [signatureKey, setSignatureKey] = useState(0);
+  const keepSignature = useMutation({
+    mutationFn: (next: string | null) => {
+      if (devPreview) return Promise.resolve({ saved: Boolean(next) });
+      return saveSignature({ data: { signature: next } });
+    },
+    onSuccess: ({ saved }) => toast.success(saved ? "signature saved" : "signature cleared"),
+    onError: (error: Error) => toast.error(error.message),
+  });
   const sendStudioLetter = useServerFn(sendSignInEmail);
   const fetchForms = useServerFn(getInquiryForms);
   const saveForms = useServerFn(saveInquiryForms);
@@ -702,8 +716,44 @@ function SettingsPage() {
     </section>
   );
 
+  const signatureBlock = (
+    <section className="studio-panel">
+      <p className="studio-kicker">your signature</p>
+      <p className="studio-muted">
+        sign once here. it countersigns the agreement copy each client receives, dated the moment
+        they sign. it isn't shown on the agreement page itself.
+      </p>
+      <div className="studio-signature-pad">
+        <SignaturePad key={signatureKey} value={signature} onChange={setSignature} />
+      </div>
+      <div className="studio-ask-foot is-pair">
+        <button
+          type="button"
+          className="studio-ghost"
+          disabled={keepSignature.isPending}
+          onClick={() => {
+            setSignature(null);
+            setSignatureKey((value) => value + 1);
+            keepSignature.mutate(null);
+          }}
+        >
+          clear
+        </button>
+        <button
+          type="button"
+          className="studio-today-go"
+          disabled={!signature || keepSignature.isPending}
+          onClick={() => keepSignature.mutate(signature)}
+        >
+          {keepSignature.isPending ? "saving…" : "save signature"}
+        </button>
+      </div>
+    </section>
+  );
+
   function panelFor(id: SettingsSection) {
     if (id === "account") return accountBlock;
+    if (id === "signature") return signatureBlock;
     if (id === "forms") return formsBlock;
     if (isPending) return null;
     if (id === "connections") return connectionsBlock;

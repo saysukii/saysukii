@@ -27,6 +27,7 @@ import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
 import { listFreshArrivals, syncStudioInbox } from "@/lib/os/inquiries.functions";
 import { listFreshBookings } from "@/lib/os/bookings.functions";
+import { listFreshPayments } from "@/lib/os/proposals.functions";
 import { listRecentIssues } from "@/lib/os/settings.functions";
 import { getDevPreviewSettings } from "@/lib/dev-preview";
 import { PREVIEW_ARRIVALS_KEY } from "@/lib/preview-arrivals";
@@ -130,6 +131,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const { user, profile, devPreview } = useRouteContext({ from: "/_authenticated" });
   const arrivals = useServerFn(listFreshArrivals);
   const bookings = useServerFn(listFreshBookings);
+  const payments = useServerFn(listFreshPayments);
   const syncInbox = useServerFn(syncStudioInbox);
   const recentIssues = useServerFn(listRecentIssues);
   const queryClient = useQueryClient();
@@ -202,6 +204,18 @@ export function Shell({ children }: { children: ReactNode }) {
             href: `/pipeline/${recordSlug(row.name)}`,
           });
         }
+        const paid = await payments();
+        if (stop) return;
+        for (const row of paid) {
+          pushNotice({
+            id: `payment-${row.id}`,
+            title: row.first
+              ? `${firstName(row.name)} paid · the project is booked`
+              : `${firstName(row.name)} paid the balance`,
+            body: row.inFull ? "paid in full." : "the deposit is in.",
+            href: row.inquiryId ? `/pipeline/${row.inquiryId}` : "/pipeline",
+          });
+        }
         const booked = await bookings();
         if (stop) return;
         for (const row of booked) {
@@ -222,7 +236,7 @@ export function Shell({ children }: { children: ReactNode }) {
       stop = true;
       window.clearInterval(timer);
     };
-  }, [arrivals, bookings, devPreview, profile.role]);
+  }, [arrivals, bookings, devPreview, payments, profile.role]);
 
   useEffect(() => {
     if (profile.role !== "admin") return;
