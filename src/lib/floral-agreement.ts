@@ -48,11 +48,12 @@ export function invoiceDateLabel(value: string) {
           Number(slash[2]),
         )
       : null;
-  if (date && !Number.isNaN(date.getTime())) {
-    return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  }
+  if (date && !Number.isNaN(date.getTime())) return shortDay(date);
   const long = trimmed.match(/[A-Za-z]+ \d{1,2}, \d{4}/);
-  if (long) return long[0];
+  if (long) {
+    const parsed = new Date(long[0]);
+    return Number.isNaN(parsed.getTime()) ? long[0] : shortDay(parsed);
+  }
   return trimmed.replace(/^[A-Za-z]+,\s*/, "").split(" · ")[0] ?? trimmed;
 }
 
@@ -64,17 +65,27 @@ export function floralPackageName(occasion: string) {
   return "Event Floral Package";
 }
 
-export function invoiceBookingLine(occasion: string, when: string) {
+/** "03/12/27", the way every date on an invoice reads */
+function shortDay(date: Date) {
+  const two = (value: number) => String(value).padStart(2, "0");
+  return `${two(date.getMonth() + 1)}/${two(date.getDate())}/${two(date.getFullYear() % 100)}`;
+}
+
+/**
+ * "Booking for floral subscription service on 10/30/26 per approved proposal." An invoice that
+ * isn't part of an approved proposal leaves the proposal out: "Booking for … on 10/30/26."
+ */
+export function invoiceBookingLine(occasion: string, when: string, perProposal = true) {
   const text = occasion.trim().toLowerCase();
   const service = text.includes("wedding")
     ? "wedding floral service"
     : text.includes("photo")
       ? "photoshoot floral service"
       : text.includes("subscription")
-        ? "floral subscription"
+        ? "floral subscription service"
         : "event floral service";
-  if (!when.trim()) return `Booked for ${service}.`;
-  return `Booked for ${service} on ${when.trim()}.`;
+  const day = when.trim();
+  return `Booking for ${service}${day ? ` on ${day}` : ""}${perProposal ? " per approved proposal" : ""}.`;
 }
 
 export function statementOfWork(

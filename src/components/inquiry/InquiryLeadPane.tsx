@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { PersonName, isPersonType } from "@/components/studio/PersonName";
+import { markNames, PersonName, isPersonType } from "@/components/studio/PersonName";
 import { PlaceLink } from "@/components/studio/PlaceLink";
 import {
   fileContentType,
@@ -1054,7 +1054,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       <div className="studio-lead is-new is-layout-workflow">
         <div className="studio-lead-top is-mast">
           <RecordMast
-            title={isPersonType(who.type) ? <PersonName name={who.name} /> : who.name}
+            title={<PersonName name={who.name} />}
             date={known.event_date_tbd ? "date tbd" : formatDateNumeric(known.event_date)}
             time=""
             place={known.venue_text?.split(",")[0]?.trim() ?? ""}
@@ -1576,8 +1576,11 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             key: "base",
             name: floralPackageName(work.occasion || work.flowers),
             note:
-              invoiceBookingLine(work.occasion || work.flowers, invoiceDateLabel(work.eventWhen)) ||
-              null,
+              invoiceBookingLine(
+                work.occasion || work.flowers,
+                invoiceDateLabel(work.eventWhen),
+                proposalBooked,
+              ) || null,
             unitCents: invoiceListCents,
             quantity: 1,
             squareId: null,
@@ -1625,6 +1628,11 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             })),
             courtesy_cents: invoiceCourtesyCents,
             pay_in_full: invoiceDraft.pay === "full",
+            booking: invoiceBookingLine(
+              work.occasion || work.flowers,
+              invoiceDateLabel(work.eventWhen),
+              proposalBooked,
+            ),
             letter,
             subject,
             to: uniqueMails([client?.email, ...moreTo]),
@@ -1689,6 +1697,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
           eventDate: signedPreview.eventDate,
         }
       : null;
+  // an add-on invoice belongs to the proposal once it's signed and its first invoice is paid
+  const proposalBooked = Boolean(signedPacket && signedPacket.payments.length > 0);
   const proposalLetterBody = ensureProposalLink(
     applyTemplate(proposalTemplate.body, client?.name, EVENT_LABEL[inquiry.event_type]),
     proposalHref || `${PROPOSAL_ORIGIN}/${proposalSlug(client?.name ?? "")}`,
@@ -1761,13 +1771,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         <>
           <div className="studio-lead-top is-mast">
             <RecordMast
-              title={
-                isPersonType(client?.type) && client?.name ? (
-                  <PersonName name={client.name} />
-                ) : (
-                  (client?.name ?? "client")
-                )
-              }
+              title={client?.name ? <PersonName name={client.name} /> : (client?.name ?? "client")}
               date={
                 dateTbd
                   ? "date tbd"
@@ -1872,11 +1876,11 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 const story = lines.filter((line) => line !== nextLine).join(" ");
                 return (
                   <>
-                    {story ? <p>{story}</p> : null}
+                    {story ? <p>{markNames(story, [client?.name])}</p> : null}
                     {nextLine ? (
                       <p className="studio-summary-next">
                         <span>next</span>
-                        {nextLine.replace(/^next:\s*/i, "")}
+                        {markNames(nextLine.replace(/^next:\s*/i, ""), [client?.name])}
                       </p>
                     ) : null}
                   </>
@@ -2102,11 +2106,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 <div>
                   <dt>name</dt>
                   <dd>
-                    {isPersonType(client?.type) && client?.name ? (
-                      <PersonName name={client.name} />
-                    ) : (
-                      (client?.name ?? "client")
-                    )}
+                    {client?.name ? <PersonName name={client.name} /> : (client?.name ?? "client")}
                   </dd>
                 </div>
                 <div>
@@ -2978,6 +2978,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             bookingLine={invoiceBookingLine(
               work.occasion || work.flowers,
               invoiceDateLabel(work.eventWhen),
+              proposalBooked,
             )}
             listCents={invoiceListCents}
             courtesyCents={invoiceCourtesyCents}

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { fillTemplate } from "@/lib/email-templates";
-import { invoiceTitle } from "@/lib/invoice-title";
+import { squareInvoiceNumber } from "@/lib/invoice-title";
 import { signatureName } from "@/lib/os/mail-signature";
 
 const item = z.object({
@@ -30,6 +30,8 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
         courtesy_cents: z.number().int().min(0),
         pay_in_full: z.boolean(),
         letter: z.string().trim().min(1).max(8000),
+        /** "Booking for … per approved proposal." */
+        booking: z.string().trim().max(300).optional(),
         /** the saved subject, with {invoice} where the number goes */
         subject: z.string().trim().max(300).optional(),
         to: z.array(z.string().trim().email().max(200)).max(12).optional().default([]),
@@ -62,17 +64,16 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
       throw new Error("this client needs an email address before you can invoice them.");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const numbered = await supabaseAdmin.rpc("next_invoice_number");
-    if (numbered.error || !numbered.data)
-      throw new Error(numbered.error?.message ?? "could not number the invoice");
-    const number = invoiceTitle(String(numbered.data));
+    const { claimInvoiceNumber } = await import("@/lib/os/invoice-number.server");
+    const number = await claimInvoiceNumber();
 
     const fallbackDue = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
     const { createSquareInvoice } = await import("@/lib/os/square.server");
     const square = await createSquareInvoice({
       key: `inv-${crypto.randomUUID()}`,
       number,
-      title: `say sukii · ${number}`,
+      title: `say sukii · ${squareInvoiceNumber(number)}`,
+      description: data.booking || null,
       customer: { name: person.data.name, email: person.data.email },
       lines: data.items.map((line) => ({
         name: line.name || "custom item",

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { BloomWait } from "@/components/portal/StudioLoader";
+import { PersonName } from "@/components/studio/PersonName";
 import { getDevPreviewClients, getDevPreviewDirectories, PREVIEW_IDS } from "@/lib/dev-preview";
 import { listClients, listDirectories } from "@/lib/os/clients.functions";
 import {
@@ -394,10 +395,16 @@ function FileShelf({
           <p className="studio-file-group-head">
             {group.relation.scope === "client" ? (
               <Link to="/clients/$id" params={{ id: group.relation.id }}>
-                {group.relation.name}
+                <PersonName name={group.relation.name} />
               </Link>
             ) : (
-              <span>{group.relation.scope === "venue" ? group.relation.name : "say sukii"}</span>
+              <span>
+                {group.relation.scope === "venue" ? (
+                  <PersonName name={group.relation.name} />
+                ) : (
+                  "say sukii"
+                )}
+              </span>
             )}
             <small>{group.files.length}</small>
           </p>
@@ -462,8 +469,8 @@ function FileRow({ file }: { file: StudioFile }) {
 }
 
 /** who the file belongs to, in pink at the end of its row */
-function relationMark(relation: FileRelation) {
-  return relation.scope === "studio" ? "say sukii" : relation.name;
+function relationMark(relation: FileRelation): ReactNode {
+  return relation.scope === "studio" ? "say sukii" : <PersonName name={relation.name} />;
 }
 
 function previewKept(file: File): StudioFile {

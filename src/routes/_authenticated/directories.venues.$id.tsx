@@ -15,7 +15,7 @@ import {
   RecordNotes,
   RecordWebsite,
 } from "@/components/portal/DirectoryRecord";
-import { PersonName, isPersonType } from "@/components/studio/PersonName";
+import { PersonName } from "@/components/studio/PersonName";
 import { PlaceLink } from "@/components/studio/PlaceLink";
 import type { DirectoryContact } from "@/integrations/supabase/types";
 import { getDevPreviewDirectories, getDevPreviewPipeline } from "@/lib/dev-preview";
@@ -348,11 +348,7 @@ function VenuePage() {
               <span>
                 <b>
                   {inquiry.client?.name ? (
-                    isPersonType(inquiry.client.type) ? (
-                      <PersonName name={inquiry.client.name} />
-                    ) : (
-                      inquiry.client.name
-                    )
+                    <PersonName name={inquiry.client.name} />
                   ) : (
                     EVENT_LABEL[inquiry.event_type]
                   )}

@@ -23,7 +23,7 @@ import {
 import { Wordmark } from "./bits";
 import { celebrateBooking } from "@/components/portal/BookingCelebration";
 import { BloomPass, loginBloomArmed } from "@/components/portal/StudioLoader";
-import { PersonName } from "@/components/studio/PersonName";
+import { markPerson, PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
 import { listFreshArrivals, syncStudioInbox } from "@/lib/os/inquiries.functions";
@@ -437,6 +437,13 @@ function noticeWhen(value: string) {
   return `${day} at ${time}`;
 }
 
+/** a notice's line with the person it's about keeping their capitals: "Tai wrote in" */
+function noticeTitle(title: string): ReactNode {
+  const line = noticeLine(title);
+  const who = line.match(/^(.+?)\s+(?:wrote in|paid\b|booked a call|requested a change)/i)?.[1];
+  return markPerson(line, who);
+}
+
 function noticeLine(title: string) {
   const trimmed = title.trim();
   if (/^a change was requested$/i.test(trimmed)) return "a change was requested";
@@ -480,7 +487,7 @@ function useNoticeModal(notices: StudioNotice[]) {
       surfaced.current.add(notice.id);
       if (!notice.toasted) {
         const href = notice.href;
-        toast(notice.title, {
+        toast(noticeTitle(notice.title), {
           description: notice.body,
           ...(href
             ? {
@@ -593,7 +600,7 @@ function NoticeModal({
             {notices.map((notice) => (
               <li key={notice.id}>
                 <div className="studio-notice-head">
-                  <p className="studio-notice-line">{noticeLine(notice.title)}</p>
+                  <p className="studio-notice-line">{noticeTitle(notice.title)}</p>
                   <time dateTime={notice.createdAt}>{noticeWhen(notice.createdAt)}</time>
                 </div>
                 {notice.body ? <p className="studio-notice-message">{notice.body}</p> : null}

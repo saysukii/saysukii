@@ -544,6 +544,8 @@ export async function renderInvoicePdf(args: {
   dueDate: string | null;
   paymentLink: string | null;
   sharedOn?: string | null;
+  /** "Booking for … per approved proposal.", the line under the title */
+  booking?: string | null;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Say Sukii Invoice ${args.meta.number}`);
@@ -663,7 +665,7 @@ export async function renderInvoicePdf(args: {
   }
 
   y -= 16;
-  page.drawText("Thank you for choosing Say Sukii! We appreciate your business.", {
+  page.drawText(args.booking || "Thank you for choosing Say Sukii! We appreciate your business.", {
     x: MARGIN,
     y,
     size: 10,
@@ -723,6 +725,8 @@ export async function renderReceiptPdf(args: {
   balance: { amountCents: number; due: string | null } | null;
   /** MM/DD/YY, the day the receipt was issued */
   createdOn: string;
+  /** "Booking for … per approved proposal.", the line under the title */
+  booking?: string | null;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Say Sukii Receipt ${args.number}`);
@@ -785,7 +789,13 @@ export async function renderReceiptPdf(args: {
   y -= 46;
   draw(args.title, M, y, 22, light, { color: PINK });
   y -= 22;
-  draw("Thank you for choosing Say Sukii! We appreciate your business.", M, y, 9, light);
+  draw(
+    args.booking || "Thank you for choosing Say Sukii! We appreciate your business.",
+    M,
+    y,
+    9,
+    light,
+  );
 
   // customer, receipt, payment
   y -= 28;
@@ -842,7 +852,7 @@ export async function renderReceiptPdf(args: {
   rule(y);
   y -= 22;
   for (const item of args.items.slice(0, 10)) {
-    // "Floral Celebration — Booked for…" reads as the item and, under it, its details
+    // "Floral Celebration — Booking for…" reads as the item and, under it, its details
     const [name = item.name, ...rest] = item.name.split(" — ");
     const details = [...(rest.length ? [rest.join(" — ")] : []), ...(item.details ?? [])];
     draw(name, M, y, 9, light);

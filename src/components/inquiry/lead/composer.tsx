@@ -22,6 +22,7 @@ import { Wordmark } from "@/components/portal/bits";
 import { PersonName } from "@/components/studio/PersonName";
 import { mailRecord, uniqueMails } from "@/lib/os/mail-people";
 import { linkPlainMail } from "@/lib/os/mail-reply";
+import { capitalizeName } from "@/lib/name-case";
 import {
   isStudioOwner,
   SIGNATURE_COPYRIGHT,
@@ -573,7 +574,7 @@ export function ThreadComposer({
           contentEditable
           role="textbox"
           aria-multiline="true"
-          data-placeholder={`write to ${clientName ?? "them"}`}
+          data-placeholder={`write to ${clientName ? capitalizeName(clientName) : "them"}`}
           data-empty={draft ? "false" : "true"}
           suppressContentEditableWarning
           onInput={() => {

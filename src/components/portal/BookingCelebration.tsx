@@ -2,6 +2,8 @@ import { X } from "lucide-react";
 import { toast } from "sonner";
 
 import { SPRITE_RADIUS, sparkleSprite } from "@/components/glitter-cursor-trail";
+import { PersonName } from "@/components/studio/PersonName";
+import { capitalizeName } from "@/lib/name-case";
 
 /** the ways a new booking can be celebrated in the app */
 export type CelebrationStyle = "burst" | "rain" | "shimmer" | "bomb" | "ribbon";
@@ -227,7 +229,8 @@ function bigName(name: string) {
   host.className = "celebrate-bigname";
   host.setAttribute("aria-hidden", "true");
   const line = document.createElement("p");
-  line.textContent = name.toLowerCase();
+  line.textContent = capitalizeName(name);
+  line.className = "is-person";
   const under = document.createElement("span");
   under.textContent = "is booked";
   host.append(line, under);
@@ -257,7 +260,7 @@ function BookingToast({
         <span className="celebrate-sheen" aria-hidden="true" />
         <Twinkles count={10} />
         <p>
-          <b>new booking</b> · {booking.name.toLowerCase()} · {facts}
+          <b>new booking</b> · <PersonName name={booking.name} /> · {facts}
         </p>
         <button type="button" onClick={open}>
           open
@@ -277,7 +280,9 @@ function BookingToast({
         <X aria-hidden="true" />
       </button>
       <p className="celebrate-eyebrow">{style === "rain" ? "it's official" : "new booking"}</p>
-      <p className="celebrate-name">{booking.name.toLowerCase()} is booked!</p>
+      <p className="celebrate-name">
+        <PersonName name={booking.name} /> is booked!
+      </p>
       <p className="celebrate-facts">{facts}</p>
       <button type="button" className="celebrate-open" onClick={open}>
         open the project

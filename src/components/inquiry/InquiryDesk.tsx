@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { InquiryLeadPane } from "@/components/inquiry/InquiryLeadPane";
-import { PersonName, isPersonType } from "@/components/studio/PersonName";
+import { PersonName } from "@/components/studio/PersonName";
 import { AddInquiry } from "@/components/portal/TodayHome";
 import {
   Dialog,
@@ -324,7 +324,7 @@ function ReviewStrip({
             >
               <span>
                 <b>
-                  {isPersonType(inquiry.client?.type) && inquiry.client?.name ? (
+                  {inquiry.client?.name ? (
                     <PersonName name={inquiry.client.name} />
                   ) : (
                     (inquiry.client?.name ?? "client")
@@ -519,13 +519,7 @@ function BoardCard({ inquiry }: { inquiry: InquiryPipelineItem }) {
       onFocus={warm}
     >
       <header>
-        <b>
-          {isPersonType(inquiry.client?.type) && inquiry.client?.name ? (
-            <PersonName name={inquiry.client.name} />
-          ) : (
-            item.name
-          )}
-        </b>
+        <b>{inquiry.client?.name ? <PersonName name={inquiry.client.name} /> : item.name}</b>
         {inquiry.awaiting_reply ? (
           <span className="studio-desk-replied" title="they wrote back. your turn.">
             <i aria-hidden="true" />

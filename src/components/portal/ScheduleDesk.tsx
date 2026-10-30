@@ -166,7 +166,7 @@ export function ScheduleDesk({
                     className="studio-listen-who"
                     onClick={() => openMeeting(booking)}
                   >
-                    <PersonName name={booking.name} />
+                    <PersonName name={booking.name} asTyped={!booking.email} />
                   </button>
                   <ListeningLine />
                 </div>
@@ -239,7 +239,7 @@ export function ScheduleDesk({
                         >
                           <em>accepted</em>
                           <span>
-                            <PersonName name={booking.name} />
+                            <PersonName name={booking.name} asTyped={!booking.email} />
                           </span>
                         </Link>
                       ) : (
@@ -251,7 +251,7 @@ export function ScheduleDesk({
                         >
                           <em>{booking.allDay ? "all day" : studioClock(booking.startsAt)}</em>
                           <span>
-                            <PersonName name={booking.name} />
+                            <PersonName name={booking.name} asTyped={!booking.email} />
                           </span>
                         </button>
                       ),
@@ -358,7 +358,7 @@ function DayList({
             >
               <span>
                 <b>
-                  <PersonName name={booking.name} />
+                  <PersonName name={booking.name} asTyped={!booking.email} />
                 </b>
                 <em>accepted inquiry</em>
               </span>
@@ -373,7 +373,7 @@ function DayList({
             >
               <span>
                 <b>
-                  <PersonName name={booking.name} />
+                  <PersonName name={booking.name} asTyped={!booking.email} />
                 </b>
                 <em>{booking.note || booking.email}</em>
               </span>
@@ -413,7 +413,7 @@ function MeetingRecord({
         back
       </button>
       <h2>
-        <PersonName name={booking.name} />
+        <PersonName name={booking.name} asTyped={!booking.email} />
       </h2>
       <p className="studio-meet-when">{meetingWhen(booking, minutes)}</p>
       {brief ? (

@@ -76,6 +76,7 @@ export const renderDemoFile = createServerFn({ method: "POST" })
       const packageName = floralPackageName(data.eventLabel);
       const booking = invoiceBookingLine(data.eventLabel, invoiceDateLabel(data.eventDate ?? ""));
       bytes = await renderReceiptPdf({
+        booking,
         number: data.number,
         title: [packageName, short(data.eventDate)].filter(Boolean).join(" "),
         client: { name: data.clientName, email: data.clientEmail, phone: data.clientPhone },
@@ -83,7 +84,7 @@ export const renderDemoFile = createServerFn({ method: "POST" })
         venue: data.venue,
         items: [
           {
-            name: booking ? `${packageName} — ${booking}` : packageName,
+            name: packageName,
             qty: 1,
             unitPriceCents: listCents,
             lineTotalCents: listCents,

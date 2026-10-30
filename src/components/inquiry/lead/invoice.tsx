@@ -198,7 +198,7 @@ export function InvoicePreview({
       ? {
           key: "base",
           name: service,
-          note: bookingLine || null,
+          note: null,
           unitCents: listCents,
           quantity: 1,
           squareId: null,
@@ -382,6 +382,7 @@ export function InvoicePreview({
             </div>
             <Wordmark tone="ink" className="client-packet-mark is-sheet" />
           </header>
+          {bookingLine ? <p className="studio-invoice-booking">{bookingLine}</p> : null}
           <div className="studio-invoice-who">
             <div>
               <p>bill to</p>

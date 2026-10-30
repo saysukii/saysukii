@@ -502,6 +502,7 @@ export type Database = {
     Functions: {
       next_proposal_number: { Args: Record<string, never>; Returns: string };
       next_invoice_number: { Args: Record<string, never>; Returns: string };
+      claim_invoice_number: { Args: { after_number: number }; Returns: string };
       current_user_role: { Args: Record<string, never>; Returns: AppRole | null };
       is_admin: { Args: Record<string, never>; Returns: boolean };
       is_studio_member: { Args: Record<string, never>; Returns: boolean };

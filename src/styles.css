@@ -5183,7 +5183,8 @@
   text-transform: lowercase;
 }
 
-.is-person {
+.is-person,
+.celebrate-bigname p.is-person {
   text-transform: none;
 }
 
@@ -7211,6 +7212,15 @@ button.studio-metric:hover {
 .studio-invoice header em {
   color: rgba(36, 34, 31, 0.52);
   font-size: 12px;
+}
+
+/* "Booking for … per approved proposal.", under the invoice's header */
+.studio-invoice-booking {
+  margin: -6px 0 0;
+  color: rgba(36, 34, 31, 0.62);
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 300;
 }
 
 .studio-invoice-who {
@@ -10318,7 +10328,8 @@ button.studio-metric:hover {
 
 .studio-composer-editor[data-empty="true"]::before {
   content: attr(data-placeholder);
-  text-transform: lowercase;
+  /* written lowercase already, so the client's name keeps its capitals */
+  text-transform: none;
   color: var(--auth-muted);
 }
 

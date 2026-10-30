@@ -240,13 +240,7 @@ export function MailFace({
               {day ? <p className="studio-mail-stamp">{day}</p> : null}
               {named ? (
                 <p className="studio-mail-name">
-                  {person &&
-                  clientName &&
-                  mail.name.trim().toLowerCase() === clientName.trim().toLowerCase() ? (
-                    <PersonName name={mail.name} />
-                  ) : (
-                    mail.name
-                  )}
+                  <PersonName name={mail.name} />
                 </p>
               ) : null}
               <article
@@ -254,7 +248,9 @@ export function MailFace({
               >
                 <div className="studio-mail-bubble">
                   {mail.note ? (
-                    <p className="studio-mail-subject">studio note · {mail.name}</p>
+                    <p className="studio-mail-subject">
+                      studio note · <PersonName name={mail.name} />
+                    </p>
                   ) : null}
                   {!mail.note && !hiddenSubject(mail.subject) && !/^re:/i.test(mail.subject) ? (
                     <p className="studio-mail-subject">{mail.subject}</p>

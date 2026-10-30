@@ -1,4 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { squareInvoiceNumber } from "@/lib/invoice-title";
+
 import { decryptSecret, encryptSecret } from "./crypto.server";
 
 function squareEnvironment() {
@@ -291,6 +293,8 @@ export async function createSquareInvoice(input: {
   courtesyCents: number;
   depositCents: number | null;
   balanceDue: string;
+  /** "Booking for … per approved proposal.", shown under the invoice's title in square */
+  description?: string | null;
 }) {
   const locationId = process.env["SQUARE_LOCATION_ID"];
   if (!locationId) throw new Error("SQUARE_LOCATION_ID is not configured");
@@ -397,8 +401,9 @@ export async function createSquareInvoice(input: {
             buy_now_pay_later: false,
             cash_app_pay: false,
           },
-          invoice_number: input.number,
+          invoice_number: squareInvoiceNumber(input.number),
           title: input.title,
+          ...(input.description ? { description: input.description } : {}),
         },
       }),
     },
@@ -423,6 +428,35 @@ export async function createSquareInvoice(input: {
 }
 
 /** Where a square invoice stands: what's been paid, and whether it's done. */
+/**
+ * The highest invoice number in square, counting ones made there by hand ("SS-750" is 750), so the
+ * studio's next number steps past it. Zero when square can't be read.
+ */
+export async function highestSquareInvoiceNumber() {
+  const locationId = process.env["SQUARE_LOCATION_ID"];
+  if (!locationId) return 0;
+  const response = await squareRequest<{ invoices?: Array<{ invoice_number?: string }> }>(
+    "/v2/invoices/search",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await squareAccessToken()}` },
+      body: JSON.stringify({
+        query: {
+          filter: { location_ids: [locationId] },
+          sort: { field: "INVOICE_SORT_DATE", order: "DESC" },
+        },
+        limit: 200,
+      }),
+    },
+  );
+  return Math.max(
+    0,
+    ...(response.invoices ?? []).map(
+      (invoice) => Number(invoice.invoice_number?.match(/(\d+)\s*$/)?.[1] ?? 0) || 0,
+    ),
+  );
+}
+
 export async function readSquareInvoice(invoiceId: string) {
   const response = await squareRequest<{
     invoice?: {

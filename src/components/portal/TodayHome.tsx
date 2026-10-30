@@ -97,9 +97,17 @@ function givenName(fullName: string | null | undefined) {
   return "Sukii";
 }
 
-function LineBits({ bits }: { bits: Array<{ text: string; person?: boolean }> }) {
+function LineBits({
+  bits,
+}: {
+  bits: Array<{ text: string; person?: boolean; asTyped?: boolean }>;
+}) {
   return bits.map((bit, index) =>
-    bit.person ? <PersonName key={index} name={bit.text} /> : <span key={index}>{bit.text}</span>,
+    bit.person ? (
+      <PersonName key={index} name={bit.text} asTyped={bit.asTyped ?? false} />
+    ) : (
+      <span key={index}>{bit.text}</span>
+    ),
   );
 }
 
@@ -380,27 +388,23 @@ export function TodayHome({
     const covered = new Set(
       data.projects.map((project) => `${project.client_id}:${project.event_date}`),
     );
-    const organizations = new Set(
-      [...data.waiting, ...data.projects].flatMap((row) =>
-        row.client && row.client.type !== "individual"
-          ? [row.client.name.trim().toLowerCase()]
-          : [],
-      ),
-    );
     const meetings = talks
       .filter((talk) => studioDay(talk.startsAt) === today)
       .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
       .map((talk) => {
         const clock = talk.allDay ? "all day" : studioClock(talk.startsAt);
-        const person = !organizations.has(talk.name.trim().toLowerCase());
+        const person = true;
+        // a booked call is someone's name; a google event keeps the title it was given
+        const asTyped = !talk.email;
         return {
           id: talk.id,
           name: talk.name,
           person,
+          asTyped,
           hello: clock || "today",
           nextTitle: "on the schedule",
           nextNote: talk.note.trim() || "today.",
-          bits: [{ text: talk.name, person }, ...(clock ? [{ text: ` · ${clock}` }] : [])],
+          bits: [{ text: talk.name, person, asTyped }, ...(clock ? [{ text: ` · ${clock}` }] : [])],
         };
       });
     const events = [
@@ -773,6 +777,7 @@ export function TodayHome({
                           key={item.id}
                           name={item.name}
                           {...(item.person ? { person: true } : {})}
+                          {...("asTyped" in item && item.asTyped ? { asTyped: true } : {})}
                           hello={item.hello}
                           {...(item.slug
                             ? {
@@ -875,7 +880,9 @@ export function TodayHome({
               ))}
               {dayMarks.talks.map((talk) => (
                 <p key={talk.id}>
-                  <b>{talk.name}</b>
+                  <b>
+                    <PersonName name={talk.name} asTyped={!talk.email} />
+                  </b>
                   <span>{talk.allDay ? "all day" : studioClock(talk.startsAt) || "meeting"}</span>
                 </p>
               ))}
@@ -1837,6 +1844,7 @@ function GlanceListCard({
   nextTitle,
   nextNote,
   action,
+  asTyped = false,
 }: {
   name: string;
   person?: boolean;
@@ -1844,12 +1852,14 @@ function GlanceListCard({
   nextTitle?: string;
   nextNote?: string;
   action?: ReactNode;
+  /** a calendar event's own title, shown exactly as written */
+  asTyped?: boolean;
 }) {
   return (
     <article className="studio-home-glance">
       <header className="studio-glance-head">
         <div>
-          <b>{shownName(name, person)}</b>
+          <b>{shownName(name, person, asTyped)}</b>
           {hello ? (
             <p>
               <TextShimmer duration={1.2} className={glanceShimmer}>

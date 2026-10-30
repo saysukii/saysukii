@@ -12,7 +12,7 @@ import type {
   VenueRow,
 } from "@/integrations/supabase/types";
 import { buildAgreementContent } from "@/lib/agreement-templates";
-import { invoiceTitle } from "@/lib/invoice-title";
+import { invoiceTitle, squareInvoiceNumber } from "@/lib/invoice-title";
 import {
   freeProposalSlug,
   isProposalSlug,
@@ -660,7 +660,8 @@ export const payProposalDeposit = createServerFn({ method: "POST" })
         0,
         45,
       ),
-      referenceId: invoiceNumber,
+      // square writes its invoice numbers with a dash: SS-751
+      referenceId: squareInvoiceNumber(invoiceNumber),
       ...(paid > 0 ? balanceOrder(bundle, due) : depositOrder(bundle, due)),
     });
     if (order.totalCents !== due) throw new Error("The amount due changed. Reload and try again.");
@@ -1207,21 +1208,26 @@ function documentMeta(
 }
 
 /** What the invoice and receipt list: the proposal's own lines, or the service and any courtesy. */
+/** "Booking for floral subscription service on 10/30/26 per approved proposal." */
+function bookingLineFor(bundle: ProposalBundle) {
+  const statement = statementFromNotes(bundle.proposal.notes);
+  return invoiceBookingLine(
+    statement?.occasion || eventLabel(bundle.inquiry.event_type),
+    invoiceDateLabel(statement?.eventWhen || bundle.proposal.event_date || ""),
+  );
+}
+
 function invoiceItems(bundle: ProposalBundle) {
   const statement = statementFromNotes(bundle.proposal.notes);
   const courtesy = courtesyFromNotes(bundle.proposal.notes);
   const occasion = statement?.occasion || eventLabel(bundle.inquiry.event_type);
   const packageName = floralPackageName(occasion);
-  const booking = invoiceBookingLine(
-    occasion,
-    invoiceDateLabel(statement?.eventWhen || bundle.proposal.event_date || ""),
-  );
   const listCents = bundle.proposal.subtotal_cents || bundle.proposal.total_cents + courtesy;
   return bundle.items.length
     ? pdfItems(bundle.items)
     : [
         {
-          name: booking ? `${packageName} — ${booking}` : packageName,
+          name: packageName,
           qty: 1,
           unitPriceCents: listCents,
           lineTotalCents: listCents,
@@ -1348,6 +1354,7 @@ export async function sendPaidLetters(
   const files = [];
   const left = Math.max(0, bundle.proposal.total_cents - paid);
   const receipt = await renderReceiptPdf({
+    booking: bookingLineFor(bundle),
     number: invoiceNumber,
     title: [floralPackageName(letter.occasion), eventDate ? letterDate(eventDate) : ""]
       .filter(Boolean)
@@ -1730,6 +1737,7 @@ async function ensureDepositInvoice(bundle: ProposalBundle) {
     dueDate: null,
     sharedOn: invoiceSharedDate(bundle.proposal.sent_at),
     paymentLink,
+    booking: bookingLineFor(bundle),
   });
   const invoicePath = `${bundle.proposal.id}/invoice-${invoiceNumber}.pdf`;
   await uploadDocument(invoicePath, invoicePdf);
@@ -1752,10 +1760,8 @@ async function ensureInvoiceNumber(proposalId: string, amountCents: number) {
     if (error) throw new Error(error.message);
     return number;
   }
-  const { data: nextNumber, error: numberError } = await supabaseAdmin.rpc("next_invoice_number");
-  if (numberError || typeof nextNumber !== "string" || !nextNumber)
-    throw new Error(numberError?.message ?? "The invoice number could not be opened.");
-  const number = invoiceTitle(nextNumber);
+  const { claimInvoiceNumber } = await import("./invoice-number.server");
+  const number = await claimInvoiceNumber();
   const { error } = await supabaseAdmin.from("invoices").insert({
     proposal_id: proposalId,
     number,
