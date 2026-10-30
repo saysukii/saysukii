@@ -94,6 +94,106 @@ async function squareAccessToken() {
   return decryptSecret(data.encrypted_access_token);
 }
 
+/** What the client's page needs to show square's secure card fields; none of it is secret. */
+export function squareCheckoutConfig() {
+  const applicationId = process.env["SQUARE_APPLICATION_ID"];
+  const locationId = process.env["SQUARE_LOCATION_ID"];
+  if (!applicationId || !locationId) return null;
+  return {
+    applicationId,
+    locationId,
+    sandbox: squareEnvironment() !== "production",
+  };
+}
+
+export type SquareOrderLine = { name: string; note?: string; amountCents: number };
+
+/** An itemized order, so square shows what was paid for, not just an amount. */
+export async function createSquareOrder(input: {
+  idempotencyKey: string;
+  referenceId: string;
+  lines: SquareOrderLine[];
+  discountCents?: number;
+}) {
+  const locationId = process.env["SQUARE_LOCATION_ID"];
+  if (!locationId) throw new Error("SQUARE_LOCATION_ID is not configured");
+  const discount = input.discountCents ?? 0;
+  const response = await squareRequest<{
+    order?: { id?: string; total_money?: { amount?: number } };
+  }>("/v2/orders", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${await squareAccessToken()}` },
+    body: JSON.stringify({
+      idempotency_key: input.idempotencyKey,
+      order: {
+        location_id: locationId,
+        reference_id: input.referenceId,
+        line_items: input.lines.map((line) => ({
+          name: line.name,
+          quantity: "1",
+          ...(line.note ? { note: line.note } : {}),
+          base_price_money: { amount: line.amountCents, currency: "USD" },
+        })),
+        ...(discount > 0
+          ? {
+              discounts: [
+                {
+                  name: "courtesy discount",
+                  amount_money: { amount: discount, currency: "USD" },
+                  scope: "ORDER",
+                },
+              ],
+            }
+          : {}),
+      },
+    }),
+  });
+  const orderId = response.order?.id;
+  if (!orderId) throw new Error("Square did not return an order");
+  return { orderId, totalCents: Number(response.order?.total_money?.amount ?? 0) };
+}
+
+export type SquareCompletedPayment = {
+  id: string;
+  order_id?: string;
+  status?: string;
+  updated_at?: string;
+  amount_money?: { amount?: number | string };
+};
+
+/** Charges a card or apple pay token from the client's page against that order. */
+export async function createSquareCardPayment(input: {
+  sourceId: string;
+  verificationToken?: string | undefined;
+  idempotencyKey: string;
+  amountCents: number;
+  orderId: string;
+  referenceId: string;
+  buyerEmail?: string | null | undefined;
+  note: string;
+}) {
+  const locationId = process.env["SQUARE_LOCATION_ID"];
+  if (!locationId) throw new Error("SQUARE_LOCATION_ID is not configured");
+  const response = await squareRequest<{ payment?: SquareCompletedPayment }>("/v2/payments", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${await squareAccessToken()}` },
+    body: JSON.stringify({
+      source_id: input.sourceId,
+      idempotency_key: input.idempotencyKey,
+      amount_money: { amount: input.amountCents, currency: "USD" },
+      location_id: locationId,
+      order_id: input.orderId,
+      reference_id: input.referenceId,
+      note: input.note,
+      autocomplete: true,
+      ...(input.verificationToken ? { verification_token: input.verificationToken } : {}),
+      ...(input.buyerEmail ? { buyer_email_address: input.buyerEmail } : {}),
+    }),
+  });
+  if (!response.payment?.id) throw new Error("Square did not return a payment");
+  return response.payment;
+}
+
 export async function createSquarePaymentLink(input: {
   idempotencyKey: string;
   label: string;

@@ -539,6 +539,135 @@ export const findProposalSlug = createServerFn({ method: "GET" })
     return { slug };
   });
 
+/** Square's public settings, so the client's page can show its secure card fields and apple pay. */
+export const getSquarePayConfig = createServerFn({ method: "GET" }).handler(async () => {
+  const { squareCheckoutConfig } = await import("./square.server");
+  return squareCheckoutConfig();
+});
+
+/**
+ * Pays the deposit (or the whole amount) from the client's own invoice page: an itemized square
+ * order, the card or apple pay charge, then the same paid step square's webhook runs.
+ */
+export const payProposalDeposit = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        token: z.string().min(32),
+        source_id: z.string().trim().min(1).max(500),
+        verification_token: z.string().trim().max(4000).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const bundle = await loadProposalBundleByToken(data.token);
+    const { data: agreement } = await supabaseAdmin
+      .from("agreements")
+      .select("signed_name")
+      .eq("proposal_id", bundle.proposal.id)
+      .maybeSingle();
+    if (!agreement?.signed_name) throw new Error("Sign the agreement before paying.");
+    const due = bundle.proposal.deposit_amount_cents;
+    if (!(due > 0)) throw new Error("There's nothing to pay on this proposal.");
+
+    const invoiceNumber = await ensureInvoiceNumber(bundle.proposal.id, due);
+    const { data: invoice, error: invoiceError } = await supabaseAdmin
+      .from("invoices")
+      .select("id, status")
+      .eq("proposal_id", bundle.proposal.id)
+      .maybeSingle();
+    if (invoiceError || !invoice) throw new Error("The invoice could not be opened.");
+    if (invoice.status === "paid") return { paid: true as const };
+
+    const { createSquareOrder, createSquareCardPayment } = await import("./square.server");
+    const order = await createSquareOrder({
+      idempotencyKey: `deposit-${bundle.proposal.id}-${due}`.slice(0, 45),
+      referenceId: invoiceNumber,
+      ...depositOrder(bundle, due),
+    });
+    if (order.totalCents !== due) throw new Error("The amount due changed. Reload and try again.");
+    await supabaseAdmin
+      .from("invoices")
+      .update({ square_order_id: order.orderId })
+      .eq("id", invoice.id);
+
+    let payment;
+    try {
+      payment = await createSquareCardPayment({
+        sourceId: data.source_id,
+        verificationToken: data.verification_token,
+        idempotencyKey: crypto.randomUUID(),
+        amountCents: due,
+        orderId: order.orderId,
+        referenceId: invoiceNumber,
+        buyerEmail: bundle.client.email,
+        note: `${invoiceNumber} · ${bundle.client.name}`,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "";
+      throw new Error(
+        /declin|insufficient|cvv|expir|verification/i.test(detail)
+          ? "That card wasn't accepted. Check the details or try another card."
+          : "The payment didn't go through. Nothing was charged, so you can try again.",
+      );
+    }
+    if (payment.status !== "COMPLETED") {
+      return { paid: false as const, status: payment.status ?? "PENDING" };
+    }
+    const { settleSquarePayment } = await import("./square-paid.server");
+    await settleSquarePayment(payment);
+    return { paid: true as const };
+  });
+
+/**
+ * What square shows for the payment. Paying in full lists the service (and any courtesy discount);
+ * a deposit is one clear line toward the total, since square's order total has to equal the charge.
+ */
+function depositOrder(bundle: ProposalBundle, dueCents: number) {
+  const statement = statementFromNotes(bundle.proposal.notes);
+  const courtesy = courtesyFromNotes(bundle.proposal.notes);
+  const occasion = statement?.occasion || eventLabel(bundle.inquiry.event_type);
+  const packageName = floralPackageName(occasion);
+  const booking = invoiceBookingLine(
+    occasion,
+    invoiceDateLabel(statement?.eventWhen || bundle.proposal.event_date || ""),
+  );
+  const total = bundle.proposal.total_cents;
+  if (dueCents < total) {
+    return {
+      lines: [
+        {
+          name: `Deposit · ${packageName}`,
+          note: `${booking ? `${booking} ` : ""}Toward the total of ${moneyLabel(total)}.`,
+          amountCents: dueCents,
+        },
+      ],
+    };
+  }
+  const lines = bundle.items.length
+    ? bundle.items.map((item) => ({
+        name: item.label,
+        amountCents: item.line_total_cents,
+        ...(item.description ? { note: item.description } : {}),
+      }))
+    : [
+        {
+          name: packageName,
+          amountCents: total + courtesy,
+          ...(booking ? { note: booking } : {}),
+        },
+      ];
+  const discountCents = bundle.items.length ? 0 : courtesy;
+  const sum = lines.reduce((total, line) => total + line.amountCents, 0) - discountCents;
+  // square's order has to add up to the charge exactly; if the lines don't, say it in one
+  if (sum !== dueCents) {
+    return {
+      lines: [{ name: packageName, amountCents: dueCents, ...(booking ? { note: booking } : {}) }],
+    };
+  }
+  return { lines, discountCents };
+}
+
 export const getPublicProposal = createServerFn({ method: "GET" })
   .validator((input: unknown) => z.object({ token: z.string().min(32) }).parse(input))
   .handler(async ({ data }) => {

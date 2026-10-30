@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { FloralAgreement } from "@/components/proposal/FloralAgreement";
 import { ProposalPages } from "@/components/proposal/ProposalPages";
 import { isSignatureDataUrl, SignaturePad } from "@/components/proposal/SignaturePad";
+import { SquarePay } from "@/components/proposal/SquarePay";
 import { Wordmark } from "@/components/portal/bits";
 import { BloomWait } from "@/components/portal/StudioLoader";
 import {
@@ -641,10 +642,6 @@ export function ProposalPacket({ token }: { token: string }) {
               <p className="client-packet-stamp" style={{ marginTop: 0 }}>
                 {depositCents >= totalCents ? "Paid in full." : "Deposit received."}
               </p>
-            ) : link ? (
-              <a href={link} target="_blank" rel="noreferrer" className="client-packet-accept">
-                Pay {formatMoneyExact(depositCents)}
-              </a>
             ) : preview ? (
               <button
                 type="button"
@@ -655,9 +652,16 @@ export function ProposalPacket({ token }: { token: string }) {
                 {pay.isPending ? "Paying…" : `Pay ${formatMoneyExact(depositCents)}`}
               </button>
             ) : (
-              <p className="client-packet-client">
-                The studio will send payment instructions if the deposit link is not ready.
-              </p>
+              <SquarePay
+                token={token}
+                amountCents={depositCents}
+                clientName={clientName}
+                clientEmail={clientEmail}
+                fallbackHref={link}
+                onPaid={() =>
+                  void queryClient.invalidateQueries({ queryKey: ["public-proposal", token] })
+                }
+              />
             )}
           </div>
         ) : null}
