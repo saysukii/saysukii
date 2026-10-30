@@ -260,6 +260,25 @@ export function InvoicePreview({
                     onChange={(event) => change(row.key, { note: event.target.value || null })}
                   />
                 </>
+              ) : editable && catalog && row.key !== "base" ? (
+                <>
+                  <ItemPicker
+                    catalog={catalog}
+                    onPick={(picked) => change(row.key, { ...picked, quantity: row.quantity })}
+                  >
+                    <button type="button" className="studio-invoice-item" title="choose an item">
+                      {row.name}
+                    </button>
+                  </ItemPicker>
+                  {/* square's description to start with; the studio can write its own */}
+                  <input
+                    className="studio-invoice-detail"
+                    value={row.note ?? ""}
+                    placeholder="add a detail"
+                    aria-label={`detail for ${row.name || "this item"}`}
+                    onChange={(event) => change(row.key, { note: event.target.value || null })}
+                  />
+                </>
               ) : editable && catalog ? (
                 <ItemPicker
                   catalog={catalog}

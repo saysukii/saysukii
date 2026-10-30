@@ -63,8 +63,6 @@ import {
   courtesyFromNotes,
   fileNameFromNotes,
   floralPackageName,
-  invoiceBookingLine,
-  invoiceDateLabel,
   statementFromNotes,
   statementOfWork,
   type StatementOfWork,
@@ -1594,12 +1592,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
           {
             key: "base",
             name: floralPackageName(work.occasion || work.flowers),
-            note:
-              invoiceBookingLine(
-                work.occasion || work.flowers,
-                invoiceDateLabel(work.eventWhen),
-                proposalBooked,
-              ) || null,
+            note: null,
             unitCents: invoiceListCents,
             quantity: 1,
             squareId: null,
@@ -1647,11 +1640,6 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             })),
             courtesy_cents: invoiceCourtesyCents,
             pay_in_full: invoiceDraft.pay === "full",
-            booking: invoiceBookingLine(
-              work.occasion || work.flowers,
-              invoiceDateLabel(work.eventWhen),
-              proposalBooked,
-            ),
             letter,
             subject,
             to: uniqueMails([client?.email, ...moreTo]),
@@ -1716,8 +1704,6 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
           eventDate: signedPreview.eventDate,
         }
       : null;
-  // an add-on invoice belongs to the proposal once it's signed and its first invoice is paid
-  const proposalBooked = Boolean(signedPacket && signedPacket.payments.length > 0);
   const proposalLetterBody = ensureProposalLink(
     applyTemplate(proposalTemplate.body, client?.name, EVENT_LABEL[inquiry.event_type]),
     proposalHref || `${PROPOSAL_ORIGIN}/${proposalSlug(client?.name ?? "")}`,
@@ -3004,11 +2990,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             clientEmail={client?.email ?? ""}
             number="new invoice"
             service={floralPackageName(work.occasion || work.flowers)}
-            bookingLine={invoiceBookingLine(
-              work.occasion || work.flowers,
-              invoiceDateLabel(work.eventWhen),
-              proposalBooked,
-            )}
+            // an invoice of its own carries no booking line; each item can have its own detail
+            bookingLine=""
             listCents={invoiceListCents}
             courtesyCents={invoiceCourtesyCents}
             totalCents={invoiceTotalCents}
