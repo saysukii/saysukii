@@ -30,6 +30,9 @@ export const listMeetingBusy = createServerFn({ method: "GET" }).handler(async (
     connected = false;
   }
   try {
+    // with google connected its busy times already hold every call still on the calendar,
+    // so a call deleted there frees its time
+    if (connected) return { connected, busy };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin
       .from("appointments")
@@ -130,41 +133,39 @@ export const listAppointments = createServerFn({ method: "GET" })
       .gte("starts_at", new Date().toISOString())
       .order("starts_at");
     if (error) throw new Error(error.message);
-    const rows = data ?? [];
-    const google = await import("@/lib/os/google.server")
-      .then(({ listStudioGoogleEvents }) => listStudioGoogleEvents())
-      .catch(() => []);
-    const linkByStart = new Map<string, string>();
-    for (const event of google) {
-      if (!event.allDay && event.joinUrl) linkByStart.set(startKey(event.startsAt), event.joinUrl);
-    }
-    const taken = new Set(rows.map((row) => startKey(row.starts_at)));
+    const saved = data ?? [];
+    const calendar = await import("@/lib/os/google.server")
+      .then(({ readStudioGoogleCalendar }) =>
+        readStudioGoogleCalendar({
+          calls: saved.map((row) => ({
+            id: row.id,
+            startsAt: row.starts_at,
+            email: row.guest_email,
+            name: row.guest_name,
+          })),
+        }),
+      )
+      .catch(() => null);
+    // a call deleted from google calendar leaves the app too
+    const rows = saved.filter((row) => !calendar || calendar.liveCalls.has(row.id));
     return [
       ...rows.map((row) => ({
         ...row,
         all_day: false,
-        join_url: linkByStart.get(startKey(row.starts_at)) ?? null,
+        join_url: calendar?.liveCalls.get(row.id) ?? null,
       })),
-      ...google
-        .filter((event) => event.allDay || !taken.has(startKey(event.startsAt)))
-        .map((event) => ({
-          id: event.id,
-          starts_at: event.startsAt,
-          guest_name: event.name,
-          guest_email: "",
-          note: "google calendar",
-          created_at: event.startsAt,
-          all_day: event.allDay,
-          join_url: event.joinUrl,
-        })),
+      ...(calendar?.events ?? []).map((event) => ({
+        id: event.id,
+        starts_at: event.startsAt,
+        guest_name: event.name,
+        guest_email: "",
+        note: "google calendar",
+        created_at: event.startsAt,
+        all_day: event.allDay,
+        join_url: event.joinUrl,
+      })),
     ].sort((left, right) => left.starts_at.localeCompare(right.starts_at));
   });
-
-function startKey(value: string) {
-  const time = new Date(value).getTime();
-  if (Number.isNaN(time)) return "";
-  return String(Math.round(time / 60_000));
-}
 
 async function readGranolaConnected() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

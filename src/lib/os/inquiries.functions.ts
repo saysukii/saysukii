@@ -454,7 +454,7 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
     const latestTasks = await listStudioTasks(context.supabase);
 
     const projectClients = new Map((clientsResult.data ?? []).map((client) => [client.id, client]));
-    const storedTalks = appointmentsResult.error
+    const savedTalks = appointmentsResult.error
       ? []
       : (appointmentsResult.data ?? []).map((row) => ({
           id: row.id,
@@ -463,26 +463,26 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
           email: row.guest_email,
           note: row.note ?? "",
         }));
-    const googleTalks = await import("@/lib/os/google.server")
-      .then(({ listStudioGoogleEvents }) =>
-        listStudioGoogleEvents({
+    const calendar = await import("@/lib/os/google.server")
+      .then(({ readStudioGoogleCalendar }) =>
+        readStudioGoogleCalendar({
           skipIds: (projectsResult.data ?? [])
             .map((project) => project.google_event_id)
             .filter((id): id is string => Boolean(id)),
-          skipStarts: storedTalks.map((talk) => talk.startsAt),
+          calls: savedTalks,
         }),
       )
-      .then((events) =>
-        events.map((event) => ({
-          id: event.id,
-          startsAt: event.startsAt,
-          name: event.name,
-          email: "",
-          note: "",
-          allDay: event.allDay,
-        })),
-      )
-      .catch(() => []);
+      .catch(() => null);
+    // a call deleted from google calendar leaves the app too
+    const storedTalks = savedTalks.filter((talk) => !calendar || calendar.liveCalls.has(talk.id));
+    const googleTalks = (calendar?.events ?? []).map((event) => ({
+      id: event.id,
+      startsAt: event.startsAt,
+      name: event.name,
+      email: "",
+      note: "",
+      allDay: event.allDay,
+    }));
     return assembleStudioToday({
       inquiries: leads,
       projects: (projectsResult.data ?? []).map((project) => ({

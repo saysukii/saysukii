@@ -5155,7 +5155,7 @@
 
 .studio-pearl-note {
   margin: 0 0 18px;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
   letter-spacing: 0.06em;
@@ -5205,7 +5205,7 @@
 .studio-today-top p {
   margin: 8px 0 0;
   max-width: 36ch;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
   letter-spacing: 0.06em;
@@ -5442,7 +5442,7 @@
 .studio-home-hello p {
   margin: 8px 0 0;
   max-width: 46ch;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
   line-height: 1.5;
@@ -6048,7 +6048,7 @@ button.studio-metric:hover {
 }
 
 .studio-home-glance-link.is-blush:hover {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-home-glance-link.is-ink:hover {
@@ -6364,7 +6364,7 @@ button.studio-metric:hover {
 }
 
 .studio-task-kinds button.is-inquiry.is-on {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-task-kinds button.is-production.is-on {
@@ -8673,7 +8673,7 @@ button.studio-metric:hover {
 .studio-desk-hello p:not(.studio-home-label) {
   margin: 8px 0 0;
   max-width: 46ch;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
   line-height: 1.5;
@@ -8833,7 +8833,7 @@ button.studio-metric:hover {
   place-items: center;
   border-radius: 13px;
   background: color-mix(in srgb, #c45d72 28%, var(--studio-veil));
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 11px;
   font-weight: 300;
   letter-spacing: 0.04em;
@@ -8881,7 +8881,7 @@ button.studio-metric:hover {
 }
 
 .studio-desk-card.is-review .studio-desk-wait {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-desk-wait {
@@ -8896,7 +8896,7 @@ button.studio-metric:hover {
 
 .studio-desk-wait.is-due,
 .studio-desk-wait.is-late {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-desk-card-tags {
@@ -9070,7 +9070,7 @@ button.studio-metric:hover {
 .studio-next-go {
   border: 0;
   background: transparent;
-  color: #c45d72;
+  color: #ff4d94;
   padding: 0;
   font: inherit;
   font-size: 13px;
@@ -9152,7 +9152,7 @@ button.studio-metric:hover {
 .studio-lead-who p {
   margin: 8px 0 0;
   max-width: 48ch;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
   line-height: 1.45;
@@ -9290,7 +9290,7 @@ button.studio-metric:hover {
 }
 
 .studio-ledger-kind {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-ledger-line {
@@ -9559,7 +9559,7 @@ button.studio-metric:hover {
 }
 
 .studio-place:hover {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 @media (min-width: 900px) {
@@ -9641,7 +9641,7 @@ button.studio-metric:hover {
 .studio-crm-top p {
   margin: 8px 0 0;
   max-width: 52ch;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
   letter-spacing: 0.04em;
@@ -9742,7 +9742,7 @@ button.studio-metric:hover {
 .studio-thread-msg small {
   display: block;
   margin-top: 8px;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 10px;
   letter-spacing: 0.04em;
 }
@@ -11390,7 +11390,7 @@ textarea.studio-letter-edit {
 
 .studio-record-hero p:not(.studio-home-label) {
   margin: 4px 0 0;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
 }
@@ -12049,7 +12049,7 @@ textarea.studio-letter-edit {
 }
 
 .studio-board-crumb:hover {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-book-body {
@@ -12320,7 +12320,7 @@ textarea.studio-letter-edit {
 
 .studio-kanban-lane.is-review h2 {
   border-left-color: color-mix(in srgb, var(--studio-stage-new) 55%, #c45d72);
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-kanban-cards {
@@ -13241,7 +13241,7 @@ textarea.studio-letter-edit {
 }
 
 .studio-directory-pickbar .studio-ghost.is-delete {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-directory-pickbar .studio-ghost:disabled {
@@ -14850,7 +14850,7 @@ a.studio-kicker:hover {
 }
 
 .studio-agenda-mark em {
-  color: #c45d72;
+  color: #ff4d94;
   font-style: normal;
 }
 
@@ -14884,7 +14884,7 @@ a.studio-kicker:hover {
 
 .studio-meet-when {
   margin: 0;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
 }
@@ -15294,7 +15294,7 @@ a.studio-kicker:hover {
 }
 
 .studio-connect-status.is-due {
-  color: #c45d72;
+  color: #ff4d94;
 }
 
 .studio-connect-row p {
@@ -15568,7 +15568,7 @@ a.studio-kicker:hover {
 .studio-load-hero > p,
 .studio-load-card > p {
   margin: 0;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
   letter-spacing: 0.06em;
@@ -15931,7 +15931,7 @@ a.studio-kicker:hover {
 
 .studio-load-note {
   margin: 12px 0 0;
-  color: #c45d72;
+  color: #ff4d94;
   font-size: 13px;
   font-weight: 300;
   letter-spacing: 0.04em;

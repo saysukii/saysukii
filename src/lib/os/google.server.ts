@@ -100,19 +100,57 @@ export async function listStudioGoogleEvents(options?: {
   from?: Date;
   to?: Date;
   skipIds?: string[];
-  skipStarts?: string[];
 }): Promise<StudioGoogleEvent[]> {
+  return (await readStudioGoogleCalendar(options))?.events ?? [];
+}
+
+/** a call booked in the app, to find its own event on the calendar */
+export type BookedCall = { id: string; startsAt: string; email: string; name: string };
+
+/** the calendar event is the call's own: it starts then, and the guest is on it or named in it */
+function isCallEvent(event: GoogleEvent, call: BookedCall) {
+  if (!event.start?.dateTime || minuteKey(event.start.dateTime) !== minuteKey(call.startsAt)) {
+    return false;
+  }
+  const email = call.email.trim().toLowerCase();
+  const name = call.name.trim().toLowerCase();
+  const summary = (event.summary ?? "").toLowerCase();
+  return (
+    (Boolean(email) &&
+      (event.attendees ?? []).some((person) => person.email?.toLowerCase() === email)) ||
+    // a booked call's own title, "let's talk · ada", when the guest isn't on the invite
+    (Boolean(name) && summary.startsWith("let's talk") && summary.includes(name))
+  );
+}
+
+/**
+ * The studio's Google events, and which calls booked in the app still have theirs (with its
+ * meeting link), or null when the calendar can't be read. A call's own event isn't listed twice.
+ */
+export async function readStudioGoogleCalendar(options?: {
+  from?: Date;
+  to?: Date;
+  skipIds?: string[];
+  calls?: BookedCall[];
+}): Promise<{ events: StudioGoogleEvent[]; liveCalls: Map<string, string | null> } | null> {
   const range = studioCalendarRange();
   const items = await fetchGoogleEvents(options?.from ?? range.from, options?.to ?? range.to);
-  if (!items) return [];
+  if (!items) return null;
   const skipIds = new Set(options?.skipIds ?? []);
-  const skipStarts = new Set((options?.skipStarts ?? []).map(minuteKey).filter(Boolean));
+  const calls = options?.calls ?? [];
   const events: StudioGoogleEvent[] = [];
+  const liveCalls = new Map<string, string | null>();
   for (const event of items) {
-    if (!event.id || skipIds.has(event.id) || event.status === "cancelled") continue;
+    if (!event.id || event.status === "cancelled") continue;
+    const joinUrl = pickMeetingLink(event);
+    const ownCall = calls.find((call) => isCallEvent(event, call));
+    if (ownCall) {
+      liveCalls.set(ownCall.id, joinUrl);
+      continue;
+    }
+    if (skipIds.has(event.id)) continue;
     if (event.eventType === "workingLocation") continue;
     const name = event.summary?.trim() || "busy";
-    const joinUrl = pickMeetingLink(event);
     if (event.start?.date && event.end?.date) {
       for (const day of eachStudioDate(event.start.date, event.end.date)) {
         events.push({
@@ -126,11 +164,15 @@ export async function listStudioGoogleEvents(options?: {
       continue;
     }
     if (!event.start?.dateTime) continue;
-    const startsAt = new Date(event.start.dateTime).toISOString();
-    if (skipStarts.has(minuteKey(startsAt))) continue;
-    events.push({ id: event.id, startsAt, name, allDay: false, joinUrl });
+    events.push({
+      id: event.id,
+      startsAt: new Date(event.start.dateTime).toISOString(),
+      name,
+      allDay: false,
+      joinUrl,
+    });
   }
-  return events;
+  return { events, liveCalls };
 }
 
 function studioCalendarRange(now = new Date()) {
@@ -354,6 +396,7 @@ type GoogleEvent = {
   };
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
+  attendees?: Array<{ email?: string }>;
 };
 
 const MEETING_HOST =
