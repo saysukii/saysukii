@@ -2400,7 +2400,6 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             <FileText aria-hidden="true" strokeWidth={1.5} />
             proposal
           </p>
-          {sendRibbon}
           {signedPacket ? (
             <SignedPacket
               packet={signedPacket}
@@ -2437,6 +2436,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 : {})}
               sending={balanceInvoice.isPending && !balanceLetter}
             />
+          ) : null}
+          {signedPacket ? (
+            sendRibbon
           ) : (
             <div className="studio-proposal-desk">
               <div className="studio-proposal-drop">
@@ -2907,7 +2909,6 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             <FileText aria-hidden="true" strokeWidth={1.5} />
             invoice
           </p>
-          {sendRibbon}
           <div className="studio-proposal-terms is-cards">
             <div className="studio-proposal-money">
               <label className="studio-ask-field">
@@ -3013,6 +3014,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               />
             }
           />
+          {sendRibbon}
           {sentInvoices.length ? (
             <div className="studio-sent-invoices">
               <p className="studio-ask-label">sent</p>
@@ -3227,6 +3229,12 @@ const SEND_HOLD_MS = 10_000;
 /** The ten seconds after send: a pink line drains under the letter, with undo beside it. */
 function SendRibbon({ line, onUndo }: { line: string; onUndo: () => void }) {
   const [left, setLeft] = useState(SEND_HOLD_MS / 1000);
+  const ribbon = useRef<HTMLDivElement>(null);
+  // sent from the bottom of a long invoice, the ribbon comes into view so undo is in reach
+  useEffect(() => {
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    ribbon.current?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "nearest" });
+  }, []);
   useEffect(() => {
     const started = Date.now();
     const timer = window.setInterval(() => {
@@ -3235,7 +3243,7 @@ function SendRibbon({ line, onUndo }: { line: string; onUndo: () => void }) {
     return () => window.clearInterval(timer);
   }, []);
   return (
-    <div className="studio-send-ribbon" role="status">
+    <div ref={ribbon} className="studio-send-ribbon" role="status">
       <div className="studio-send-ribbon-row">
         <span>
           {line} in <em>{left}</em>

@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Wordmark } from "@/components/portal/bits";
 import { SquarePay } from "@/components/proposal/SquarePay";
 import { NotOnTheBooks } from "@/components/studio/NotOnTheBooks";
-import { INVOICE_THANKS, invoiceSharedDate } from "@/lib/floral-agreement";
+import { INVOICE_THANKS } from "@/lib/floral-agreement";
 import { formatMoneyExact } from "@/lib/money";
 import { getInvoicePage } from "@/lib/os/invoice-page.functions";
 
@@ -39,126 +39,116 @@ export function AddOnInvoice({ token }: { token: string }) {
       : data.dueCents >= data.totalCents
         ? "Due in full"
         : "Deposit due";
-  const sharedOn = invoiceSharedDate(data.sentAt);
+  const sharedOn = shortDay(data.sentAt);
   const eventShort = shortDay(data.eventDate);
   const service = data.items.length === 1 ? data.items[0]!.name : "Floral add-ons";
 
   return (
     <main className="client-packet">
-      <div className="client-packet-wrap">
-        <header className="client-packet-mast">
-          <Wordmark tone="ink" className="client-packet-mark" />
-        </header>
+      <div className="client-packet-wrap client-invoice-wrap">
+        <article className="client-invoice">
+          <header className="client-invoice-head">
+            <div>
+              <p className="client-invoice-kicker">{paid ? "paid" : dueLabel.toLowerCase()}</p>
+              <strong>{formatMoneyExact(paid ? data.totalCents : data.dueCents)}</strong>
+              <em>
+                {data.number}
+                {sharedOn ? ` · shared ${sharedOn}` : ""}
+              </em>
+            </div>
+            <Wordmark tone="ink" className="client-invoice-mark" />
+          </header>
 
-        <div className="client-packet-steps" aria-label="invoice">
-          <button type="button" className="is-on">
-            invoice
-          </button>
-        </div>
-
-        <div className="client-packet-sheet">
-          <div className="client-packet-invoice-top">
-            <h2>Invoice</h2>
-            <Wordmark tone="ink" className="client-packet-mark is-sheet" />
-            <p>
-              info@saysukii.com
-              <br />
-              saysukii.com
-            </p>
-            <p className="client-packet-kicker is-number">{data.number}</p>
-            <p>
-              Bill to
-              <br />
-              {data.clientName}
-              {data.clientEmail ? (
-                <>
-                  <br />
-                  {data.clientEmail}
-                </>
-              ) : null}
-              {paid ? (
-                <>
-                  <br />
-                  Paid
-                </>
-              ) : null}
-            </p>
-            {sharedOn ? <p>Shared {sharedOn}</p> : null}
+          <div className="client-invoice-who">
+            <div>
+              <p>bill to</p>
+              <b>{data.clientName}</b>
+              {data.clientEmail ? <span>{data.clientEmail}</span> : null}
+            </div>
+            <div>
+              <p>from</p>
+              <b>Say Sukii</b>
+              <span>info@saysukii.com</span>
+            </div>
           </div>
           {data.booking ? <p className="client-packet-booking">{data.booking}</p> : null}
-          <table className="client-packet-table">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Quantity</th>
-                <th>Price</th>
-                <th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((item, index) => (
-                <tr key={`${item.name}-${index}`}>
-                  <td>
-                    {item.name}
-                    {item.note ? <small>{item.note}</small> : null}
-                  </td>
-                  <td>{item.quantity}</td>
-                  <td>{formatMoneyExact(item.unitCents)}</td>
-                  <td>{formatMoneyExact(item.unitCents * item.quantity)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data.courtesyCents > 0 ? (
-            <div className="client-packet-row">
-              <span>Courtesy Discount</span>
-              <span>−{formatMoneyExact(data.courtesyCents)}</span>
-            </div>
-          ) : null}
-          <div className="client-packet-row">
-            <span>Total</span>
-            <span>{formatMoneyExact(data.totalCents)}</span>
-          </div>
-          <div className="client-packet-row client-packet-total">
-            <span>{dueLabel}</span>
-            <span>
-              {formatMoneyExact(paid ? 0 : data.dueCents)}
-              {paid ? <span className="client-packet-paid">Paid</span> : null}
-            </span>
-          </div>
-          <p style={{ marginTop: 18 }}>{INVOICE_THANKS}</p>
-        </div>
 
-        <div className="client-packet-buttons">
-          {paid ? (
-            <div className="client-packet-balance">
-              <p className="client-packet-stamp" style={{ marginTop: 0 }}>
-                Paid in full. Thank you.
+          <div className="client-invoice-items">
+            <div className="client-invoice-row is-head" aria-hidden="true">
+              <span>item</span>
+              <span>qty</span>
+              <span>price</span>
+              <span>amount</span>
+            </div>
+            {data.items.map((item, index) => (
+              <div key={`${item.name}-${index}`} className="client-invoice-row">
+                <div className="client-invoice-item">
+                  <b>{item.name}</b>
+                  {item.note ? <small>{item.note}</small> : null}
+                  {/* on a phone, the quantity and price sit under the item */}
+                  <small className="client-invoice-each">
+                    {item.quantity} × {formatMoneyExact(item.unitCents)}
+                  </small>
+                </div>
+                <span className="client-invoice-qty">{item.quantity}</span>
+                <span className="client-invoice-price">{formatMoneyExact(item.unitCents)}</span>
+                <span className="client-invoice-amount">
+                  {formatMoneyExact(item.unitCents * item.quantity)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="client-invoice-sums">
+            {data.courtesyCents > 0 ? (
+              <div>
+                <span>courtesy discount</span>
+                <span>−{formatMoneyExact(data.courtesyCents)}</span>
+              </div>
+            ) : null}
+            <div>
+              <span>total</span>
+              <span>{formatMoneyExact(data.totalCents)}</span>
+            </div>
+            {depositIn ? (
+              <div>
+                <span>paid</span>
+                <span>−{formatMoneyExact(data.paidCents)}</span>
+              </div>
+            ) : null}
+            <div className="is-due">
+              <span>{dueLabel.toLowerCase()}</span>
+              <span>
+                {formatMoneyExact(paid ? 0 : data.dueCents)}
+                {paid ? <span className="client-packet-paid">Paid</span> : null}
+              </span>
+            </div>
+          </div>
+
+          <footer className="client-invoice-foot">
+            <p>{INVOICE_THANKS}</p>
+            {paid ? (
+              <p className="client-invoice-done">
+                Paid in full. A copy of your receipt is in your email.
               </p>
-              <p className="client-packet-client">A copy of your receipt is in your email.</p>
-            </div>
-          ) : (
-            <div className="client-packet-balance">
-              {depositIn ? (
-                <p className="client-packet-stamp" style={{ marginTop: 0 }}>
-                  Deposit received. {formatMoneyExact(data.dueCents)} remaining.
-                </p>
-              ) : null}
-              <SquarePay
-                invoice
-                token={token}
-                amountCents={data.dueCents}
-                clientName={data.clientName}
-                clientEmail={data.clientEmail}
-                summary={{
-                  service: depositIn ? `${service} · balance` : service,
-                  eventDate: eventShort,
-                }}
-                onPaid={() => void queryClient.invalidateQueries({ queryKey })}
-              />
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="client-invoice-pay">
+                <SquarePay
+                  invoice
+                  token={token}
+                  amountCents={data.dueCents}
+                  clientName={data.clientName}
+                  clientEmail={data.clientEmail}
+                  summary={{
+                    service: depositIn ? `${service} · balance` : service,
+                    eventDate: eventShort,
+                  }}
+                  onPaid={() => void queryClient.invalidateQueries({ queryKey })}
+                />
+              </div>
+            )}
+          </footer>
+        </article>
       </div>
     </main>
   );

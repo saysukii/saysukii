@@ -17842,3 +17842,227 @@ a.studio-kicker:hover {
   padding: 24px;
   font-size: 13px;
 }
+
+/* an add-on invoice on its own page: laid out like the studio's invoice, on the client's paper */
+.client-invoice-wrap {
+  max-width: 44rem;
+  padding-top: clamp(1.5rem, 6vh, 4rem);
+}
+
+.client-invoice {
+  display: grid;
+  gap: 26px;
+  padding: clamp(22px, 5vw, 40px);
+  border-radius: 24px;
+  background: var(--packet-veil-on);
+  box-shadow:
+    0 18px 50px rgba(36, 34, 31, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.85);
+  color: var(--packet-ink);
+}
+
+.client-invoice-head,
+.client-invoice-who {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.client-invoice-head > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.client-invoice-kicker {
+  margin: 0 0 8px;
+  color: var(--packet-pink);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.client-invoice-head strong {
+  font-size: clamp(30px, 7vw, 40px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.client-invoice-head em {
+  color: rgba(36, 34, 31, 0.56);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.client-invoice-mark {
+  flex: none;
+  width: clamp(5.5rem, 18vw, 7.5rem);
+  margin: 0;
+}
+
+.client-invoice-who {
+  padding-top: 18px;
+  border-top: 1px solid var(--packet-line);
+}
+
+.client-invoice-who > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.client-invoice-who > div:last-child {
+  text-align: right;
+}
+
+.client-invoice-who p {
+  margin: 0 0 4px;
+  color: rgba(36, 34, 31, 0.5);
+  font-size: 11px;
+}
+
+.client-invoice-who b {
+  font-weight: 400;
+}
+
+.client-invoice-who span {
+  color: rgba(36, 34, 31, 0.62);
+  overflow-wrap: anywhere;
+}
+
+.client-invoice .client-packet-booking {
+  margin: -10px 0 0;
+}
+
+.client-invoice-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 92px 92px;
+  align-items: start;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--packet-line);
+  font-size: 13px;
+}
+
+.client-invoice-row.is-head {
+  padding: 0 0 10px;
+  border-top: 0;
+  color: rgba(36, 34, 31, 0.5);
+  font-size: 11px;
+}
+
+.client-invoice-row > span {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.client-invoice-row.is-head > span:first-child {
+  text-align: left;
+}
+
+.client-invoice-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.client-invoice-item b {
+  font-weight: 400;
+}
+
+.client-invoice-item small {
+  color: rgba(36, 34, 31, 0.56);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.client-invoice-each {
+  display: none;
+}
+
+.client-invoice-sums {
+  display: grid;
+  gap: 8px;
+  margin-top: -12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--packet-line);
+  font-size: 13px;
+}
+
+.client-invoice-sums > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.client-invoice-sums .is-due {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--packet-line);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.client-invoice-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.client-invoice-foot > p {
+  margin: 0;
+  max-width: 26rem;
+  color: rgba(36, 34, 31, 0.62);
+  font-size: 12px;
+}
+
+.client-invoice-foot .client-invoice-done {
+  color: var(--packet-pink);
+}
+
+.client-invoice-pay .client-packet-accept {
+  min-height: 44px;
+  padding: 0 26px;
+  font-size: 14px;
+}
+
+/* on a phone: one column for each item, and the pay button across the bottom */
+@media (max-width: 600px) {
+  .client-invoice-who {
+    gap: 14px;
+  }
+
+  .client-invoice-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .client-invoice-row.is-head,
+  .client-invoice-qty,
+  .client-invoice-price {
+    display: none;
+  }
+
+  .client-invoice-each {
+    display: block;
+  }
+
+  .client-invoice-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .client-invoice-foot > p {
+    text-align: center;
+  }
+
+  .client-invoice-pay,
+  .client-invoice-pay .client-packet-accept {
+    width: 100%;
+    justify-content: center;
+  }
+}
