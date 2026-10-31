@@ -1514,6 +1514,7 @@ export function getDevPreviewInquiryWorkspace(id: string) {
       deposit_amount_cents: item.deposit_amount_cents,
       pdf_path: item.pdf_path,
       notes: item.notes,
+      card_fee: false,
       pdf_url: null,
       file_name: "",
       invoice_number: null,

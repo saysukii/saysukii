@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Wordmark } from "@/components/portal/bits";
 import { SquarePay } from "@/components/proposal/SquarePay";
 import { NotOnTheBooks } from "@/components/studio/NotOnTheBooks";
+import { discountLabel } from "@/lib/discount";
 import { INVOICE_THANKS } from "@/lib/floral-agreement";
 import { formatMoneyExact } from "@/lib/money";
 import { getInvoicePage } from "@/lib/os/invoice-page.functions";
@@ -106,7 +107,7 @@ export function AddOnInvoice({ token }: { token: string }) {
           <div className="client-invoice-sums">
             {data.courtesyCents > 0 ? (
               <div>
-                <span>courtesy discount</span>
+                <span>{discountLabel(data.discountLabel, data.discountPercent)}</span>
                 <span>−{formatMoneyExact(data.courtesyCents)}</span>
               </div>
             ) : null}

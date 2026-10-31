@@ -27,6 +27,12 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
         inquiry_id: z.string().uuid(),
         items: z.array(item).min(1).max(40),
         courtesy_cents: z.number().int().min(0),
+        /** the discount as a percentage, when it was given as one */
+        discount_percent: z.number().min(0).max(100).nullable().optional(),
+        /** the discount's name: "returning client" */
+        discount_label: z.string().trim().max(80).nullable().optional(),
+        /** card and apple pay carry the 4% convenience fee */
+        card_fee: z.boolean().optional().default(false),
         pay_in_full: z.boolean(),
         letter: z.string().trim().min(1).max(8000),
         /** "Booking for … per approved proposal." */
@@ -84,6 +90,9 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
       pay_in_full: data.pay_in_full,
       access_token: token,
       booking: data.booking || null,
+      card_fee: data.card_fee,
+      discount_percent: data.discount_percent ?? null,
+      discount_label: data.discount_label || null,
       public_url: pageUrl,
       status: "sent",
       created_by: context.profile.id,
@@ -92,7 +101,9 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
       throw new Error(
         /access_token|booking|payments/.test(saved.error.message)
           ? "Run the invoice pages migration in Supabase first."
-          : saved.error.message,
+          : /card_fee|discount_percent|discount_label/.test(saved.error.message)
+            ? "Run the card fee and discounts migration in Supabase first."
+            : saved.error.message,
       );
     }
 
@@ -117,4 +128,50 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
       );
     }
     return { number, url: pageUrl };
+  });
+
+/**
+ * The studio marks an add-on invoice paid when it came another way: zelle, a bank transfer, cash,
+ * a check. It's kept on the invoice like a card payment, and the receipt (when asked for) names how.
+ */
+export const recordInvoicePayment = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) =>
+    z
+      .object({
+        invoice_id: z.string().uuid(),
+        amount_cents: z.number().int().min(1).max(100_000_000),
+        method: z.enum(["zelle", "bank", "cash", "check", "other"]),
+        paid_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        note: z.string().trim().max(500).optional(),
+        send_receipt: z.boolean().default(true),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("inquiry_invoices")
+      .select("id, total_cents, paid_cents")
+      .eq("id", data.invoice_id)
+      .single();
+    if (error) throw new Error(error.message);
+    const owed = row.total_cents - row.paid_cents;
+    if (data.amount_cents > owed) throw new Error("that's more than what's owed on it.");
+    const { manualMethodLabel, paidOnMoment } = await import("@/lib/payment-methods");
+    const { settleInquiryInvoicePayment } = await import("@/lib/os/invoice-paid.server");
+    await settleInquiryInvoicePayment(
+      row.id,
+      {
+        id: `manual-${crypto.randomUUID()}`,
+        amount_money: { amount: data.amount_cents },
+        updated_at: paidOnMoment(data.paid_on),
+      },
+      {
+        baseCents: data.amount_cents,
+        feeCents: 0,
+        method: manualMethodLabel(data.method),
+        sendReceipt: data.send_receipt,
+      },
+    );
+    return { paid: data.amount_cents >= owed };
   });

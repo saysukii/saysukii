@@ -34,6 +34,12 @@ export type PreviewProposal = {
   sentAt?: string | null;
   acceptedAt?: string | null;
   paidAt?: string | null;
+  /** clients paying by card carry the 4% convenience fee */
+  cardFee?: boolean;
+  /** how it was paid when the studio marked it paid: "zelle" */
+  paidMethod?: string | null;
+  /** the discount as a percentage, when it was given as one */
+  discountPercent?: number | null;
 };
 
 type ChangeNote = {
@@ -121,6 +127,7 @@ export function savePreviewProposal(input: {
   totalCents: number;
   depositPercent: number;
   courtesyCents?: number;
+  cardFee?: boolean;
   pdfDataUrl: string;
   fileName?: string;
   work?: StatementOfWork;
@@ -143,6 +150,7 @@ export function savePreviewProposal(input: {
     eventLabel: input.eventLabel,
     totalCents: input.totalCents,
     courtesyCents: input.courtesyCents ?? existing?.courtesyCents ?? 0,
+    cardFee: input.cardFee ?? existing?.cardFee ?? false,
     depositPercent: input.depositPercent,
     depositCents,
     pdfDataUrl: input.pdfDataUrl,
@@ -168,12 +176,19 @@ export function updatePreviewProposalTerms(
   depositPercent: number,
   work?: StatementOfWork,
   courtesyCents = 0,
+  cardFee?: boolean,
+  discount?: { label: string | null; percent: number | null },
 ) {
   const map = readMap();
   const current = map[token];
   if (!current || current.status === "accepted") return current ?? null;
   current.totalCents = totalCents;
   current.courtesyCents = courtesyCents;
+  if (cardFee !== undefined) current.cardFee = cardFee;
+  if (discount) {
+    current.courtesyNote = discount.label;
+    current.discountPercent = discount.percent;
+  }
   current.depositPercent = depositPercent;
   current.depositCents = Math.round(totalCents * (depositPercent / 100));
   if (work) current.work = work;
@@ -332,12 +347,13 @@ export function signPreviewProposal(
   return current;
 }
 
-export function payPreviewProposal(token: string) {
+export function payPreviewProposal(token: string, method?: string, paidAt?: string) {
   const map = readMap();
   const current = map[token];
   if (!current?.signedName) throw new Error("Sign the agreement before paying.");
   current.paid = true;
-  current.paidAt = new Date().toISOString();
+  current.paidAt = paidAt ?? new Date().toISOString();
+  current.paidMethod = method ?? null;
   map[token] = current;
   writeMap(map);
   return current;

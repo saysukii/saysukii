@@ -16,6 +16,7 @@ import {
 } from "@/lib/floral-agreement";
 import { dollarsToCents, formatDollarInput } from "@/lib/proposal-link";
 import { convenienceFee, withFee } from "@/lib/convenience-fee";
+import { discountLabel } from "@/lib/discount";
 import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
 import {
   customItem,
@@ -166,6 +167,9 @@ export function InvoicePreview({
   catalog,
   onItems,
   due: dueOverride,
+  cardFee = false,
+  discountPercent = null,
+  discountName = null,
 }: {
   clientName: string;
   clientEmail?: string;
@@ -185,15 +189,22 @@ export function InvoicePreview({
   onItems?: (next: InvoiceItem[]) => void;
   /** which payment this invoice asks for, and when it was paid, once a deposit splits it in two */
   due?: { label: string; cents: number; paidOn?: string | null; paidBeforeCents?: number };
+  /** card payments carry the 4% convenience fee */
+  cardFee?: boolean;
+  /** the discount, when it was given as a percentage */
+  discountPercent?: number | null;
+  /** the discount's name: "returning client" */
+  discountName?: string | null;
 }) {
   const dueLabel =
     dueOverride?.label ??
     (depositCents >= totalCents && totalCents > 0 ? "due in full" : "deposit due");
   const total = formatMoneyExact(totalCents);
   // the client's card carries the 4% convenience fee: on the whole, and each payment its share
-  const feeCents = convenienceFee(totalCents);
+  const feeCents = cardFee ? convenienceFee(totalCents) : 0;
+  const dueBase = dueOverride?.cents ?? depositCents;
   const due = formatMoneyExact(
-    withFee(dueOverride?.cents ?? depositCents, dueOverride?.paidBeforeCents ?? 0),
+    cardFee ? withFee(dueBase, dueOverride?.paidBeforeCents ?? 0) : dueBase,
   );
   const paidOn = dueOverride?.paidOn ?? null;
   const shared = invoiceSharedDate(issuedOn);
@@ -374,7 +385,7 @@ export function InvoicePreview({
     <footer>
       {courtesyCents > 0 ? (
         <div>
-          <span>Courtesy Discount</span>
+          <span>{discountLabel(discountName, discountPercent, "Courtesy Discount")}</span>
           <span>−{formatMoneyExact(courtesyCents)}</span>
         </div>
       ) : null}
@@ -382,14 +393,18 @@ export function InvoicePreview({
         <span>proposal total</span>
         <span>{total}</span>
       </div>
-      <div>
-        <span>convenience fee (4%)</span>
-        <span>{formatMoneyExact(feeCents)}</span>
-      </div>
-      <div>
-        <span>total</span>
-        <span>{formatMoneyExact(totalCents + feeCents)}</span>
-      </div>
+      {feeCents ? (
+        <>
+          <div>
+            <span>convenience fee (4%)</span>
+            <span>{formatMoneyExact(feeCents)}</span>
+          </div>
+          <div>
+            <span>total</span>
+            <span>{formatMoneyExact(totalCents + feeCents)}</span>
+          </div>
+        </>
+      ) : null}
       <div>
         <span>
           {dueLabel}
@@ -456,6 +471,9 @@ export function PacketPreview({
   totalCents,
   courtesyCents,
   depositCents,
+  cardFee = false,
+  discountName = null,
+  discountPercent = null,
   fileUrl,
   invoiceNumber,
   stored,
@@ -474,6 +492,11 @@ export function PacketPreview({
   totalCents: number;
   courtesyCents: number;
   depositCents: number;
+  /** card payments carry the 4% convenience fee */
+  cardFee?: boolean;
+  /** the discount's name and percentage, when it has them */
+  discountName?: string | null;
+  discountPercent?: number | null;
   fileUrl: string;
   invoiceNumber: string;
   stored: ReturnType<typeof readPreviewProposal>;
@@ -620,6 +643,9 @@ export function PacketPreview({
           totalCents={totalCents}
           depositCents={depositCents}
           issuedOn={stored?.sentAt || new Date().toISOString()}
+          cardFee={cardFee}
+          discountName={discountName}
+          discountPercent={discountPercent}
           {...(invoiceDue ? { due: invoiceDue } : {})}
         />
       ) : null}
@@ -636,6 +662,8 @@ export type SignedPacketState = {
   depositCents: number;
   /** the event's date (YYYY-MM-DD); the balance falls due 30 days before */
   eventDate: string | null;
+  /** card payments carry the 4% convenience fee */
+  cardFee?: boolean;
 };
 
 type PacketTab = "proposal" | "agreement" | "invoice" | "balance";
@@ -650,6 +678,7 @@ export function SignedPacket({
   letters = [],
   onCopy,
   onSendBalance,
+  onMarkPaid,
   sending = false,
 }: {
   packet: SignedPacketState;
@@ -658,6 +687,8 @@ export function SignedPacket({
   preview: Omit<Parameters<typeof PacketPreview>[0], "kind" | "signed" | "invoiceDue">;
   onCopy?: () => void;
   onSendBalance?: () => void;
+  /** marks the next payment paid when it came another way: zelle, a bank transfer */
+  onMarkPaid?: () => void;
   sending?: boolean;
 }) {
   const [tab, setTab] = useState<PacketTab>("proposal");
@@ -704,7 +735,7 @@ export function SignedPacket({
     ...(first && balanceCents > 0
       ? [
           // what the client's card will be charged: the balance and its share of the 4% fee
-          `${formatMoneyExact(withFee(balanceCents, paidCents))} due${balanceDue ? ` ${balanceDue}` : ""}`,
+          `${formatMoneyExact(packet.cardFee ? withFee(balanceCents, paidCents) : balanceCents)} due${balanceDue ? ` ${balanceDue}` : ""}`,
         ]
       : []),
   ];
@@ -749,7 +780,9 @@ export function SignedPacket({
         invoiceDue={invoiceDue}
         invoiceNumber={number}
       />
-      {onCopy || (onSendBalance && first && balanceCents > 0) ? (
+      {onCopy ||
+      (onSendBalance && first && balanceCents > 0) ||
+      (onMarkPaid && balanceCents > 0) ? (
         <div className="studio-ask-foot is-spread">
           {onCopy ? (
             <button type="button" className="studio-proposal-preview" onClick={onCopy}>
@@ -758,6 +791,11 @@ export function SignedPacket({
           ) : (
             <span />
           )}
+          {onMarkPaid && balanceCents > 0 ? (
+            <button type="button" className="studio-proposal-preview" onClick={onMarkPaid}>
+              mark paid
+            </button>
+          ) : null}
           {onSendBalance && first && balanceCents > 0 ? (
             <button
               type="button"

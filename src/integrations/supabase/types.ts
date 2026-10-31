@@ -181,6 +181,8 @@ export type ProposalRow = {
   archived: boolean;
   created_at: string;
   updated_at: string;
+  /** clients paying by card or apple pay carry the 4% convenience fee */
+  card_fee?: boolean;
 };
 
 export type EmailTemplateRow = {
@@ -193,6 +195,16 @@ export type EmailTemplateRow = {
 };
 
 export type InquiryInvoiceStatus = "sent" | "deposit_paid" | "paid" | "canceled";
+
+/** a named discount the studio keeps to use again: "returning client", 10% */
+export type StudioDiscountRow = {
+  id: string;
+  name: string;
+  kind: "percent" | "amount";
+  value: number;
+  created_at: string;
+  updated_at: string;
+};
 
 export type InquiryInvoicePayment = {
   square_payment_id: string;
@@ -226,6 +238,12 @@ export type InquiryInvoiceRow = {
   payments?: InquiryInvoicePayment[] | null;
   /** "Booking for … per approved proposal." */
   booking?: string | null;
+  /** clients paying by card or apple pay carry the 4% convenience fee */
+  card_fee?: boolean;
+  /** the discount as a percentage, when it was given as one: 10 */
+  discount_percent?: number | null;
+  /** the discount's name: "returning client" */
+  discount_label?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -500,6 +518,7 @@ export type Database = {
       inbound_messages: Table<InboundMessageRow>;
       inquiry_invoices: Table<InquiryInvoiceRow>;
       email_templates: Table<EmailTemplateRow>;
+      studio_discounts: Table<StudioDiscountRow>;
       inquiry_routing_labels: Table<InquiryRoutingLabelRow>;
       proposals: Table<ProposalRow>;
       proposal_line_items: Table<ProposalLineItemRow>;

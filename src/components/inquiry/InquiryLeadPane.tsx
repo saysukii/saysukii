@@ -37,6 +37,9 @@ import {
 } from "@/lib/os/inquiry-holds";
 import { mailRecord, replyAllPeople, uniqueMails } from "@/lib/os/mail-people";
 import { noteWriter, signatureName } from "@/lib/os/mail-signature";
+import { convenienceFee } from "@/lib/convenience-fee";
+import { DiscountField } from "@/components/inquiry/lead/discount-field";
+import { discountCents, discountPercent, type DiscountMode } from "@/lib/discount";
 import { fillTemplate } from "@/lib/email-templates";
 import { applyTemplate } from "@/lib/os/mail-templates";
 import { useEmailTemplates } from "@/lib/os/use-email-templates";
@@ -54,6 +57,7 @@ import {
   previewProposalForInquiry,
   previewTokenFor,
   readPreviewProposal,
+  payPreviewProposal,
   clearPreviewProposal,
   savePreviewProposal,
   updatePreviewProposalTerms,
@@ -61,6 +65,7 @@ import {
 import {
   STATEMENT_FIELDS,
   courtesyFromNotes,
+  discountFromNotes,
   fileNameFromNotes,
   floralPackageName,
   statementFromNotes,
@@ -91,7 +96,7 @@ import {
   loadInvoiceDraft,
   type InvoiceDraft,
 } from "@/lib/invoice-items";
-import { sendInquiryInvoice } from "@/lib/os/invoices.functions";
+import { recordInvoicePayment, sendInquiryInvoice } from "@/lib/os/invoices.functions";
 import { listSquareItems } from "@/lib/os/square-catalog.functions";
 import {
   EVENT_LABEL,
@@ -122,9 +127,12 @@ import { fillLetterWords } from "@/lib/letter-words";
 import {
   clearProposal,
   importProposalPdf,
+  recordProposalPayment,
   sendBalanceInvoice,
   shareProposal,
 } from "@/lib/os/proposals.functions";
+import { paidOnMoment } from "@/lib/payment-methods";
+import { MarkPaidDialog, type MarkedPayment } from "@/components/inquiry/lead/mark-paid";
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
 import {
@@ -383,6 +391,24 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const [proposalAmount, setProposalAmount] = useState("");
   const [proposalCourtesy, setProposalCourtesy] = useState("");
   const [proposalPay, setProposalPay] = useState<"deposit" | "full">("deposit");
+  // the 4% convenience fee on card payments is the studio's choice, proposal by proposal
+  const [proposalFee, setProposalFee] = useState(false);
+  const [proposalDiscountMode, setProposalDiscountMode] = useState<DiscountMode>("amount");
+  const [proposalDiscountName, setProposalDiscountName] = useState("");
+  // the discount's name and percentage go with the proposal, so its invoice reads "returning client (10%)"
+  const proposalDiscountFields = {
+    discount_label: proposalDiscountName.trim() || null,
+    discount_percent: proposalDiscountMode === "percent" ? discountPercent(proposalCourtesy) : null,
+  };
+  /** the discount in cents: dollars as typed, or a percentage of the amount */
+  const proposalDiscount = (list: number | null | undefined) =>
+    discountCents(proposalCourtesy, proposalDiscountMode, list ?? null);
+  const [markPaid, setMarkPaid] = useState<{
+    kind: "proposal" | "invoice";
+    id: string | null;
+    title: string;
+    dueCents: number;
+  } | null>(null);
   const [work, setWork] = useState<StatementOfWork>(() => statementOfWork());
   const [proposalError, setProposalError] = useState("");
   const [proposalBusy, setProposalBusy] = useState(false);
@@ -449,6 +475,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
 
   // the balance invoice, sent by hand: a look at the letter first, then the send
   const balanceInvoiceFn = useServerFn(sendBalanceInvoice);
+  const recordProposalPaymentFn = useServerFn(recordProposalPayment);
+  const recordInvoicePaymentFn = useServerFn(recordInvoicePayment);
   const [balanceLetter, setBalanceLetter] = useState<{
     proposalId: string;
     to: string;
@@ -504,7 +532,16 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     const freshFile = Boolean(proposalFile && proposalFile !== importedFile.current);
     const timer = window.setTimeout(() => keepProposal.current(), freshFile ? 0 : 400);
     return () => window.clearTimeout(timer);
-  }, [proposalAmount, proposalCourtesy, proposalPay, work, proposalFile]);
+  }, [
+    proposalAmount,
+    proposalCourtesy,
+    proposalDiscountMode,
+    proposalDiscountName,
+    proposalPay,
+    proposalFee,
+    work,
+    proposalFile,
+  ]);
 
   useEffect(() => {
     const flush = () => {
@@ -567,6 +604,19 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       setProposalCourtesy(courtesy > 0 ? formatDollarInput(String(courtesy / 100)) : "");
       setProposalPay(depositCents != null && depositCents >= total ? "full" : "deposit");
     }
+    setProposalFee(
+      preview
+        ? Boolean(preview.cardFee)
+        : Boolean(stored && "card_fee" in stored && stored.card_fee),
+    );
+    const discount = preview
+      ? { label: preview.courtesyNote ?? null, percent: preview.discountPercent ?? null }
+      : discountFromNotes(notes);
+    setProposalDiscountName(discount.label ?? "");
+    if (discount.percent && courtesy > 0) {
+      setProposalDiscountMode("percent");
+      setProposalCourtesy(String(discount.percent));
+    }
   }, [data]);
 
   useEffect(() => {
@@ -599,11 +649,32 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     const token = proposalKey.current ?? "";
     if (!token.startsWith("preview_")) return;
     const cents = dollarsToCents(proposalAmount);
-    const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
+    const courtesy = proposalDiscount(cents);
     if (!cents) return;
     const net = Math.max(0, cents - courtesy);
-    updatePreviewProposalTerms(token, net, proposalPay === "full" ? 100 : 50, work, courtesy);
-  }, [proposalHref, proposalAmount, proposalCourtesy, proposalPay, work]);
+    updatePreviewProposalTerms(
+      token,
+      net,
+      proposalPay === "full" ? 100 : 50,
+      work,
+      courtesy,
+      proposalFee,
+      {
+        label: proposalDiscountFields.discount_label,
+        percent: proposalDiscountFields.discount_percent,
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    proposalHref,
+    proposalAmount,
+    proposalCourtesy,
+    proposalDiscountMode,
+    proposalDiscountName,
+    proposalPay,
+    proposalFee,
+    work,
+  ]);
 
   const viewedAtByToken = useMemo(() => {
     const views: Record<string, string> = {};
@@ -864,6 +935,55 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     onError: (error: Error) => toast.error(error.message),
   });
 
+  /** a payment that came another way, kept like a card payment */
+  const markPaidMutation = useMutation({
+    mutationFn: async (payment: MarkedPayment) => {
+      const target = markPaid;
+      if (!target) return { preview: false };
+      if (devPreview || !target.id) {
+        // the local preview keeps it in this browser
+        if (target.kind === "proposal") {
+          const token = proposalKey.current ?? "";
+          if (token.startsWith("preview_")) {
+            payPreviewProposal(token, payment.method, paidOnMoment(payment.paidOn));
+          }
+        } else {
+          setPreviewInvoices((current) =>
+            current.map((row) => {
+              if (row.id !== target.id) return row;
+              const paid = row.paid_cents + payment.amountCents;
+              return {
+                ...row,
+                paid_cents: paid,
+                status: paid >= row.total_cents ? "paid" : "deposit_paid",
+              };
+            }),
+          );
+        }
+        return { preview: true };
+      }
+      const fields = {
+        amount_cents: payment.amountCents,
+        method: payment.method,
+        paid_on: payment.paidOn,
+        ...(payment.note ? { note: payment.note } : {}),
+        send_receipt: payment.sendReceipt,
+      };
+      if (target.kind === "proposal") {
+        await recordProposalPaymentFn({ data: { proposal_id: target.id, ...fields } });
+      } else {
+        await recordInvoicePaymentFn({ data: { invoice_id: target.id, ...fields } });
+      }
+      return { preview: false };
+    },
+    onSuccess: (result) => {
+      setMarkPaid(null);
+      toast.success(result.preview ? "marked paid · preview" : "marked paid");
+      void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const sendHold = useRef<{ timer: number; run: () => void; undo: () => void } | null>(null);
   const [holding, setHolding] = useState<{ id: number; line: string } | null>(null);
 
@@ -1013,7 +1133,15 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const invoiceListCents = invoiceItems.length
     ? invoiceItemsTotal(invoiceItems)
     : (dollarsToCents(invoiceDraft.amount) ?? 0);
-  const invoiceCourtesyCents = dollarsToCents(invoiceDraft.courtesy) ?? 0;
+  const invoiceDiscountMode = invoiceDraft.discountMode ?? "amount";
+  const invoiceCourtesyCents = discountCents(
+    invoiceDraft.courtesy,
+    invoiceDiscountMode,
+    invoiceListCents,
+  );
+  // kept with the invoice so it reads "discount (10%)"
+  const invoiceDiscountPercent =
+    invoiceDiscountMode === "percent" ? discountPercent(invoiceDraft.courtesy) : null;
   const invoiceTotalCents = Math.max(0, invoiceListCents - invoiceCourtesyCents);
   const invoiceDueCents =
     invoiceDraft.pay === "full" ? invoiceTotalCents : Math.round(invoiceTotalCents / 2);
@@ -1265,6 +1393,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         eventLabel: EVENT_LABEL[inquiry.event_type],
         totalCents,
         courtesyCents,
+        cardFee: proposalFee,
         depositPercent,
         pdfDataUrl,
         fileName: file.name,
@@ -1287,6 +1416,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         inquiry_id: inquiryId,
         total_cents: totalCents,
         courtesy_cents: courtesyCents,
+        card_fee: proposalFee,
+        ...proposalDiscountFields,
         deposit_percent: depositPercent,
         statement,
         file_name: file.name,
@@ -1312,7 +1443,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     if (!proposalFile && !pdfPath) return;
     if (stored?.status === "accepted") return;
     const typed = dollarsToCents(proposalAmount);
-    const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
+    const courtesy = proposalDiscount(typed);
     const net = typed == null ? (stored?.total_cents ?? 0) : Math.max(0, typed - courtesy);
     if (typed != null && courtesy >= typed) return;
     const deposit = proposalPay === "full" ? 100 : 50;
@@ -1327,7 +1458,10 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         if (devPreview) {
           const token = proposalKey.current ?? "";
           if (token.startsWith("preview_"))
-            updatePreviewProposalTerms(token, net, deposit, work, courtesy);
+            updatePreviewProposalTerms(token, net, deposit, work, courtesy, proposalFee, {
+              label: proposalDiscountFields.discount_label,
+              percent: proposalDiscountFields.discount_percent,
+            });
           return;
         }
         if (!pdfPath) return;
@@ -1336,6 +1470,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             inquiry_id: inquiryId,
             total_cents: net,
             courtesy_cents: courtesy,
+            card_fee: proposalFee,
+            ...proposalDiscountFields,
             deposit_percent: deposit,
             statement: work,
             file_name: proposalName || "proposal.pdf",
@@ -1375,7 +1511,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   function proposalProblem() {
     if (!proposalFile && !proposalHref) return "drop the proposal.";
     const list = dollarsToCents(proposalAmount);
-    const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
+    const courtesy = proposalDiscount(list);
     if (!list) return "add the amount.";
     if (courtesy >= list) return "the courtesy discount has to stay under the amount.";
     return null;
@@ -1385,7 +1521,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     const problem = proposalProblem();
     if (problem) throw new Error(problem);
     const list = dollarsToCents(proposalAmount) ?? 0;
-    const courtesy = dollarsToCents(proposalCourtesy) ?? 0;
+    const courtesy = proposalDiscount(list);
     const cents = Math.max(0, list - courtesy);
     const deposit = proposalPay === "full" ? 100 : 50;
     const fileChanged = Boolean(proposalFile && proposalFile !== importedFile.current);
@@ -1404,6 +1540,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
           inquiry_id: inquiryId,
           total_cents: cents,
           courtesy_cents: courtesy,
+          card_fee: proposalFee,
+          ...proposalDiscountFields,
           deposit_percent: deposit,
           statement: work,
           file_name: proposalName || "proposal.pdf",
@@ -1413,7 +1551,10 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     }
     const key = proposalKey.current ?? "";
     if (!proposalFile && key.startsWith("preview_")) {
-      updatePreviewProposalTerms(key, cents, deposit, work, courtesy);
+      updatePreviewProposalTerms(key, cents, deposit, work, courtesy, proposalFee, {
+        label: proposalDiscountFields.discount_label,
+        percent: proposalDiscountFields.discount_percent,
+      });
     }
     return href;
   }
@@ -1639,6 +1780,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               catalog_cents: "catalogCents" in line ? (line.catalogCents ?? null) : null,
             })),
             courtesy_cents: invoiceCourtesyCents,
+            discount_percent: invoiceDiscountPercent,
+            discount_label: invoiceDraft.discountName?.trim() || null,
+            card_fee: Boolean(invoiceDraft.cardFee),
             pay_in_full: invoiceDraft.pay === "full",
             letter,
             subject,
@@ -1659,7 +1803,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   }
 
   const listCents = dollarsToCents(proposalAmount);
-  const courtesyCents = dollarsToCents(proposalCourtesy) ?? 0;
+  const courtesyCents = proposalDiscount(listCents);
   const proposalCents = listCents == null ? null : Math.max(0, listCents - courtesyCents);
   const depositCents = proposalCents
     ? proposalPay === "full"
@@ -1687,6 +1831,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         totalCents: signedRow.total_cents,
         depositCents: signedRow.deposit_amount_cents,
         eventDate: signedRow.event_date ?? inquiry.event_date,
+        cardFee: "card_fee" in signedRow && Boolean(signedRow.card_fee),
       }
     : signedPreview?.signedAt && signedPreview.signedName?.startsWith("data:image")
       ? {
@@ -1702,6 +1847,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
           totalCents: signedPreview.totalCents,
           depositCents: signedPreview.depositCents,
           eventDate: signedPreview.eventDate,
+          cardFee: Boolean(signedPreview.cardFee),
         }
       : null;
   const proposalLetterBody = ensureProposalLink(
@@ -2411,6 +2557,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 work,
                 totalCents: proposalCents ?? signedPacket.totalCents,
                 courtesyCents,
+                cardFee: Boolean(signedPacket.cardFee),
+                discountName: proposalDiscountFields.discount_label,
+                discountPercent: proposalDiscountFields.discount_percent,
                 depositCents: signedPacket.depositCents,
                 fileUrl: localProposalUrl || keptPdfUrl,
                 invoiceNumber: savedInvoiceTitle,
@@ -2435,6 +2584,25 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                   }
                 : {})}
               sending={balanceInvoice.isPending && !balanceLetter}
+              onMarkPaid={() => {
+                const paidSoFar = signedPacket.payments.reduce(
+                  (sum, row) => sum + row.amount_cents,
+                  0,
+                );
+                const first = paidSoFar === 0;
+                setMarkPaid({
+                  kind: "proposal",
+                  id: signedPacket.proposalId,
+                  title: first
+                    ? signedPacket.depositCents < signedPacket.totalCents
+                      ? "the deposit"
+                      : "the invoice"
+                    : "the balance",
+                  dueCents: first
+                    ? signedPacket.depositCents
+                    : Math.max(0, signedPacket.totalCents - paidSoFar),
+                });
+              }}
             />
           ) : null}
           {signedPacket ? (
@@ -2505,21 +2673,19 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                       />
                     </span>
                   </label>
-                  <label className="studio-ask-field">
-                    <span className="studio-ask-label">courtesy discount</span>
-                    <span className="studio-money">
-                      <span aria-hidden="true">$</span>
-                      <input
-                        className="studio-textarea"
-                        value={proposalCourtesy}
-                        onChange={(event) => {
-                          setProposalCourtesy(formatDollarInput(event.target.value));
-                        }}
-                        placeholder="0"
-                        inputMode="decimal"
-                      />
-                    </span>
-                  </label>
+                  <DiscountField
+                    value={{
+                      name: proposalDiscountName,
+                      text: proposalCourtesy,
+                      mode: proposalDiscountMode,
+                    }}
+                    onChange={(next) => {
+                      proposalDirty.current = true;
+                      if (next.name !== undefined) setProposalDiscountName(next.name);
+                      if (next.mode !== undefined) setProposalDiscountMode(next.mode);
+                      if (next.text !== undefined) setProposalCourtesy(next.text);
+                    }}
+                  />
                 </div>
                 <div className="studio-proposal-cards" role="group" aria-label="payment method">
                   <div
@@ -2573,6 +2739,22 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                     </small>
                   </div>
                 </div>
+                <label className="studio-fee-check is-wide">
+                  <input
+                    type="checkbox"
+                    checked={proposalFee}
+                    onChange={(event) => {
+                      proposalDirty.current = true;
+                      setProposalFee(event.target.checked);
+                    }}
+                  />
+                  <span>
+                    add the 4% convenience fee to card + apple pay
+                    {proposalFee && proposalCents
+                      ? ` · ${formatMoneyExact(convenienceFee(proposalCents))}`
+                      : ""}
+                  </span>
+                </label>
                 <div className="studio-proposal-work">
                   <p className="studio-home-label">statement of work</p>
                   <div className="studio-ask-grid is-two">
@@ -2840,6 +3022,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 work={work}
                 totalCents={proposalCents ?? 0}
                 courtesyCents={courtesyCents}
+                cardFee={proposalFee}
+                discountName={proposalDiscountFields.discount_label}
+                discountPercent={proposalDiscountFields.discount_percent}
                 depositCents={depositCents}
                 fileUrl={localProposalUrl || keptPdfUrl}
                 invoiceNumber={savedInvoiceTitle}
@@ -2932,21 +3117,20 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                   />
                 </span>
               </label>
-              <label className="studio-ask-field">
-                <span className="studio-ask-label">courtesy discount</span>
-                <span className="studio-money">
-                  <span aria-hidden="true">$</span>
-                  <input
-                    className="studio-textarea"
-                    value={invoiceDraft.courtesy}
-                    onChange={(event) =>
-                      editInvoice({ courtesy: formatDollarInput(event.target.value) })
-                    }
-                    placeholder="0"
-                    inputMode="decimal"
-                  />
-                </span>
-              </label>
+              <DiscountField
+                value={{
+                  name: invoiceDraft.discountName ?? "",
+                  text: invoiceDraft.courtesy,
+                  mode: invoiceDiscountMode,
+                }}
+                onChange={(next) =>
+                  editInvoice({
+                    ...(next.name !== undefined ? { discountName: next.name } : {}),
+                    ...(next.mode !== undefined ? { discountMode: next.mode } : {}),
+                    ...(next.text !== undefined ? { courtesy: next.text } : {}),
+                  })
+                }
+              />
             </div>
             <div className="studio-proposal-cards" role="group" aria-label="payment">
               {(
@@ -2984,9 +3168,25 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 </div>
               ))}
             </div>
+            <label className="studio-fee-check is-wide">
+              <input
+                type="checkbox"
+                checked={Boolean(invoiceDraft.cardFee)}
+                onChange={(event) => editInvoice({ cardFee: event.target.checked })}
+              />
+              <span>
+                add the 4% convenience fee to card + apple pay
+                {invoiceDraft.cardFee && invoiceTotalCents
+                  ? ` · ${formatMoneyExact(convenienceFee(invoiceTotalCents))}`
+                  : ""}
+              </span>
+            </label>
           </div>
           {proposalError ? <p className="studio-composer-note">{proposalError}</p> : null}
           <InvoicePreview
+            cardFee={Boolean(invoiceDraft.cardFee)}
+            discountPercent={invoiceDiscountPercent}
+            discountName={invoiceDraft.discountName?.trim() || null}
             clientName={client?.name || "client"}
             clientEmail={client?.email ?? ""}
             number="new invoice"
@@ -3041,8 +3241,29 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                         rel="noreferrer"
                         className="auth-text-action"
                       >
-                        open in square
+                        {sent.public_url.includes("squareup.com")
+                          ? "open in square"
+                          : "open invoice"}
                       </a>
+                    ) : null}
+                    {sent.status === "sent" || sent.status === "deposit_paid" ? (
+                      <button
+                        type="button"
+                        className="auth-text-action"
+                        onClick={() =>
+                          setMarkPaid({
+                            kind: "invoice",
+                            id: sent.id,
+                            title: sent.number,
+                            dueCents:
+                              sent.paid_cents > 0
+                                ? sent.total_cents - sent.paid_cents
+                                : sent.due_now_cents,
+                          })
+                        }
+                      >
+                        mark paid
+                      </button>
                     ) : null}
                   </span>
                 </div>
@@ -3160,6 +3381,16 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
         </DialogContent>
       </Dialog>
 
+      <MarkPaidDialog
+        open={Boolean(markPaid)}
+        title={markPaid?.title ?? "it"}
+        dueCents={markPaid?.dueCents ?? 0}
+        busy={markPaidMutation.isPending}
+        onOpenChange={(open) => {
+          if (!open) setMarkPaid(null);
+        }}
+        onConfirm={(payment) => markPaidMutation.mutate(payment)}
+      />
       <Dialog open={invoiceShare} onOpenChange={setInvoiceShare}>
         <DialogContent
           overlayClassName="studio-task-veil"

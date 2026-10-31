@@ -30,8 +30,11 @@ export const getInvoicePage = createServerFn({ method: "GET" })
       clients: { name: string; email: string | null } | null;
     } | null;
     const payments = (row.payments ?? []) as Array<{ fee_cents?: number }>;
+    // the fee shows when the studio turned it on, or when a payment already carried it
     const carriesFee =
-      row.paid_cents === 0 || payments.some((payment) => (payment.fee_cents ?? 0) > 0);
+      (Boolean(row.card_fee) && row.paid_cents === 0) ||
+      payments.some((payment) => (payment.fee_cents ?? 0) > 0) ||
+      (Boolean(row.card_fee) && row.paid_cents < row.total_cents);
     return {
       number: invoiceTitle(row.number),
       clientName: inquiry?.clients?.name ?? "",
@@ -46,6 +49,8 @@ export const getInvoicePage = createServerFn({ method: "GET" })
       })),
       subtotalCents: row.subtotal_cents,
       courtesyCents: row.courtesy_cents,
+      discountPercent: row.discount_percent ?? null,
+      discountLabel: row.discount_label ?? null,
       totalCents: row.total_cents,
       paidCents: row.paid_cents,
       dueCents: Math.max(0, invoiceDueNow(row)),
@@ -80,8 +85,8 @@ export const payInquiryInvoice = createServerFn({ method: "POST" })
     const number = invoiceTitle(row.number);
     const items = invoiceItemRows(row.items);
     const firstPayment = row.paid_cents === 0;
-    // the card carries the 4% convenience fee, its own line in square
-    const fee = paymentFee(due, row.paid_cents);
+    // when the studio turned it on, the card carries the 4% convenience fee, its own line in square
+    const fee = row.card_fee ? paymentFee(due, row.paid_cents) : 0;
     const charge = due + fee;
     // paying it all at once lists every item; a deposit or the rest after it is one clear line
     const itemized = firstPayment && due === row.total_cents;
@@ -100,7 +105,7 @@ export const payInquiryInvoice = createServerFn({ method: "POST" })
                   amountCents: (item.unit_cents ?? 0) * quantity,
                 };
               }),
-              { name: CONVENIENCE_FEE_LABEL, amountCents: fee },
+              ...(fee ? [{ name: CONVENIENCE_FEE_LABEL, amountCents: fee }] : []),
             ],
             discountCents: row.courtesy_cents,
           }
@@ -111,7 +116,7 @@ export const payInquiryInvoice = createServerFn({ method: "POST" })
                 ...(row.booking ? { note: row.booking } : {}),
                 amountCents: due,
               },
-              { name: CONVENIENCE_FEE_LABEL, amountCents: fee },
+              ...(fee ? [{ name: CONVENIENCE_FEE_LABEL, amountCents: fee }] : []),
             ],
           }),
     });

@@ -878,6 +878,14 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
     });
     const proposalRows = proposalsResult.data ?? [];
     const proposalIds = proposalRows.map((proposal) => proposal.id);
+    // whether card payments carry the 4% fee, read on its own so the page still opens before
+    // the card fee migration has run
+    const feeResult = proposalIds.length
+      ? await context.supabase.from("proposals").select("id, card_fee").in("id", proposalIds)
+      : { data: [], error: null };
+    const cardFees = new Map(
+      (feeResult.error ? [] : (feeResult.data ?? [])).map((row) => [row.id, Boolean(row.card_fee)]),
+    );
     const invoiceResult = proposalIds.length
       ? await context.supabase
           .from("invoices")
@@ -940,6 +948,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
         );
         return {
           ...proposal,
+          card_fee: cardFees.get(proposal.id) ?? false,
           pdf_url: appFileLink(signed?.data?.signedUrl),
           file_name: fileNameFromNotes(proposal.notes),
           invoice_number: invoiceNumber ? invoiceTitle(invoiceNumber) : null,

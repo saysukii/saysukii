@@ -103,12 +103,33 @@ export function statementOfWork(
   };
 }
 
-export function statementNotes(work: StatementOfWork, courtesyCents = 0, fileName = "") {
+export function statementNotes(
+  work: StatementOfWork,
+  courtesyCents = 0,
+  fileName = "",
+  discount: { label?: string | null; percent?: number | null } = {},
+) {
   return JSON.stringify({
     statement: work,
     courtesyCents,
     fileName: fileName || undefined,
+    discountLabel: discount.label?.trim() || undefined,
+    discountPercent: discount.percent || undefined,
   });
+}
+
+/** a proposal's discount name and percentage, when it had them */
+export function discountFromNotes(notes: string | null | undefined) {
+  if (!notes) return { label: null, percent: null };
+  try {
+    const parsed = JSON.parse(notes) as { discountLabel?: unknown; discountPercent?: unknown };
+    return {
+      label: typeof parsed.discountLabel === "string" ? parsed.discountLabel : null,
+      percent: typeof parsed.discountPercent === "number" ? parsed.discountPercent : null,
+    };
+  } catch {
+    return { label: null, percent: null };
+  }
 }
 
 export function fileNameFromNotes(notes: string | null | undefined) {

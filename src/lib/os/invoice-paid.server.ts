@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { InquiryInvoicePayment, InquiryInvoiceRow, Json } from "@/integrations/supabase/types";
 import { convenienceFee, splitCharge, withFee } from "@/lib/convenience-fee";
+import { discountLabel } from "@/lib/discount";
 import { floralPackageName } from "@/lib/floral-agreement";
 import { invoiceTitle } from "@/lib/invoice-title";
 import type { SquareCompletedPayment } from "@/lib/os/square.server";
@@ -30,7 +31,15 @@ export function invoiceDueNow(
 export async function settleInquiryInvoicePayment(
   invoiceId: string,
   payment: SquareCompletedPayment,
-  options: { receiptEmail?: string | null; baseCents?: number; feeCents?: number } = {},
+  options: {
+    receiptEmail?: string | null;
+    baseCents?: number;
+    feeCents?: number;
+    /** marked paid by the studio: how it came, "Zelle" */
+    method?: string;
+    /** false when the studio marks it paid without emailing a receipt */
+    sendReceipt?: boolean;
+  } = {},
 ) {
   const { data: row, error } = await supabaseAdmin
     .from("inquiry_invoices")
@@ -57,7 +66,7 @@ export async function settleInquiryInvoicePayment(
       amount_cents: amount,
       fee_cents: split.feeCents,
       paid_at: paidAt,
-      method: paidWith(payment),
+      method: options.method ?? paidWith(payment),
     },
   ];
   const paidCents = payments.reduce((sum, item) => sum + item.amount_cents, 0);
@@ -73,15 +82,17 @@ export async function settleInquiryInvoicePayment(
     .eq("id", row.id);
   if (saveError) throw new Error(saveError.message);
 
-  await sendInvoiceReceipt(
-    { ...row, paid_cents: paidCents },
-    payments,
-    amount,
-    paidAt,
-    options,
-  ).catch((letterError: unknown) =>
-    console.error("[add-on paid] the receipt did not all send:", letterError),
-  );
+  if (options.sendReceipt !== false) {
+    await sendInvoiceReceipt(
+      { ...row, paid_cents: paidCents },
+      payments,
+      amount,
+      paidAt,
+      options,
+    ).catch((letterError: unknown) =>
+      console.error("[add-on paid] the receipt did not all send:", letterError),
+    );
+  }
   const { refreshInquirySummarySafe } = await import("./inquiry-summary.server");
   await refreshInquirySummarySafe(supabaseAdmin, row.inquiry_id);
 }
@@ -150,7 +161,14 @@ async function sendInvoiceReceipt(
       ...(row.courtesy_cents > 0
         ? [
             {
-              name: "Courtesy discount",
+              name: (() => {
+                const label = discountLabel(
+                  row.discount_label,
+                  row.discount_percent,
+                  "Courtesy discount",
+                );
+                return label.charAt(0).toUpperCase() + label.slice(1);
+              })(),
               qty: 1,
               unitPriceCents: -row.courtesy_cents,
               lineTotalCents: -row.courtesy_cents,

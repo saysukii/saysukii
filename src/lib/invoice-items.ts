@@ -15,6 +15,12 @@ export type InvoiceDraft = {
   amount: string;
   courtesy: string;
   pay: "deposit" | "full";
+  /** the discount as typed: dollars, or a percentage of the amount */
+  discountMode?: "amount" | "percent";
+  /** card payments carry the 4% convenience fee */
+  cardFee?: boolean;
+  /** the discount's name: "returning client" */
+  discountName?: string;
 };
 
 export const EMPTY_INVOICE_DRAFT: InvoiceDraft = {
@@ -22,6 +28,8 @@ export const EMPTY_INVOICE_DRAFT: InvoiceDraft = {
   amount: "",
   courtesy: "",
   pay: "full",
+  discountMode: "amount",
+  cardFee: false,
 };
 
 export type CatalogItem = {

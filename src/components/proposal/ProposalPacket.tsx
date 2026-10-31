@@ -11,6 +11,7 @@ import { SquarePay } from "@/components/proposal/SquarePay";
 import { Wordmark } from "@/components/portal/bits";
 import { BloomWait } from "@/components/portal/StudioLoader";
 import {
+  discountFromNotes,
   statementFromNotes,
   courtesyFromNotes,
   floralPackageName,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/floral-agreement";
 import { invoiceTitle } from "@/lib/invoice-title";
 import { convenienceFee, withFee } from "@/lib/convenience-fee";
+import { discountLabel } from "@/lib/discount";
 import { formatMoneyExact } from "@/lib/money";
 import {
   acceptPreviewProposal,
@@ -303,11 +305,13 @@ export function ProposalPacket({ token }: { token: string }) {
     data?.proposal.deposit_amount_cents ??
     optionDeposit(totalCents, payPercent);
   const listCents = totalCents + courtesyCents;
-  // the 4% convenience fee goes on the whole; the deposit is half of that total, the balance the rest
-  const feeCents = convenienceFee(totalCents);
-  const depositCharge = withFee(depositCents, 0);
+  // when the studio turned it on, the 4% convenience fee goes on the whole; the deposit is half of
+  // that total, the balance the rest
+  const cardFee = preview ? Boolean(preview.cardFee) : Boolean(data?.proposal.card_fee);
+  const feeCents = cardFee ? convenienceFee(totalCents) : 0;
+  const depositCharge = cardFee ? withFee(depositCents, 0) : depositCents;
   const depositFee = depositCharge - depositCents;
-  const balanceCharge = withFee(balanceLeft, paidCents);
+  const balanceCharge = cardFee ? withFee(balanceLeft, paidCents) : balanceLeft;
   const laterBalance = Math.max(0, totalCents - depositCents);
   const packageName = floralPackageName(work.occasion || occasion);
   const eventShort = shortDate(preview?.eventDate ?? data?.proposal.event_date ?? "");
@@ -468,7 +472,15 @@ export function ProposalPacket({ token }: { token: string }) {
         </table>
         {courtesyCents > 0 ? (
           <div className="client-packet-row">
-            <span>Courtesy Discount</span>
+            <span>
+              {(() => {
+                const discount = preview
+                  ? { label: preview.courtesyNote, percent: preview.discountPercent }
+                  : discountFromNotes(data?.proposal.notes);
+                const label = discountLabel(discount.label, discount.percent, "Courtesy Discount");
+                return label.charAt(0).toUpperCase() + label.slice(1);
+              })()}
+            </span>
             <span>−{formatMoneyExact(courtesyCents)}</span>
           </div>
         ) : null}
@@ -476,14 +488,18 @@ export function ProposalPacket({ token }: { token: string }) {
           <span>Proposal total</span>
           <span>{formatMoneyExact(totalCents)}</span>
         </div>
-        <div className="client-packet-row">
-          <span>Convenience fee (4%)</span>
-          <span>{formatMoneyExact(feeCents)}</span>
-        </div>
-        <div className="client-packet-row">
-          <span>Total</span>
-          <span>{formatMoneyExact(totalCents + feeCents)}</span>
-        </div>
+        {feeCents ? (
+          <>
+            <div className="client-packet-row">
+              <span>Convenience fee (4%)</span>
+              <span>{formatMoneyExact(feeCents)}</span>
+            </div>
+            <div className="client-packet-row">
+              <span>Total</span>
+              <span>{formatMoneyExact(totalCents + feeCents)}</span>
+            </div>
+          </>
+        ) : null}
         <div className="client-packet-row client-packet-total">
           <span>
             {paid || depositIn
@@ -682,7 +698,7 @@ export function ProposalPacket({ token }: { token: string }) {
                   summary={{
                     service: `${packageName} · balance`,
                     eventDate: eventShort,
-                    feeCents: balanceCharge - balanceLeft,
+                    ...(cardFee ? { feeCents: balanceCharge - balanceLeft } : {}),
                   }}
                   onPaid={() =>
                     void queryClient.invalidateQueries({ queryKey: ["public-proposal", token] })
@@ -699,11 +715,11 @@ export function ProposalPacket({ token }: { token: string }) {
                 summary={{
                   service: packageName,
                   eventDate: eventShort,
-                  feeCents: depositFee,
+                  ...(cardFee ? { feeCents: depositFee } : {}),
                   balance:
                     depositCents < totalCents && preview.eventDate
                       ? {
-                          amountCents: withFee(laterBalance, depositCents),
+                          amountCents: cardFee ? withFee(laterBalance, depositCents) : laterBalance,
                           due: previewBalanceDue(preview.eventDate),
                         }
                       : null,
@@ -720,11 +736,11 @@ export function ProposalPacket({ token }: { token: string }) {
                 summary={{
                   service: packageName,
                   eventDate: eventShort,
-                  feeCents: depositFee,
+                  ...(cardFee ? { feeCents: depositFee } : {}),
                   balance:
                     depositCents < totalCents && data?.balanceDue
                       ? {
-                          amountCents: withFee(laterBalance, depositCents),
+                          amountCents: cardFee ? withFee(laterBalance, depositCents) : laterBalance,
                           due: shortDate(data.balanceDue),
                         }
                       : null,
