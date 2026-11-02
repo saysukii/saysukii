@@ -10,6 +10,7 @@ const inviteSchema = z.object({
   role: roleSchema,
 });
 const memberSchema = z.object({ id: z.string().uuid() });
+const granolaKeySchema = z.object({ apiKey: z.string().trim().min(1).max(500) });
 
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -47,9 +48,11 @@ export const listAdminSettings = createServerFn({ method: "GET" })
     }
 
     const gmail = await readGmailPublicConnection(supabaseAdmin);
+    const { readGranolaConnection, supabaseGranolaVault } = await import("./granola.server");
 
     return {
       connections: mergeGmailConnection(connections.data ?? [], gmail),
+      granola: await readGranolaConnection(supabaseGranolaVault()),
       failedEvents: events.data ?? [],
       members: members.data ?? [],
       invites: invites.data ?? [],
@@ -242,6 +245,21 @@ export const beginGoogleOAuth = createServerFn({ method: "POST" })
   .handler(async ({ context }) => ({
     redirectTo: await createOAuthRedirect("google", context.profile.id),
   }));
+
+export const connectGranola = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) => granolaKeySchema.parse(input))
+  .handler(async ({ data }) => {
+    const { connectGranolaKey, supabaseGranolaVault } = await import("./granola.server");
+    return connectGranolaKey(data.apiKey, { vault: supabaseGranolaVault() });
+  });
+
+export const disconnectGranola = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { disconnectGranolaKey, supabaseGranolaVault } = await import("./granola.server");
+    return disconnectGranolaKey({ vault: supabaseGranolaVault() });
+  });
 
 export const disconnectGoogle = createServerFn({ method: "POST" })
   .middleware([requireAdmin])

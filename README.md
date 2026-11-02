@@ -97,7 +97,7 @@ The **files** shelf holds the studio's own papers alongside each client's files.
 | Section         | What it's for                                                                                                     |
 | --------------- | ----------------------------------------------------------------------------------------------------------------- |
 | **Account**     | Your name and password.                                                                                           |
-| **Connections** | **Google** (Calendar, Gmail, and Drive in one sign-in) and **Square** (the item catalog, invoices, and deposits). |
+| **Connections** | **Google** (Calendar, Gmail, and Drive in one sign-in), **Square** (the item catalog, invoices, and deposits), and **Granola** (paste the workspace key for meeting notes). |
 | **People**      | Invite someone into the studio, as an admin or a team member.                                                     |
 | **Forms**       | Edit the questions on the public inquiry form, path by path.                                                      |
 | **Health**      | Anything that didn't go through, like a letter that didn't send or a payment link that failed.                    |

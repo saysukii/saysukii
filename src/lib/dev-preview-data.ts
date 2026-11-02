@@ -1935,6 +1935,11 @@ export function getDevPreviewSettings() {
         account_email: "info@saysukii.com",
       },
     ],
+    granola: {
+      status: "disconnected" as const,
+      connected_at: null,
+      updated_at: null,
+    },
     failedEvents: [
       {
         id: "f3000000-0000-4000-8000-0000000000f1",

@@ -15469,6 +15469,11 @@ a.studio-kicker:hover {
   margin: 0;
 }
 
+.studio-granola-key {
+  margin-top: 12px;
+  max-width: 28rem;
+}
+
 @media (max-width: 800px) {
   .studio-connect-row {
     grid-template-columns: 1fr;

@@ -26,7 +26,9 @@ import {
   beginGoogleOAuth,
   beginSquareOAuth,
   deactivateTeamMember,
+  connectGranola,
   disconnectGoogle,
+  disconnectGranola,
   getGmailStatus,
   inviteTeamMember,
   listAdminSettings,
@@ -55,7 +57,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 const sections = [
   { id: "account", label: "account", blurb: "your name and password." },
   { id: "signature", label: "signature", blurb: "how you sign the agreements." },
-  { id: "connections", label: "connections", blurb: "google and square." },
+  { id: "connections", label: "connections", blurb: "google, square, and granola." },
   { id: "people", label: "people", blurb: "invite someone into the studio." },
   { id: "forms", label: "forms", blurb: "the questions a client answers." },
   { id: "health", label: "health", blurb: "sends and payment links that did not go through." },
@@ -160,6 +162,10 @@ function SettingsPage() {
   const connectGoogle = useServerFn(beginGoogleOAuth);
   const fetchGmail = useServerFn(getGmailStatus);
   const disconnectGoogleFn = useServerFn(disconnectGoogle);
+  const connectGranolaFn = useServerFn(connectGranola);
+  const disconnectGranolaFn = useServerFn(disconnectGranola);
+  const [granolaKey, setGranolaKey] = useState("");
+  const [replacingGranola, setReplacingGranola] = useState(false);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "team">("team");
   const [accountName, setAccountName] = useState(profile.full_name ?? "");
@@ -303,6 +309,48 @@ function SettingsPage() {
     },
   });
 
+  const granolaConnect = useMutation({
+    mutationFn: () => {
+      if (devPreview) {
+        toast.message("preview mode — granola stays disconnected");
+        return Promise.reject(new Error("Preview mode"));
+      }
+      return connectGranolaFn({ data: { apiKey: granolaKey } });
+    },
+    onSuccess: () => {
+      toast.success("granola connected");
+      setGranolaKey("");
+      setReplacingGranola(false);
+      void refresh();
+      void queryClient.invalidateQueries({ queryKey: ["os", "granola"] });
+    },
+    onError: (error: Error) => {
+      if (error.message === "Preview mode") return;
+      toast.error(error.message);
+    },
+  });
+
+  const granolaDisconnect = useMutation({
+    mutationFn: () => {
+      if (devPreview) {
+        toast.message("preview mode — granola stays disconnected");
+        return Promise.reject(new Error("Preview mode"));
+      }
+      return disconnectGranolaFn();
+    },
+    onSuccess: () => {
+      toast.success("granola disconnected");
+      setGranolaKey("");
+      setReplacingGranola(false);
+      void refresh();
+      void queryClient.invalidateQueries({ queryKey: ["os", "granola"] });
+    },
+    onError: (error: Error) => {
+      if (error.message === "Preview mode") return;
+      toast.error(error.message);
+    },
+  });
+
   const googleDisconnect = useMutation({
     mutationFn: () => {
       if (devPreview) {
@@ -381,6 +429,13 @@ function SettingsPage() {
   }
 
   const connections = data?.connections ?? [];
+  const granola = data?.granola ?? {
+    status: "disconnected" as const,
+    connected_at: null,
+    updated_at: null,
+  };
+  const granolaConnected = granola.status === "connected";
+  const showGranolaKey = !granolaConnected || replacingGranola;
   const members = data?.members ?? [];
   const pendingInvites = data?.invites ?? [];
   const failedEvents = data?.failedEvents ?? [];
@@ -515,6 +570,69 @@ function SettingsPage() {
             </article>
           );
         })}
+        <article className="studio-connect-row">
+          <div>
+            <div className="studio-connect-name">
+              <b>granola</b>
+              <span
+                className={cn(
+                  "studio-connect-status",
+                  granola.status === "connected" && "is-on",
+                  granola.status === "error" && "is-due",
+                )}
+              >
+                {granola.status}
+              </span>
+            </div>
+            <p>meeting notes for calls on the schedule. paste the workspace key from granola.</p>
+            <p className="studio-connect-seen">updated {formatSeen(granola.updated_at)}</p>
+            {showGranolaKey ? (
+              <label className="studio-field studio-granola-key">
+                <span>workspace key</span>
+                <input
+                  className="studio-input"
+                  type="password"
+                  name="granola-workspace-key"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="grn_…"
+                  value={granolaKey}
+                  onChange={(event) => setGranolaKey(event.target.value)}
+                />
+              </label>
+            ) : null}
+          </div>
+          <div className="studio-connect-go">
+            {showGranolaKey ? (
+              <button
+                type="button"
+                className="studio-today-go"
+                disabled={granolaConnect.isPending || !granolaKey.trim()}
+                onClick={() => granolaConnect.mutate()}
+              >
+                {granolaConnect.isPending ? "connecting…" : granolaConnected ? "save key" : "connect"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="studio-ghost"
+                onClick={() => setReplacingGranola(true)}
+              >
+                replace
+              </button>
+            )}
+            {granolaConnected ? (
+              <button
+                type="button"
+                className="studio-ghost"
+                disabled={granolaDisconnect.isPending}
+                onClick={() => granolaDisconnect.mutate()}
+              >
+                {granolaDisconnect.isPending ? "disconnecting…" : "disconnect"}
+              </button>
+            ) : null}
+          </div>
+        </article>
       </div>
     </section>
   );
