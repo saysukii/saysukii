@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { APP_FILE_BUCKETS } from "@/lib/app-file-link";
+import { APP_FILE_BUCKETS, safeDownloadName } from "@/lib/app-file-link";
 
 // a studio file, opened on the studio's own address; storage still checks the link's token
 export const Route = createFileRoute("/file/$")({
@@ -11,6 +11,7 @@ export const Route = createFileRoute("/file/$")({
         const path = url.pathname.replace(/^\/file\//, "");
         const bucket = path.split("/")[0] ?? "";
         const token = url.searchParams.get("token");
+        const downloadName = safeDownloadName(url.searchParams.get("download") ?? "");
         const storage = process.env["SUPABASE_URL"];
         if (!token || !storage || !(APP_FILE_BUCKETS as readonly string[]).includes(bucket)) {
           return new Response("Not found", { status: 404 });
@@ -29,7 +30,10 @@ export const Route = createFileRoute("/file/$")({
         const name = decodeURIComponent(path.split("/").pop() ?? "file");
         const headers = new Headers({
           "content-type": upstream.headers.get("content-type") ?? "application/octet-stream",
-          "content-disposition": `inline; filename="${name.replace(/"/g, "")}"`,
+          // ?download=name saves the file under that name instead of opening it
+          "content-disposition": downloadName
+            ? `attachment; filename="${downloadName}"`
+            : `inline; filename="${name.replace(/"/g, "")}"`,
           "cache-control": "private, max-age=300",
         });
         for (const header of ["content-length", "content-range", "accept-ranges", "etag"]) {

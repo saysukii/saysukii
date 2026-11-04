@@ -197,6 +197,20 @@ export type EmailTemplateRow = {
 export type InquiryInvoiceStatus = "sent" | "deposit_paid" | "paid" | "canceled";
 
 /** a named discount the studio keeps to use again: "returning client", 10% */
+export type LoveNoteRow = {
+  id: string;
+  note: string;
+  from_name: string;
+  audio_path: string | null;
+  consent_given_at: string | null;
+  consent_wording: string | null;
+  marketing_consent_given_at: string | null;
+  marketing_consent_wording: string | null;
+  status: "uploading" | "received";
+  sender_hash: string | null;
+  created_at: string;
+};
+
 export type StudioDiscountRow = {
   id: string;
   name: string;
@@ -519,6 +533,7 @@ export type Database = {
       inquiry_invoices: Table<InquiryInvoiceRow>;
       email_templates: Table<EmailTemplateRow>;
       studio_discounts: Table<StudioDiscountRow>;
+      love_notes: Table<LoveNoteRow>;
       inquiry_routing_labels: Table<InquiryRoutingLabelRow>;
       proposals: Table<ProposalRow>;
       proposal_line_items: Table<ProposalLineItemRow>;
