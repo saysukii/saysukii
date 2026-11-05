@@ -26,7 +26,7 @@ function notesResponse(status: number) {
 }
 
 describe("granola connection", () => {
-  it("rejects a key that is not a granola workspace key", async () => {
+  it("rejects a key that is not a granola api key", async () => {
     const vault = createMemoryGranolaVault();
     await assert.rejects(
       connectGranolaKey("not-a-key", { vault, fetchImpl: async () => notesResponse(200) }),
