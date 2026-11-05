@@ -481,14 +481,12 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   .note-field.has-voice:not(.has-video) .cam,.note-field.recording:not(.recording-video) .cam,
   .note-field.has-video #mic,.note-field.recording-video #mic{display:none}
   .composer .note-field textarea{padding-right:64px}
-  .composer .note-field.recording textarea{padding-right:34px}
   @media (max-width:719px){
     .cam{right:32px}
     .note-field.can-finish .cam{right:70px}
     .note-field.can-finish.recording-video .cam{right:32px}
     .composer .note-field textarea{padding-right:78px}
     .composer .note-field.can-finish textarea{padding-right:116px}
-    .composer .note-field.can-finish.recording textarea{padding-right:78px}
     .composer .note-field.has-voice textarea{padding-right:116px}
   }
   .note-video{
@@ -498,8 +496,20 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     object-fit:cover;background:#ece6de;display:none;
   }
   .note.with-video .note-video{display:block}
-  .note.with-video .note-block{top:58%;bottom:44px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
-  .note.with-video .note-text{font-size:8px}
+  /* a video note is just the video: no words go with it */
+  .note.with-video .note-block{display:none}
+  .note-field.recording-video textarea,.note-field.has-video textarea{visibility:hidden}
+  /* start over sits beside the stop button while recording, so a take can be thrown away and begun again */
+  .note-field.recording .redo{display:grid;right:30px}
+  /* and stays in that spot once it stops, so the record button never turns into start over under a finger */
+  .note-field.has-voice .redo{right:30px}
+  .note-field.has-voice #mic,.note-field.has-video .cam{right:0}
+  .composer .note-field.recording textarea{padding-right:64px}
+  @media (max-width:719px){
+    .note-field.recording .redo,.note-field.has-voice .redo{right:70px}
+    .note-field.has-voice #mic,.note-field.has-video .cam{right:32px}
+    .composer .note-field.can-finish.recording textarea{padding-right:116px}
+  }
 
   /* text sizes: the note's 14px for the note field, leave note and the pop-up; back's 12px for the voice note line and consent */
   .composer{font-size:14px;line-height:1.5}
@@ -904,11 +914,15 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     try { r.start(); } catch(_){ s.noWords = true; }
   }
 
-  function startLevels(s){
+  // made inside the tap itself: iOS keeps an AudioContext made any later silent, so the voice line never moved
+  function audioContextNow(){
     var Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
+    if (!Ctx) return null;
+    try { var ctx = new Ctx(); if (ctx.resume) ctx.resume(); return ctx; } catch(_){ return null; }
+  }
+  function startLevels(s){
+    if (!s.ctx) return;
     try {
-      s.ctx = new Ctx();
       if (s.ctx.resume) s.ctx.resume();
       s.analyser = s.ctx.createAnalyser();
       s.analyser.fftSize = 512;
@@ -970,13 +984,16 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     else noteVideo.load();
   }
 
+  var IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function startRecording(kind){
     openForNote();
     var video = kind === 'video';
+    var ctx = audioContextNow();
+    var dropCtx = function(){ if (ctx && ctx.close) ctx.close(); };
     var button = video ? camBtn : micBtn;
     var md = navigator.mediaDevices;
-    if (!md || !md.getUserMedia){ setStatus((video ? 'video' : 'voice') + ' notes need a secure https link'); return; }
-    if (video && !window.MediaRecorder){ setStatus('this browser can\u2019t record video, type or record your voice instead'); return; }
+    if (!md || !md.getUserMedia){ dropCtx(); setStatus((video ? 'video' : 'voice') + ' notes need a secure https link'); return; }
+    if (video && !window.MediaRecorder){ dropCtx(); setStatus('this browser can\u2019t record video, type or record your voice instead'); return; }
     var device = video ? 'camera' : 'microphone';
     button.disabled = true;
     setStatus('allow your ' + device);
@@ -984,7 +1001,9 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     if (video) constraints.video = { facingMode:'user', width:{ ideal:720 }, height:{ ideal:960 }, frameRate:{ ideal:24, max:30 } };
     md.getUserMedia(constraints).then(function(stream){
       button.disabled = false;
-      var s = { stream:stream, video:video, base:input.value.trim(), finals:'', interim:'', chunks:[], startedAt:performance.now(), quickEnds:0 };
+      // a video note is just the video, so anything typed is cleared
+      if (video){ input.value = ''; noteText.textContent = ''; }
+      var s = { stream:stream, ctx:ctx, video:video, base:input.value.trim(), finals:'', interim:'', chunks:[], startedAt:performance.now(), quickEnds:0 };
       session = s;
       voice = null;
       noteField.classList.remove('has-voice', 'has-video');
@@ -1016,12 +1035,15 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
         setStatus('this browser can\u2019t record video, type or record your voice instead');
         return;
       }
-      if (s.recorder && /android/i.test(navigator.userAgent)) s.noWords = true;
+      // video carries no words. Android can't share the microphone between recording and transcribing,
+      // and on an iPhone transcribing silences the recording, so there they just record
+      if (video || (s.recorder && (/android/i.test(navigator.userAgent) || IS_IOS))) s.noWords = true;
       else startWords(s);
       startLevels(s);
       tick(s);
     }, function(err){
       button.disabled = false;
+      dropCtx();
       var name = err && err.name;
       if (name === 'NotAllowedError' || name === 'SecurityError') setStatus(device + ' is blocked, allow it or type instead');
       else if (name === 'NotFoundError') setStatus('no ' + device + ' found');
@@ -1040,7 +1062,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     micBtn.setAttribute('aria-label', 'record a voice note');
     camBtn.setAttribute('aria-pressed', 'false');
     camBtn.setAttribute('aria-label', 'record a video note');
-    input.readOnly = false;
+    input.readOnly = !!(keep && s.video);   // a video note takes no words
     input.placeholder = 'write your note';
     if (s.recognition){
       s.recognition.onend = null;
@@ -1079,13 +1101,15 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   }
 
   function voiceSummary(){
-    return (voice.video ? 'video note ' : 'voice note ') + clock(voice.seconds) + (voice.transcribed ? ', edit the words if you like' : ', type your words above');
+    if (voice.video) return 'video note ' + clock(voice.seconds);
+    return 'voice note ' + clock(voice.seconds) + (voice.transcribed ? ', edit the words if you like' : ', type your words above');
   }
 
   function clearVoice(){
     voice = null;
     setStatus('');
     if (noteArea.classList.contains('with-video')) showVideo(null);
+    input.readOnly = false;
     noteField.classList.remove('has-voice', 'has-video');
     growInput();
   }
@@ -1102,6 +1126,16 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   // clears the note and the recording, back to the start: they can choose again how to leave their note
   startOverBtn.addEventListener('click', function(e){
     e.preventDefault();                  // it sits inside the field's label
+    // while recording: throw this take away and begin again, the same way
+    if (session){
+      var s = session;
+      endSession(s, false).then(function(){
+        if (s.video) showVideo(null);
+        input.value = s.base; noteText.textContent = s.base; growInput();
+        startRecording(s.video ? 'video' : 'voice');
+      });
+      return;
+    }
     clearVoice();
     input.value = ''; noteText.textContent = ''; growInput();
     consentBox.checked = false; marketingBox.checked = false;
@@ -1293,7 +1327,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     leaveBtn.textContent = 'sending';
     if (innerWidth < 720) setStatus('');
     stopRecording().then(function(){
-      return sendNote(input.value.trim());
+      return sendNote(voice && voice.video ? '' : input.value.trim());
     }).then(function(){
       sending = false;
       input.blur();
