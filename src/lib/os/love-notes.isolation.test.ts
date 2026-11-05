@@ -2,7 +2,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { VOICE_CONSENT_WORDING, VOICE_MARKETING_WORDING } from "../love-note-input.ts";
+import {
+  VIDEO_CONSENT_WORDING,
+  VIDEO_MARKETING_WORDING,
+  VOICE_CONSENT_WORDING,
+  VOICE_MARKETING_WORDING,
+} from "../love-note-input.ts";
 import {
   createLoveNote,
   finishLoveNote,
@@ -61,7 +66,10 @@ function fakeClient(
           calls.signed.push(path);
           return { data: { signedUrl: `https://storage.test/${path}?token=x` }, error: null };
         },
-        list: async () => ({ data: options.arrived ? [{ name: "voice.webm" }] : [], error: null }),
+        list: async (_folder: string, query?: { search?: string }) => ({
+          data: options.arrived ? [{ name: query?.search ?? "voice.webm" }] : [],
+          error: null,
+        }),
       }),
     },
   };
@@ -95,6 +103,22 @@ test("a voice note waits as uploading, with its consent on record and a link onl
   assert.match(calls.signed[0]!, /\/voice\.webm$/);
   assert.equal(calls.signed[0], calls.inserts[0].audio_path);
   assert.ok(result.body.ok && result.body.uploadUrl?.includes("voice.webm"));
+});
+
+test("a video note waits as uploading, with the video wording on record and its own file", async () => {
+  const { client, calls } = fakeClient();
+  const result = await createLoveNote(
+    client,
+    { name, consent: true, consentMarketing: true, videoType: "video/mp4", videoBytes: 4_000_000 },
+    "s",
+  );
+  assert.equal(result.status, 200);
+  assert.equal(calls.inserts[0].status, "uploading");
+  assert.equal(calls.inserts[0].audio_path, null);
+  assert.equal(calls.inserts[0].consent_wording, VIDEO_CONSENT_WORDING);
+  assert.equal(calls.inserts[0].marketing_consent_wording, VIDEO_MARKETING_WORDING);
+  assert.match(calls.signed[0]!, /\/video\.mp4$/);
+  assert.equal(calls.signed[0], calls.inserts[0].video_path);
 });
 
 test("a yes to marketing is saved on its own, and a no leaves it empty", async () => {
@@ -155,6 +179,15 @@ test("finishing needs the recording to really be there", async () => {
   assert.equal((await finishLoveNote(missing.client, { id })).status, 409);
   assert.equal(missing.calls.updates.length, 0);
 
+  const arrived = fakeClient({ row, arrived: true });
+  assert.equal((await finishLoveNote(arrived.client, { id })).status, 200);
+  assert.deepEqual(arrived.calls.updates, [{ status: "received" }]);
+});
+
+test("finishing a video note needs the video to really be there", async () => {
+  const row = { status: "uploading", audio_path: null, video_path: `${id}/video.mp4` };
+  const missing = fakeClient({ row });
+  assert.equal((await finishLoveNote(missing.client, { id })).status, 409);
   const arrived = fakeClient({ row, arrived: true });
   assert.equal((await finishLoveNote(arrived.client, { id })).status, 200);
   assert.deepEqual(arrived.calls.updates, [{ status: "received" }]);

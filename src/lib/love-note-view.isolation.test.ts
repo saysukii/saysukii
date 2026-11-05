@@ -36,6 +36,18 @@ test("voice notes are the ones with a recording", () => {
   assert.equal(inLoveNoteView(voice, "voice"), true);
 });
 
+test("video notes have their own view, apart from voice notes", () => {
+  const video = { ...voice, id: "4", hasVideo: true, audioUrl: null, videoUrl: "/file/v" };
+  assert.equal(inLoveNoteView(video, "video"), true);
+  assert.equal(inLoveNoteView(video, "voice"), false);
+  assert.equal(inLoveNoteView(voice, "video"), false);
+  assert.equal(inLoveNoteView(typed, "video"), false);
+  assert.equal(
+    loveNoteNotice({ id: "v", name: "Maya", hasRecording: true, hasVideo: true }).body,
+    "with a video note.",
+  );
+});
+
 test("only a recording that said yes is ok for marketing", () => {
   assert.equal(inLoveNoteView(typed, "marketing"), false);
   assert.equal(inLoveNoteView(voice, "marketing"), false);

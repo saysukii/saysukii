@@ -8,10 +8,14 @@ export type LoveNote = {
   createdAt: string;
   /** a private link to listen, which runs out; empty for a typed note */
   audioUrl: string | null;
+  /** a private link to watch a video note, which runs out */
+  videoUrl?: string | null;
   /** the same recording, saved to the computer under a readable name */
   downloadUrl: string | null;
   downloadName: string | null;
   hasRecording: boolean;
+  /** the recording is a video note rather than a voice note */
+  hasVideo?: boolean;
   okToUse: boolean;
   okForMarketing: boolean;
   /** the exact words they agreed to, kept as the record */
@@ -25,27 +29,38 @@ export function loveNoteFileName(name: string, createdAt: string, path: string) 
   return safeDownloadName(`love-note-${name}-${createdAt.slice(0, 10)}.${extension}`);
 }
 
-export type LoveNoteView = "all" | "voice" | "marketing";
+export type LoveNoteView = "all" | "voice" | "video" | "marketing";
 
 export const LOVE_NOTE_VIEWS: [LoveNoteView, string][] = [
   ["all", "all"],
   ["voice", "voice notes"],
+  ["video", "video notes"],
   ["marketing", "ok for marketing"],
 ];
 
 export function inLoveNoteView(note: LoveNote, view: LoveNoteView) {
-  if (view === "voice") return note.hasRecording;
+  if (view === "voice") return note.hasRecording && !note.hasVideo;
+  if (view === "video") return note.hasRecording && !!note.hasVideo;
   // only a recording can be cleared for marketing: a typed note never asked
   if (view === "marketing") return note.hasRecording && note.okForMarketing;
   return true;
 }
 
 /** What the bell says when a note comes in. */
-export function loveNoteNotice(row: { id: string; name: string; hasRecording: boolean }) {
+export function loveNoteNotice(row: {
+  id: string;
+  name: string;
+  hasRecording: boolean;
+  hasVideo?: boolean;
+}) {
   return {
     id: `love-note-${row.id}`,
     title: `${row.name} left a love note`,
-    body: row.hasRecording ? "with a voice note." : "it's in your love notes.",
+    body: row.hasVideo
+      ? "with a video note."
+      : row.hasRecording
+        ? "with a voice note."
+        : "it's in your love notes.",
     href: "/love-notes",
   };
 }

@@ -3,11 +3,16 @@ import { z } from "zod";
 export const MAX_NOTE_LENGTH = 650;
 export const MAX_NAME_LENGTH = 60;
 export const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
+/** a minute of phone video at the card's bitrate is well under this; it stays inside storage's 50mb upload cap */
+export const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
 
 /** The words beside the checkboxes on the card. Saved with each recording, as the record of what was agreed. */
 export const VOICE_CONSENT_WORDING = "i give say sukii permission to store and use my voice note.";
 export const VOICE_MARKETING_WORDING =
   "i give say sukii permission to use my voice note in its marketing.";
+export const VIDEO_CONSENT_WORDING = "i give say sukii permission to store and use my video note.";
+export const VIDEO_MARKETING_WORDING =
+  "i give say sukii permission to use my video note in its marketing.";
 
 const AUDIO_EXTENSIONS: Record<string, string> = {
   "audio/webm": "webm",
@@ -15,6 +20,12 @@ const AUDIO_EXTENSIONS: Record<string, string> = {
   "audio/ogg": "ogg",
   "audio/aac": "aac",
   "audio/mpeg": "mp3",
+};
+
+const VIDEO_EXTENSIONS: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
 };
 
 const loveNoteSchema = z.object({
@@ -33,6 +44,8 @@ const loveNoteSchema = z.object({
   // browsers name a recording's type with its codec too, like "audio/webm;codecs=opus"
   audioType: z.string().max(80).optional().default(""),
   audioBytes: z.number().int().nonnegative().optional().default(0),
+  videoType: z.string().max(120).optional().default(""),
+  videoBytes: z.number().int().nonnegative().optional().default(0),
   website: z.string().max(240).optional().default(""),
 });
 
@@ -40,6 +53,8 @@ export type LoveNoteInput = {
   note: string;
   name: string;
   audio: { contentType: string; extension: string } | null;
+  /** a note carries a voice note or a video note, never both */
+  video: { contentType: string; extension: string } | null;
   /** marketing is optional, and only ever applies to a recording */
   marketing: boolean;
 };
@@ -58,6 +73,8 @@ export function parseLoveNote(raw: unknown): ParsedLoveNote {
     consentMarketing,
     audioType,
     audioBytes,
+    videoType,
+    videoBytes,
     website,
   } = parsed.data;
 
@@ -81,6 +98,22 @@ export function parseLoveNote(raw: unknown): ParsedLoveNote {
     audio = { contentType, extension };
   }
 
-  if (!note && !audio) return { kind: "invalid", error: "a note or voice note is needed" };
-  return { kind: "ok", input: { note, name, audio, marketing: !!audio && consentMarketing } };
+  let video: LoveNoteInput["video"] = null;
+  if (videoType) {
+    if (audio) return { kind: "invalid", error: "one recording per note" };
+    const contentType = videoType.split(";")[0]!.trim().toLowerCase();
+    const extension = VIDEO_EXTENSIONS[contentType];
+    if (!extension || videoBytes < 1 || videoBytes > MAX_VIDEO_BYTES) {
+      return { kind: "invalid", error: "invalid video note" };
+    }
+    if (!consent) return { kind: "invalid", error: "consent is needed for a video note" };
+    video = { contentType, extension };
+  }
+
+  if (!note && !audio && !video) return { kind: "invalid", error: "a note or recording is needed" };
+  const recorded = !!audio || !!video;
+  return {
+    kind: "ok",
+    input: { note, name, audio, video, marketing: recorded && consentMarketing },
+  };
 }

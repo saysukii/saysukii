@@ -202,6 +202,7 @@ export type LoveNoteRow = {
   note: string;
   from_name: string;
   audio_path: string | null;
+  video_path: string | null;
   consent_given_at: string | null;
   consent_wording: string | null;
   marketing_consent_given_at: string | null;
