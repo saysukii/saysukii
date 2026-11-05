@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, Json } from "@/integrations/supabase/types";
 import { isReviewCandidate } from "@/lib/os/inquiry-detection";
-import { MAX_ATTACHMENT_BYTES } from "@/lib/os/letter-files";
+import { MAX_ATTACHMENT_BYTES, withoutAttachedLine } from "@/lib/os/letter-files";
 import { refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
 import { signatureText } from "@/lib/os/mail-signature";
 import { syncInquiryAutoTaskFor } from "@/lib/os/tasks.functions";
@@ -137,10 +137,8 @@ export async function deliverLetter(
     ? request.subject.trim()
     : request.subject.trim() || replySubject(reply.subject);
   const attachments = await letterAttachments(client, request.inquiryId, request.attachments);
-  // the thread keeps its "Attached:" line for the file chips; the letter itself carries the files
-  const letterBody = attachments.length
-    ? request.body.replace(/\n*Attached:\s*[^\n]+\s*$/, "").trim()
-    : request.body.trim();
+  // the thread keeps its "Attached:" line for the file chips; the client only gets the files
+  const letterBody = withoutAttachedLine(request.body);
   const sent = await sendInquiryEmail({
     from,
     fromName: "Say Sukii",
@@ -236,21 +234,24 @@ export async function sendDueLetters(client: StudioClient, now = new Date()) {
 
 async function letterAttachments(client: StudioClient, inquiryId: string, picked: LetterFile[]) {
   if (!picked.length) return [];
-  const files = [];
-  let total = 0;
   for (const file of picked) {
     if (!file.path.startsWith(`inquiries/${inquiryId}/`))
       throw new Error("that file belongs to another lead.");
-    const { data, error } = await client.storage.from("project-files").download(file.path);
-    if (error || !data) throw new Error(`could not attach ${file.name}. try adding it again.`);
-    const bytes = new Uint8Array(await data.arrayBuffer());
-    total += bytes.byteLength;
-    if (total > MAX_ATTACHMENT_BYTES) {
-      throw new Error(
-        "the attachments are over 25mb together, which gmail won't send. share a link to the larger files instead.",
-      );
-    }
-    files.push({ name: file.name, type: data.type || "application/octet-stream", data: bytes });
+  }
+  // fetched together, so a letter with many images doesn't wait on each in turn
+  const files = await Promise.all(
+    picked.map(async (file) => {
+      const { data, error } = await client.storage.from("project-files").download(file.path);
+      if (error || !data) throw new Error(`could not attach ${file.name}. try adding it again.`);
+      const bytes = new Uint8Array(await data.arrayBuffer());
+      return { name: file.name, type: data.type || "application/octet-stream", data: bytes };
+    }),
+  );
+  const total = files.reduce((sum, file) => sum + file.data.byteLength, 0);
+  if (total > MAX_ATTACHMENT_BYTES) {
+    throw new Error(
+      "the attachments are over 25mb together, which gmail won't send. remove some to send.",
+    );
   }
   return files;
 }

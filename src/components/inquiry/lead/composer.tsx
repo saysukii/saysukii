@@ -30,7 +30,12 @@ import {
 } from "@/components/ui/dialog";
 import { Wordmark } from "@/components/portal/bits";
 import { PersonName } from "@/components/studio/PersonName";
-import { letterBodyWithFiles, letterFileProblem } from "@/lib/os/letter-files";
+import {
+  letterBodyWithFiles,
+  letterFileProblem,
+  letterFileTotal,
+  withoutAttachedLine,
+} from "@/lib/os/letter-files";
 import { mailRecord, uniqueMails } from "@/lib/os/mail-people";
 import { linkPlainMail } from "@/lib/os/mail-reply";
 import { capitalizeName } from "@/lib/name-case";
@@ -773,6 +778,8 @@ export function ThreadComposer({
         <p className="studio-composer-note is-problem" role="alert">
           {fileProblem}
         </p>
+      ) : email && files.length ? (
+        <p className="studio-composer-note">{letterFileTotal(files)}</p>
       ) : null}
       {blockedNote ? <p className="studio-composer-note">{blockedNote}</p> : null}
       {email ? (
@@ -933,8 +940,18 @@ export function ThreadComposer({
                     ) : null}
                   </header>
                   <div className="studio-send-preview-letter">
-                    <MailBody body={confirm?.body || ""} personName={clientName ?? null} />
+                    <MailBody
+                      body={withoutAttachedLine(confirm?.body || "")}
+                      personName={clientName ?? null}
+                    />
                     <MailSignature name={sender || ""} tone="ink" />
+                    {confirm?.attachments.length ? (
+                      <div className="studio-mail-files">
+                        {confirm.attachments.map((file) => (
+                          <MailFile key={file.path} name={file.name} />
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </article>
                 {confirm?.held.sendAt ? (

@@ -10,9 +10,6 @@ export type StoredLetterFile = {
 /** Gmail takes 25mb of attachments on a letter, counted together rather than per file. */
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
-/** How many files one letter can carry. */
-export const MAX_LETTER_FILES = 10;
-
 type DraftFileState = {
   name: string;
   size: number;
@@ -20,13 +17,23 @@ type DraftFileState = {
   failed: boolean;
 };
 
-/** A letter's words, with its "Attached:" line naming only files it really carries. */
+/**
+ * A letter's words, with an "Attached:" line naming only files it really carries. The line is for
+ * the studio's own thread, where it becomes file chips; it's taken off before the letter is sent.
+ */
 export function letterBodyWithFiles(text: string, files: readonly DraftFileState[]) {
   const words = text.trim();
   const names = files.filter((file) => file.path).map((file) => file.name);
   if (!names.length) return words;
   const line = `Attached: ${names.join(", ")}`;
   return words ? `${words}\n\n${line}` : line;
+}
+
+const ATTACHED_LINE = /\n*Attached:\s*[^\n]+\s*$/;
+
+/** A letter's words as the client gets them: the files go as attachments, never as a line. */
+export function withoutAttachedLine(body: string) {
+  return body.replace(ATTACHED_LINE, "").trim();
 }
 
 function inMb(bytes: number) {
@@ -42,13 +49,16 @@ export function letterFileProblem(files: readonly DraftFileState[], email: boole
     return `${who} didn't upload. retry or remove to send.`;
   }
   if (!email) return null;
-  if (files.length > MAX_LETTER_FILES) {
-    return `a letter can carry ${MAX_LETTER_FILES} files. remove ${files.length - MAX_LETTER_FILES} to send.`;
-  }
   const total = files.reduce((sum, file) => sum + file.size, 0);
   if (total <= MAX_ATTACHMENT_BYTES) return null;
   const over = Math.ceil(((total - MAX_ATTACHMENT_BYTES) / (1024 * 1024)) * 10) / 10;
   return `these files are ${inMb(total)} mb together, and gmail takes 25 mb per letter. remove ${over.toFixed(1)} mb to send.`;
+}
+
+/** How much of gmail's 25mb the files use, shown under them while there's room. */
+export function letterFileTotal(files: readonly DraftFileState[]) {
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  return `${inMb(total)} of 25 mb`;
 }
 
 const HAS_EXTENSION = /\.[a-z0-9]*[a-z][a-z0-9]*\s*$/i;

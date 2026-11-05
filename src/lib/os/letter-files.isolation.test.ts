@@ -7,9 +7,10 @@ import {
   attachedNames,
   letterBodyWithFiles,
   letterFileProblem,
+  letterFileTotal,
   MAX_ATTACHMENT_BYTES,
-  MAX_LETTER_FILES,
   storedFileFor,
+  withoutAttachedLine,
 } from "./letter-files";
 
 function stored(name: string, created_at = "2026-11-01T10:00:00Z") {
@@ -180,14 +181,17 @@ describe("the files on a letter being written", () => {
     );
   });
 
-  it("holds a letter to its file count", () => {
-    const files = (count: number) =>
-      Array.from({ length: count }, (_, index) => kept(`${index}.png`));
-    assert.equal(letterFileProblem(files(MAX_LETTER_FILES), true), null);
-    assert.equal(
-      letterFileProblem(files(MAX_LETTER_FILES + 2), true),
-      "a letter can carry 10 files. remove 2 to send.",
-    );
+  it("has no limit on how many files, only on their size", () => {
+    const many = Array.from({ length: 60 }, (_, index) => kept(`${index}.png`, 100 * 1024));
+    assert.equal(letterFileProblem(many, true), null);
+    assert.equal(letterFileTotal(many), "5.9 of 25 mb");
+  });
+
+  it("never sends the attached line to the client", () => {
+    assert.equal(withoutAttachedLine("here they are\n\nAttached: a.png, b.png"), "here they are");
+    assert.equal(withoutAttachedLine("Attached: a.png"), "");
+    assert.equal(withoutAttachedLine("just words"), "just words");
+    assert.equal(withoutAttachedLine(letterBodyWithFiles("the room", [kept("a.png")])), "the room");
   });
 
   it("doesn't hold a note to gmail's limits, since it isn't emailed", () => {
