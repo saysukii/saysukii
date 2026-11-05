@@ -425,7 +425,8 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
      Its longest line is 531px at 14px, so 14px per 545px of panel keeps a little to spare */
   .intro-words{font-size:min(14px,2.569cqw)}
   .intro-words p{white-space:nowrap}
-  .intro-go{display:flex;align-items:center;justify-content:center}
+  /* the button is the same size as the letter, so on a phone it gets smaller with it */
+  .intro-go{display:flex;align-items:center;justify-content:center;font-size:min(14px,2.569cqw)}
   .intro-go button{
     appearance:none;-webkit-appearance:none;background:none;border:0;padding:0;cursor:pointer;font:inherit;color:#ff4d94;
     transition:opacity .2s,transform .12s ease;-webkit-tap-highlight-color:transparent;
@@ -489,12 +490,11 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     .composer .note-field.can-finish textarea{padding-right:116px}
     .composer .note-field.can-finish.recording textarea{padding-right:78px}
     .composer .note-field.has-voice textarea{padding-right:116px}
-    /* while typing, the field shows its newest line flush at the top, with no half line above it */
-    .note-field:focus-within{padding-top:4px}
-    .composer .note-field:focus-within textarea{padding-top:0}
   }
   .note-video{
-    position:absolute;left:50%;top:3%;height:52%;aspect-ratio:3 / 4;transform:translateX(-50%) scaleX(-1);
+    /* sized by the page alone, not the camera's own shape: phones otherwise size a live video by its stream.
+       52% of the page's height at 3:4 is 57.7% of its width */
+    position:absolute;left:21.15%;top:3%;width:57.7%;height:52%;transform:scaleX(-1);
     object-fit:cover;background:#ece6de;display:none;
   }
   .note.with-video .note-video{display:block}
@@ -642,7 +642,6 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   var composer = document.getElementById('composer');
   var scaler = document.getElementById('scaler');
   var qNow = 0;            // how far the cover has turned, 0..1
-  var typingRoom = 0;     // on a phone while typing: the height the card has above the note field
   // on a phone the page being written on stays where it is as the cover turns away from it
   function placeX(){
     var tx = innerWidth < 720 ? -qNow * W / 2 * scale : 0;
@@ -652,7 +651,6 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     var narrow = innerWidth < 720;
     if (narrow){                                 // the same size closed and open: it just opens
       scale = Math.min(1.15, (innerWidth - 24) / 420);
-      if (typingRoom) scale = Math.min(scale, Math.max(.5, typingRoom / 450));
     } else {
       var room = (innerHeight - composer.offsetHeight - 150) / 471;
       scale = Math.min(1.35, (innerWidth - 24) / 700, Math.max(.72, room));
@@ -828,54 +826,16 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   });
 
   addEventListener('resize', growInput);
-  /* typing on a phone: the keyboard covers the lower half, so the open card sits whole at the top of
-     what's left and the field just under it, and the words can be watched arriving on the page. The
-     card only gets smaller if it couldn't otherwise fit, and the field scrolls inside itself rather
-     than growing under the keyboard. */
-  var scalerBox = document.querySelector('.scaler-box');
-  var noteFieldBox = document.querySelector('.note-field');
-  var settleTimer = 0;
-  function keepCardInView(){
+  function keepNoteInView(){
     var vv = window.visualViewport;
-    if (innerWidth >= 720 || !vv || document.activeElement !== input) return;
-    var inputStyle = getComputedStyle(input);
-    var lineHeight = parseFloat(inputStyle.lineHeight) || 21;
-    var pad = (parseFloat(inputStyle.paddingTop) || 0) + (parseFloat(inputStyle.paddingBottom) || 0);
-    var oneLine = noteFieldBox.offsetHeight - input.offsetHeight + lineHeight + pad;
-    var room = Math.floor(vv.height - oneLine - 30);
-    if (Math.abs(room - typingRoom) > 2){
-      typingRoom = room;
-      scaler.classList.add('zooming');
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(function(){ scaler.classList.remove('zooming'); }, 650);
-      fit();
-    }
-    // iOS keeps the page's height and slides the keyboard over it: the page gets room below to move up into
-    document.body.style.paddingBottom = vv.height < innerHeight * .8 ? (innerHeight - vv.height + 22) + 'px' : '';
-    // the field fills what's left above the keyboard, and no more: measured from where it sits
-    // once the card is 8px from the top, so the answer doesn't depend on the scroll
-    var fieldTop = noteFieldBox.getBoundingClientRect().top - scalerBox.getBoundingClientRect().top + 8;
-    var lines = Math.max(1, Math.floor((vv.height - fieldTop - 10 - pad) / lineHeight));
-    input.style.maxHeight = (lines * lineHeight + pad) + 'px';
-    growInput();
-    var cardTop = scalerBox.getBoundingClientRect().top - vv.offsetTop;
-    if (Math.abs(cardTop - 8) > 2) window.scrollBy(0, cardTop - 8);
-    // writing at the end keeps the newest line in the field; the whole note is on the card
-    if (input.selectionEnd === input.value.length) input.scrollTop = input.scrollHeight;
+    if (innerWidth >= 720 || !vv || document.activeElement !== input || vv.height > innerHeight * .8) return;
+    document.body.style.paddingBottom = (innerHeight - vv.height + 22) + 'px';
+    var field = document.querySelector('.note-field').getBoundingClientRect();
+    window.scrollTo(0, Math.max(0, window.scrollY + field.bottom - vv.height + 10));
   }
-  if (window.visualViewport){
-    visualViewport.addEventListener('resize', keepCardInView);
-    visualViewport.addEventListener('scroll', keepCardInView);
-  }
-  // the card's box eases to its open or typing size, so it's measured again once it gets there
-  scalerBox.addEventListener('transitionend', function(e){ if (e.propertyName === 'height') keepCardInView(); });
-  input.addEventListener('focus', function(){ hideLove(); keepCardInView(); setTimeout(keepCardInView, 350); setTimeout(keepCardInView, 700); });
-  input.addEventListener('input', function(){ if (innerWidth < 720) keepCardInView(); });
-  input.addEventListener('blur', function(){
-    document.body.style.paddingBottom = '';
-    input.style.maxHeight = '';
-    if (typingRoom){ typingRoom = 0; scaler.classList.add('zooming'); fit(); setTimeout(function(){ scaler.classList.remove('zooming'); }, 650); }
-  });
+  if (window.visualViewport) visualViewport.addEventListener('resize', keepNoteInView);
+  input.addEventListener('focus', function(){ setTimeout(keepNoteInView, 650); });
+  input.addEventListener('blur', function(){ document.body.style.paddingBottom = ''; });
 
   /* ================= voice note ================= */
   var MAX_NOTE = 650, MAX_SECONDS = 120, MAX_VIDEO_SECONDS = 60;
