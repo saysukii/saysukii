@@ -425,6 +425,7 @@ export type MeetingRow = {
   id: string;
   inquiry_id: string | null;
   granola_note_id: string;
+  calendar_event_id: string | null;
   title: string;
   occurred_at: string;
   summary: string | null;

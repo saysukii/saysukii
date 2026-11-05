@@ -45,6 +45,7 @@ import { Route as AuthenticatedPipelineIdRouteImport } from './routes/_authentic
 import { Route as ApiCronBalanceRemindersRouteImport } from './routes/api/cron/balance-reminders'
 import { Route as ApiCronGmailInboundRouteImport } from './routes/api/cron/gmail-inbound'
 import { Route as ApiCronGmailRouteRouteImport } from './routes/api/cron/gmail-route'
+import { Route as ApiCronMeetingSummariesRouteImport } from './routes/api/cron/meeting-summaries'
 import { Route as ApiCronScheduledLettersRouteImport } from './routes/api/cron/scheduled-letters'
 import { Route as ApiLoveNotesIndexRouteImport } from './routes/api/love-notes/index'
 import { Route as ApiLoveNotesFinishRouteImport } from './routes/api/love-notes/finish'
@@ -240,6 +241,11 @@ const ApiCronGmailRouteRoute = ApiCronGmailRouteRouteImport.update({
   path: '/api/cron/gmail-route',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronMeetingSummariesRoute = ApiCronMeetingSummariesRouteImport.update({
+  id: '/api/cron/meeting-summaries',
+  path: '/api/cron/meeting-summaries',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronScheduledLettersRoute = ApiCronScheduledLettersRouteImport.update({
   id: '/api/cron/scheduled-letters',
   path: '/api/cron/scheduled-letters',
@@ -338,6 +344,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/balance-reminders': typeof ApiCronBalanceRemindersRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
+  '/api/cron/meeting-summaries': typeof ApiCronMeetingSummariesRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
@@ -383,6 +390,7 @@ export interface FileRoutesByTo {
   '/api/cron/balance-reminders': typeof ApiCronBalanceRemindersRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
+  '/api/cron/meeting-summaries': typeof ApiCronMeetingSummariesRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
@@ -433,6 +441,7 @@ export interface FileRoutesById {
   '/api/cron/balance-reminders': typeof ApiCronBalanceRemindersRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
+  '/api/cron/meeting-summaries': typeof ApiCronMeetingSummariesRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
@@ -483,6 +492,7 @@ export interface FileRouteTypes {
     | '/api/cron/balance-reminders'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
+    | '/api/cron/meeting-summaries'
     | '/api/cron/scheduled-letters'
     | '/api/love-notes/finish'
     | '/api/square/webhook'
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
     | '/api/cron/balance-reminders'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
+    | '/api/cron/meeting-summaries'
     | '/api/cron/scheduled-letters'
     | '/api/love-notes/finish'
     | '/api/square/webhook'
@@ -577,6 +588,7 @@ export interface FileRouteTypes {
     | '/api/cron/balance-reminders'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
+    | '/api/cron/meeting-summaries'
     | '/api/cron/scheduled-letters'
     | '/api/love-notes/finish'
     | '/api/square/webhook'
@@ -612,6 +624,7 @@ export interface RootRouteChildren {
   ApiCronBalanceRemindersRoute: typeof ApiCronBalanceRemindersRoute
   ApiCronGmailInboundRoute: typeof ApiCronGmailInboundRoute
   ApiCronGmailRouteRoute: typeof ApiCronGmailRouteRoute
+  ApiCronMeetingSummariesRoute: typeof ApiCronMeetingSummariesRoute
   ApiCronScheduledLettersRoute: typeof ApiCronScheduledLettersRoute
   ApiLoveNotesFinishRoute: typeof ApiLoveNotesFinishRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
@@ -875,6 +888,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronGmailRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/meeting-summaries': {
+      id: '/api/cron/meeting-summaries'
+      path: '/api/cron/meeting-summaries'
+      fullPath: '/api/cron/meeting-summaries'
+      preLoaderRoute: typeof ApiCronMeetingSummariesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/scheduled-letters': {
       id: '/api/cron/scheduled-letters'
       path: '/api/cron/scheduled-letters'
@@ -1072,6 +1092,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronBalanceRemindersRoute: ApiCronBalanceRemindersRoute,
   ApiCronGmailInboundRoute: ApiCronGmailInboundRoute,
   ApiCronGmailRouteRoute: ApiCronGmailRouteRoute,
+  ApiCronMeetingSummariesRoute: ApiCronMeetingSummariesRoute,
   ApiCronScheduledLettersRoute: ApiCronScheduledLettersRoute,
   ApiLoveNotesFinishRoute: ApiLoveNotesFinishRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,

@@ -183,6 +183,54 @@ export const getGranolaStatus = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => readGranolaConnected());
 
+/** Each meeting's granola summary from the last two months, by its calendar event. */
+export const listMeetingSummaries = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }) => {
+    const since = new Date(Date.now() - 62 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await context.supabase
+      .from("meetings")
+      .select("calendar_event_id, summary")
+      .not("calendar_event_id", "is", null)
+      .gte("occurred_at", since);
+    if (error) throw new Error(error.message);
+    return (data ?? []).flatMap((row) =>
+      row.calendar_event_id && row.summary?.trim()
+        ? [{ eventId: row.calendar_event_id, summary: row.summary }]
+        : [],
+    );
+  });
+
+/** Summaries that came in over the last day, for the studio's notices. */
+export const listFreshMeetingSummaries = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }) => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await context.supabase
+      .from("meetings")
+      .select("id, title")
+      .not("calendar_event_id", "is", null)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+/** Looks in granola for one meeting's summary right away, rather than waiting for the next sync. */
+export const checkMeetingSummary = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) => z.object({ eventId: z.string().min(1).max(300) }).parse(input))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { studioMeetingSync, syncMeetingSummaries } = await import("./meeting-sync.server");
+    const result = await syncMeetingSummaries(studioMeetingSync(supabaseAdmin), {
+      only: data.eventId,
+    });
+    if (result.status !== "ok") return { found: false, reason: result.status };
+    return { found: result.kept > 0, reason: "ok" as const };
+  });
+
 export const getGranolaStatusDev = createServerFn({ method: "GET" }).handler(async () => {
   if (!import.meta.env.DEV) throw new Error("Unauthorized");
   return readGranolaConnected();

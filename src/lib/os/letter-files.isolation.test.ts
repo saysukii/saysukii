@@ -79,7 +79,9 @@ describe("storedFileFor", () => {
 
   it("matches a picked name that already starts with a timestamp", () => {
     const name = "1793898269303-ceremony-layout.pdf";
-    assert.equal(storedFileFor(name, [stored(keyFor(name))])?.name, keyFor(name));
+    // the stored name carries a second timestamp in front, made once so the two can't drift
+    const key = keyFor(name);
+    assert.equal(storedFileFor(name, [stored(key)])?.name, key);
   });
 
   it("matches a file stored under its plain name", () => {

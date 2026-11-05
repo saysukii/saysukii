@@ -104,6 +104,38 @@ export async function listStudioGoogleEvents(options?: {
   return (await readStudioGoogleCalendar(options))?.events ?? [];
 }
 
+/** A timed meeting on the studio's calendar, with its guests, for matching its granola note. */
+export type StudioMeeting = {
+  id: string;
+  eventIds: string[];
+  name: string;
+  startsAt: string;
+  guests: string[];
+};
+
+/** The studio's timed meetings that start in this window, or null when the calendar can't be read. */
+export async function readStudioMeetings(from: Date, to: Date): Promise<StudioMeeting[] | null> {
+  const items = await fetchGoogleEvents(from, to);
+  if (!items) return null;
+  return items.flatMap((event) => {
+    if (!event.id || event.status === "cancelled" || !event.start?.dateTime) return [];
+    if (event.eventType === "workingLocation") return [];
+    const startsAt = new Date(event.start.dateTime);
+    if (startsAt < from || startsAt > to) return [];
+    return [
+      {
+        id: event.id,
+        eventIds: [event.id, event.iCalUID].filter((id): id is string => Boolean(id)),
+        name: event.summary?.trim() ?? "",
+        startsAt: startsAt.toISOString(),
+        guests: (event.attendees ?? [])
+          .filter((person) => !person.self && person.email)
+          .map((person) => person.email!.toLowerCase()),
+      },
+    ];
+  });
+}
+
 /** a call booked in the app, to find its own event on the calendar */
 export type BookedCall = { id: string; startsAt: string; email: string; name: string };
 
@@ -384,6 +416,7 @@ function studioWallTime(date: string, hour = 0) {
 
 type GoogleEvent = {
   id?: string;
+  iCalUID?: string;
   summary?: string;
   status?: string;
   transparency?: string;
@@ -396,7 +429,7 @@ type GoogleEvent = {
   };
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
-  attendees?: Array<{ email?: string }>;
+  attendees?: Array<{ email?: string; self?: boolean }>;
 };
 
 const MEETING_HOST =
