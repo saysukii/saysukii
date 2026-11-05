@@ -15,7 +15,7 @@ export const listLoveNotes = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("love_notes")
       .select(
-        "id, note, from_name, created_at, audio_path, consent_given_at, consent_wording, marketing_consent_given_at, marketing_consent_wording",
+        "id, note, from_name, created_at, audio_path, video_path, consent_given_at, consent_wording, marketing_consent_given_at, marketing_consent_wording",
       )
       .eq("status", "received")
       .order("created_at", { ascending: false })
@@ -23,7 +23,12 @@ export const listLoveNotes = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     const rows = data ?? [];
 
-    const paths = rows.flatMap((row) => (row.audio_path ? [row.audio_path] : []));
+    const recordingOf = (row: { audio_path: string | null; video_path: string | null }) =>
+      row.audio_path ?? row.video_path;
+    const paths = rows.flatMap((row) => {
+      const path = recordingOf(row);
+      return path ? [path] : [];
+    });
     const links = new Map<string, string>();
     if (paths.length > 0) {
       const signed = await context.supabase.storage
@@ -35,22 +40,21 @@ export const listLoveNotes = createServerFn({ method: "GET" })
     }
 
     return rows.map((row) => {
-      const audioUrl = row.audio_path ? (links.get(row.audio_path) ?? null) : null;
-      const downloadName = row.audio_path
-        ? loveNoteFileName(row.from_name, row.created_at, row.audio_path)
-        : null;
+      const path = recordingOf(row);
+      const url = path ? (links.get(path) ?? null) : null;
+      const downloadName = path ? loveNoteFileName(row.from_name, row.created_at, path) : null;
       return {
         id: row.id,
         note: row.note,
         name: row.from_name,
         createdAt: row.created_at,
-        audioUrl,
+        audioUrl: row.audio_path ? url : null,
+        videoUrl: row.video_path ? url : null,
         downloadUrl:
-          audioUrl && downloadName
-            ? `${audioUrl}&download=${encodeURIComponent(downloadName)}`
-            : null,
+          url && downloadName ? `${url}&download=${encodeURIComponent(downloadName)}` : null,
         downloadName,
-        hasRecording: !!row.audio_path,
+        hasRecording: !!path,
+        hasVideo: !!row.video_path,
         okToUse: !!row.consent_given_at,
         okForMarketing: !!row.marketing_consent_given_at,
         consentWording: row.consent_wording,
@@ -66,7 +70,7 @@ export const listFreshLoveNotes = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await context.supabase
       .from("love_notes")
-      .select("id, from_name, audio_path")
+      .select("id, from_name, audio_path, video_path")
       .eq("status", "received")
       .gte("created_at", since)
       .order("created_at", { ascending: false })
@@ -75,7 +79,8 @@ export const listFreshLoveNotes = createServerFn({ method: "GET" })
     return (data ?? []).map((row) => ({
       id: row.id,
       name: row.from_name,
-      hasRecording: !!row.audio_path,
+      hasRecording: !!(row.audio_path ?? row.video_path),
+      hasVideo: !!row.video_path,
     }));
   });
 
@@ -86,15 +91,16 @@ export const deleteLoveNote = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from("love_notes")
-      .select("audio_path")
+      .select("audio_path, video_path")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) return { ok: true as const };
 
     // the recording goes first, so a note is never gone while its recording stays behind
-    if (row.audio_path) {
-      const removed = await context.supabase.storage.from(BUCKET).remove([row.audio_path]);
+    const recording = row.audio_path ?? row.video_path;
+    if (recording) {
+      const removed = await context.supabase.storage.from(BUCKET).remove([recording]);
       if (removed.error) throw new Error(removed.error.message);
     }
     const deleted = await context.supabase.from("love_notes").delete().eq("id", data.id);

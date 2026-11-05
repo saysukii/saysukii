@@ -6,13 +6,17 @@ import {
   MAX_AUDIO_BYTES,
   MAX_NAME_LENGTH,
   MAX_NOTE_LENGTH,
+  MAX_VIDEO_BYTES,
   parseLoveNote,
+  VIDEO_CONSENT_WORDING,
+  VIDEO_MARKETING_WORDING,
   VOICE_CONSENT_WORDING,
   VOICE_MARKETING_WORDING,
 } from "./love-note-input.ts";
 
 const name = "Maya Lee";
 const voice = { name, consent: true, audioType: "audio/webm;codecs=opus", audioBytes: 2000 };
+const video = { name, consent: true, videoType: "video/mp4;codecs=avc1,mp4a", videoBytes: 900_000 };
 
 test("a named note comes through in lowercase, with its spaces trimmed", () => {
   const parsed = parseLoveNote({ text: "  Thank YOU ", name: "  Maya Lee " });
@@ -99,8 +103,41 @@ test("anything that isn't a note is refused", () => {
   assert.equal(parseLoveNote({ text: 5, name }).kind, "invalid");
 });
 
+test("a video note comes through, kept as mp4 or webm", () => {
+  const parsed = parseLoveNote(video);
+  assert.equal(parsed.kind, "ok");
+  if (parsed.kind === "ok") {
+    assert.deepEqual(parsed.input.video, { contentType: "video/mp4", extension: "mp4" });
+    assert.equal(parsed.input.audio, null);
+  }
+  const webm = parseLoveNote({ ...video, videoType: "video/webm;codecs=vp9,opus" });
+  assert.equal(webm.kind === "ok" && webm.input.video?.extension, "webm");
+});
+
+test("a video note needs consent, and marketing stays optional", () => {
+  assert.deepEqual(parseLoveNote({ ...video, consent: false }), {
+    kind: "invalid",
+    error: "consent is needed for a video note",
+  });
+  const yes = parseLoveNote({ ...video, consentMarketing: true });
+  assert.equal(yes.kind === "ok" && yes.input.marketing, true);
+});
+
+test("only video, at a sensible size, is accepted as a video note", () => {
+  assert.equal(parseLoveNote({ ...video, videoType: "audio/mp4" }).kind, "invalid");
+  assert.equal(parseLoveNote({ ...video, videoType: "text/html" }).kind, "invalid");
+  assert.equal(parseLoveNote({ ...video, videoBytes: 0 }).kind, "invalid");
+  assert.equal(parseLoveNote({ ...video, videoBytes: MAX_VIDEO_BYTES + 1 }).kind, "invalid");
+});
+
+test("a note carries one recording, not a voice note and a video note", () => {
+  assert.equal(parseLoveNote({ ...voice, ...video }).kind, "invalid");
+});
+
 test("the card shows exactly the consent wording that gets saved", () => {
   const card = readFileSync(new URL("../../public/love-note.html", import.meta.url), "utf8");
-  assert.ok(card.includes(`<span>${VOICE_CONSENT_WORDING}</span>`));
-  assert.ok(card.includes(`<span>${VOICE_MARKETING_WORDING} (optional)</span>`));
+  assert.ok(card.includes(`>${VOICE_CONSENT_WORDING}</span>`));
+  assert.ok(card.includes(`>${VOICE_MARKETING_WORDING} (optional)</span>`));
+  assert.ok(card.includes(`data-video="${VIDEO_CONSENT_WORDING}"`));
+  assert.ok(card.includes(`data-video="${VIDEO_MARKETING_WORDING} (optional)"`));
 });

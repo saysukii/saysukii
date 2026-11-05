@@ -18377,6 +18377,14 @@ a.studio-kicker:hover {
   height: 32px;
 }
 
+.studio-love-video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  border-radius: 4px;
+  background: #1e1a18;
+}
+
 .studio-love-consent {
   display: flex;
   flex-wrap: wrap;

@@ -200,7 +200,20 @@ function LoveNoteRow({ note, onDelete }: { note: LoveNote; onDelete: () => Promi
         <time dateTime={note.createdAt}>{loveNoteDate(note.createdAt)}</time>
       </header>
       {note.note ? <p className="studio-love-words">{note.note}</p> : null}
-      {note.hasRecording ? (
+      {note.hasVideo ? (
+        note.videoUrl ? (
+          <video
+            className="studio-love-video"
+            controls
+            playsInline
+            preload="metadata"
+            src={note.videoUrl}
+            aria-label={`video note from ${note.name}`}
+          />
+        ) : (
+          <p className="studio-love-empty">this recording couldn't be opened.</p>
+        )
+      ) : note.hasRecording ? (
         note.audioUrl ? (
           <audio
             controls
