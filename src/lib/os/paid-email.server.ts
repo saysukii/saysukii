@@ -6,6 +6,7 @@ import {
 } from "@/lib/email-templates";
 import { withFee } from "@/lib/convenience-fee";
 import { emailKind, renderSaySukiiEmail, studioLinkOrigin } from "@/lib/os/email-layout";
+import { attachmentHeaders } from "@/lib/os/gmail-outbound.server";
 
 export type PaidLetter = {
   clientName: string;
@@ -338,9 +339,7 @@ export async function sendClientLetter(input: {
       `--${alt}--`,
       ...files.flatMap((file) => [
         `--${mixed}`,
-        `Content-Type: ${file.type}; name="${file.name}"`,
-        "Content-Transfer-Encoding: base64",
-        `Content-Disposition: attachment; filename="${file.name}"`,
+        ...attachmentHeaders(file),
         "",
         base64Lines(file.data),
       ]),

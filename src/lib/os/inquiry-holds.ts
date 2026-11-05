@@ -32,7 +32,8 @@ export function withDatesNote(message: string, dates: string[]) {
   return [body, note].filter(Boolean).join("\n");
 }
 
-export function studioFileKey(folder: string, name: string) {
+/** The form a file's name takes in storage: "Ceremony Layout.pdf" is "ceremony-layout.pdf". */
+export function studioFileSlug(name: string) {
   const ext =
     name
       .split(".")
@@ -45,8 +46,13 @@ export function studioFileKey(folder: string, name: string) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
-      .slice(0, 40) || "file";
-  return `${folder}/${Date.now()}-${stem}.${ext}`;
+      .slice(0, 40)
+      .replace(/-$/, "") || "file";
+  return `${stem}.${ext}`;
+}
+
+export function studioFileKey(folder: string, name: string) {
+  return `${folder}/${Date.now()}-${studioFileSlug(name)}`;
 }
 
 export function fileContentType(file: File) {

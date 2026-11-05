@@ -9,7 +9,17 @@ import {
   SquarePen,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type MouseEventHandler,
+  type SetStateAction,
+} from "react";
+import { toast } from "sonner";
 
 import {
   Dialog,
@@ -20,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Wordmark } from "@/components/portal/bits";
 import { PersonName } from "@/components/studio/PersonName";
+import { letterBodyWithFiles, letterFileProblem } from "@/lib/os/letter-files";
 import { mailRecord, uniqueMails } from "@/lib/os/mail-people";
 import { linkPlainMail } from "@/lib/os/mail-reply";
 import { capitalizeName } from "@/lib/name-case";
@@ -58,8 +69,12 @@ export type DraftFile = {
   size: number;
   path: string | null;
   uploading: boolean;
+  failed: boolean;
+  source: File;
 };
 export type LetterFile = { path: string; name: string };
+/** A letter as it was before sending, so undo or a failed send can put it all back. */
+export type HeldLetter = { text: string; sendAt: string; files: DraftFile[] };
 export type ComposeTool = "schedule" | "link" | "write";
 
 export function ContextPreview({ name, body }: { name: string; body: string }) {
@@ -71,7 +86,15 @@ export function ContextPreview({ name, body }: { name: string; body: string }) {
   );
 }
 
-export function MailFile({ name, href }: { name: string; href?: string | null | undefined }) {
+export function MailFile({
+  name,
+  href,
+  onOpen,
+}: {
+  name: string;
+  href?: string | null | undefined;
+  onOpen?: MouseEventHandler<HTMLAnchorElement> | undefined;
+}) {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   const archive = ext === "zip";
   const body = (
@@ -89,7 +112,7 @@ export function MailFile({ name, href }: { name: string; href?: string | null | 
   );
   if (!href) return <span className="studio-mail-file">{body}</span>;
   return (
-    <a className="studio-mail-file" href={href} target="_blank" rel="noreferrer">
+    <a className="studio-mail-file" href={href} target="_blank" rel="noreferrer" onClick={onOpen}>
       {body}
     </a>
   );
@@ -229,6 +252,10 @@ export function ThreadComposer({
   subject,
   draft,
   setDraft,
+  files,
+  setFiles,
+  sendAt,
+  setSendAt,
   pending,
   canSend,
   clientName,
@@ -251,6 +278,10 @@ export function ThreadComposer({
   subject?: string;
   draft: string;
   setDraft: (value: string) => void;
+  files: DraftFile[];
+  setFiles: Dispatch<SetStateAction<DraftFile[]>>;
+  sendAt: string;
+  setSendAt: (value: string) => void;
   pending: boolean;
   canSend: boolean;
   clientName?: string | null | undefined;
@@ -267,18 +298,21 @@ export function ThreadComposer({
   copyTo: string[];
   onMoreTo: (next: string[]) => void;
   onCopyTo: (next: string[]) => void;
-  onSend: (body: string, sendAt?: string, attachments?: LetterFile[]) => void;
+  onSend: (
+    body: string,
+    sendAt: string | undefined,
+    attachments: LetterFile[],
+    held: HeldLetter,
+  ) => void;
   onUseSubject?: (subject: string) => void;
   onOpenable?: (files: Record<string, string>) => void;
-  onKeep?: (files: File[]) => Promise<Array<string | null>>;
+  onKeep: (files: File[]) => Promise<Array<string | null>>;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const editor = useRef<HTMLDivElement>(null);
   const linkPop = useRef<HTMLDivElement>(null);
   const linkHold = useRef<HTMLElement | null>(null);
   const linkSpan = useRef<{ start: number; end: number } | null>(null);
-  const [files, setFiles] = useState<DraftFile[]>([]);
-  const [sendAt, setSendAt] = useState("");
   const [tool, setTool] = useState<ComposeTool | null>(null);
   const [linkHref, setLinkHref] = useState("");
   const [linkAt, setLinkAt] = useState<{ top: number; left: number } | null>(null);
@@ -292,8 +326,8 @@ export function ThreadComposer({
   const [templateProblem, setTemplateProblem] = useState("");
   const [confirm, setConfirm] = useState<{
     body: string;
-    sendAt: string;
     attachments: LetterFile[];
+    held: HeldLetter;
   } | null>(null);
   const email = sendAs === "email";
 
@@ -356,17 +390,36 @@ export function ThreadComposer({
       name: file.name,
       size: file.size,
       path: null,
-      uploading: Boolean(onKeep),
+      uploading: true,
+      failed: false,
+      source: file,
     }));
     setFiles((current) => [...current, ...added]);
-    void onKeep?.(picked).then((paths) => {
+    const problem = letterFileProblem([...files, ...added], email);
+    if (problem) toast.error(problem);
+    keepFiles(added);
+  }
+
+  function keepFiles(list: DraftFile[]) {
+    void onKeep(list.map((file) => file.source)).then((paths) => {
       setFiles((current) =>
         current.map((file) => {
-          const index = added.findIndex((item) => item.id === file.id);
-          return index < 0 ? file : { ...file, path: paths[index] ?? null, uploading: false };
+          const index = list.findIndex((item) => item.id === file.id);
+          if (index < 0) return file;
+          const path = paths[index] ?? null;
+          return { ...file, path, uploading: false, failed: !path };
         }),
       );
     });
+  }
+
+  function retryFile(target: DraftFile) {
+    setFiles((current) =>
+      current.map((file) =>
+        file.id === target.id ? { ...file, uploading: true, failed: false } : file,
+      ),
+    );
+    keepFiles([target]);
   }
 
   // both only touch refs, so they keep one identity across renders
@@ -512,28 +565,22 @@ export function ThreadComposer({
     setTool(null);
   }
 
-  function letterBody() {
-    const text = draft.trim();
-    const names = files.map((file) => file.name);
-    if (!names.length) return text;
-    return text ? `${text}\n\nAttached: ${names.join(", ")}` : `Attached: ${names.join(", ")}`;
-  }
-
   function submit(event: FormEvent) {
     event.preventDefault();
-    const body = letterBody();
-    if (!body || !canSend) return;
+    const body = letterBodyWithFiles(draft, files);
+    if (!body || !canSend || uploading || fileProblem) return;
+    const held = { text: draft, sendAt, files };
     if (!email) {
       setFiles([]);
-      onSend(body);
+      onSend(body, undefined, [], held);
       return;
     }
     const letter = {
       body,
-      sendAt,
       attachments: files.flatMap((file) =>
         file.path ? [{ path: file.path, name: file.name }] : [],
       ),
+      held,
     };
     // every letter is read once as the client will see it; send there starts the ten-second hold
     setConfirm(letter);
@@ -541,17 +588,18 @@ export function ThreadComposer({
 
   function commitSend(letter = confirm) {
     if (!letter) return;
-    const { body, sendAt: when, attachments } = letter;
+    const { body, attachments, held } = letter;
     setConfirm(null);
     setDraft("");
     setFiles([]);
     setSendAt("");
     setTool(null);
-    onSend(body, when || undefined, attachments);
+    onSend(body, held.sendAt || undefined, attachments, held);
   }
 
   const uploading = files.some((file) => file.uploading);
-  const ready = Boolean(draft.trim() || files.length) && !uploading;
+  const fileProblem = letterFileProblem(files, email);
+  const ready = Boolean(draft.trim() || files.length) && !uploading && !fileProblem;
   const people = email ? mailRecord(uniqueMails([clientEmail, ...moreTo]), copyTo) : null;
   const who = people && (people.to.length > 1 || people.cc.length) ? people.line : "";
 
@@ -607,11 +655,26 @@ export function ThreadComposer({
       {files.length ? (
         <div className="studio-composer-chips">
           {files.map((file) => (
-            <span key={file.id} className="studio-composer-chip">
+            <span key={file.id} className={cn("studio-composer-chip", file.failed && "is-failed")}>
               <span>
                 {file.name}
-                <small>{file.uploading ? "uploading…" : fileSize(file.size)}</small>
+                <small>
+                  {file.uploading
+                    ? "uploading…"
+                    : file.failed
+                      ? "didn't upload"
+                      : fileSize(file.size)}
+                </small>
               </span>
+              {file.failed ? (
+                <button
+                  type="button"
+                  className="studio-composer-chip-retry"
+                  onClick={() => retryFile(file)}
+                >
+                  retry
+                </button>
+              ) : null}
               <button
                 type="button"
                 aria-label={`remove ${file.name}`}
@@ -706,6 +769,11 @@ export function ThreadComposer({
           {uploading ? "uploading" : email ? (sendAt ? "schedule" : "send") : "keep note"}
         </button>
       </div>
+      {fileProblem ? (
+        <p className="studio-composer-note is-problem" role="alert">
+          {fileProblem}
+        </p>
+      ) : null}
       {blockedNote ? <p className="studio-composer-note">{blockedNote}</p> : null}
       {email ? (
         <>
@@ -846,7 +914,7 @@ export function ThreadComposer({
               </div>
               <DialogTitle className="sr-only">read this letter before it sends</DialogTitle>
               <DialogDescription className="sr-only">
-                {confirm?.sendAt
+                {confirm?.held.sendAt
                   ? "this letter waits until the time you chose."
                   : "after you send, there are 10 seconds to undo."}
               </DialogDescription>
@@ -869,15 +937,15 @@ export function ThreadComposer({
                     <MailSignature name={sender || ""} tone="ink" />
                   </div>
                 </article>
-                {confirm?.sendAt ? (
-                  <p className="studio-composer-when">sends {formatSendAt(confirm.sendAt)}</p>
+                {confirm?.held.sendAt ? (
+                  <p className="studio-composer-when">sends {formatSendAt(confirm.held.sendAt)}</p>
                 ) : null}
                 <div className="studio-ask-foot is-pair is-spread">
                   <button type="button" className="studio-ghost" onClick={() => setConfirm(null)}>
                     keep editing
                   </button>
                   <button type="button" className="studio-today-go" onClick={() => commitSend()}>
-                    {confirm?.sendAt ? "schedule" : "send"}
+                    {confirm?.held.sendAt ? "schedule" : "send"}
                   </button>
                 </div>
               </div>

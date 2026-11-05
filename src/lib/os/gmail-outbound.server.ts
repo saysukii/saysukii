@@ -17,9 +17,6 @@ export type MailAttachment = {
   data: Uint8Array;
 };
 
-/** Gmail refuses anything over 25mb of attachments for most recipients. */
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
-
 export type Rfc822Input = {
   from: string;
   fromName?: string | null;
@@ -128,23 +125,32 @@ function base64Body(value: string) {
 function attachmentFilename(name: string) {
   const clean = name.replace(/[\r\n"\\]/g, "").trim() || "attachment";
   const ascii = clean.replace(/[^\x20-\x7e]/g, "_");
-  return `filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`;
+  // encodeURIComponent leaves ' ( ) * alone, and filename* doesn't allow them
+  const encoded = encodeURIComponent(clean).replace(
+    /['()*]/g,
+    (mark) => `%${mark.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return { ascii, header: `filename="${ascii}"; filename*=UTF-8''${encoded}` };
+}
+
+/** The lines above a file's bytes in a letter, safe for any name a file can have. */
+export function attachmentHeaders(file: { name: string; type: string }) {
+  const type = file.type.replace(/[\r\n]/g, "").trim() || "application/octet-stream";
+  const filename = attachmentFilename(file.name);
+  return [
+    `Content-Type: ${type}; name="${filename.ascii}"`,
+    `Content-Disposition: attachment; ${filename.header}`,
+    "Content-Transfer-Encoding: base64",
+  ];
 }
 
 function attachmentPart(file: MailAttachment) {
-  const type = file.type.replace(/[\r\n]/g, "").trim() || "application/octet-stream";
   const data =
     Buffer.from(file.data)
       .toString("base64")
       .match(/.{1,76}/g)
       ?.join("\r\n") ?? "";
-  return [
-    `Content-Type: ${type}; name="${file.name.replace(/[\r\n"\\]/g, "").replace(/[^\x20-\x7e]/g, "_")}"`,
-    `Content-Disposition: attachment; ${attachmentFilename(file.name)}`,
-    "Content-Transfer-Encoding: base64",
-    "",
-    data,
-  ].join("\r\n");
+  return [...attachmentHeaders(file), "", data].join("\r\n");
 }
 
 export function buildRfc822(input: Rfc822Input) {

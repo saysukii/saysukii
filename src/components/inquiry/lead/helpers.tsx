@@ -6,6 +6,7 @@ import type { InquiryMessageRow } from "@/integrations/supabase/types";
 import { proposalOrigin } from "@/lib/proposal-link";
 import { formatDateNumeric } from "@/lib/money";
 import { initials } from "@/lib/os/inquiry-desk";
+import { attachedNames } from "@/lib/os/letter-files";
 
 export const PROPOSAL_THREAD = "your floral proposal";
 
@@ -80,11 +81,7 @@ export function htmlToDraft(root: HTMLElement) {
 export function splitMail(body: string) {
   const match = body.match(/\n*Attached:\s*([^\n]+)\s*$/);
   if (!match || match.index == null) return { text: body, files: [] as string[] };
-  const files = (match[1] ?? "")
-    .split(",")
-    .map((name) => name.trim())
-    .filter(Boolean);
-  return { text: body.slice(0, match.index).trimEnd(), files };
+  return { text: body.slice(0, match.index).trimEnd(), files: attachedNames(match[1] ?? "") };
 }
 
 export const PORTAL_FILES: Record<string, string> = {

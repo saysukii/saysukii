@@ -13,7 +13,15 @@ import {
   User,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 
 import { TextShimmer } from "@/components/core/text-shimmer";
@@ -37,6 +45,7 @@ import {
 } from "@/lib/os/inquiry-holds";
 import { mailRecord, replyAllPeople, uniqueMails } from "@/lib/os/mail-people";
 import { noteWriter, signatureName } from "@/lib/os/mail-signature";
+import { fileLinkOld } from "@/lib/app-file-link";
 import { convenienceFee } from "@/lib/convenience-fee";
 import { DiscountField } from "@/components/inquiry/lead/discount-field";
 import { discountCents, discountPercent, type DiscountMode } from "@/lib/discount";
@@ -114,6 +123,7 @@ import { isReviewCandidate } from "@/lib/os/inquiry-detection";
 import {
   addInquiryMessage,
   attachInquiryFile,
+  freshInquiryFileLink,
   cancelScheduledLetter,
   deleteInquiryNote,
   removeInquiryFile,
@@ -136,6 +146,8 @@ import { MarkPaidDialog, type MarkedPayment } from "@/components/inquiry/lead/ma
 import { useDevPreview } from "@/lib/use-dev-preview";
 import { cn } from "@/lib/utils";
 import {
+  type DraftFile,
+  type HeldLetter,
   type LetterFile,
   LetterPreview,
   ThreadComposer,
@@ -153,7 +165,6 @@ import {
 import {
   PROPOSAL_THREAD,
   formatSendAt,
-  PORTAL_FILES,
   latestMailThread,
   threadBase,
   firstName,
@@ -334,6 +345,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const clearProposalFn = useServerFn(clearProposal);
   const [confirmClear, setConfirmClear] = useState(false);
   const saveFile = useServerFn(attachInquiryFile);
+  const freshFileLink = useServerFn(freshInquiryFileLink);
   const dropFile = useServerFn(removeInquiryFile);
   const updateStatus = useServerFn(setInquiryStatus);
   const saveMomentFields = useServerFn(updateInquiryMoment);
@@ -346,6 +358,8 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const channel: "email" | "note" = surface === "notes" || surface === "rail" ? "note" : "email";
   const [activityTab, setActivityTab] = useState<"messages" | "notes">("messages");
   const [draft, setDraft] = useState("");
+  const [letterFiles, setLetterFiles] = useState<DraftFile[]>([]);
+  const [letterSendAt, setLetterSendAt] = useState("");
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [localMessages, setLocalMessages] = useState<InquiryMessageRow[]>([]);
   const [moreTo, setMoreTo] = useState<string[]>([]);
@@ -431,7 +445,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const keptPdfPath = useRef("");
   const keepProposal = useRef<() => void>(() => {});
 
-  const { data, isPending, isError } = useQuery({
+  const { data, dataUpdatedAt, isPending, isError } = useQuery({
     queryKey: ["os", "inquiry-workspace", id, devPreview],
     queryFn: () =>
       devPreview ? getDevPreviewInquiryWorkspace(id) : fetchWorkspace({ data: { id } }),
@@ -987,6 +1001,17 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const sendHold = useRef<{ timer: number; run: () => void; undo: () => void } | null>(null);
   const [holding, setHolding] = useState<{ id: number; line: string } | null>(null);
 
+  /** Undoing or failing a send only stops the send: the words, files and time all come back. */
+  function restoreLetter(held: HeldLetter) {
+    setDraft((current) => {
+      const typed = current.trim();
+      if (!typed || typed === held.text.trim()) return held.text;
+      return `${held.text.trim()}\n\n${typed}`;
+    });
+    setLetterFiles((current) => [...held.files, ...current]);
+    setLetterSendAt((current) => current || held.sendAt);
+  }
+
   /** Every letter waits ten seconds under the ribbon, so a slip can be caught before it leaves. */
   function queueLetter(run: () => void, restore?: () => void, who?: string | null) {
     if (sendHold.current) {
@@ -1211,16 +1236,28 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       created_at: "",
     })),
   ];
-  const fileHrefs = {
-    ...PORTAL_FILES,
-    ...Object.fromEntries(
-      allFiles.flatMap((file) => {
-        const name = file.name ?? "";
-        return name && file.signed_url ? [[name, file.signed_url]] : [];
-      }),
-    ),
-    ...openable,
-  };
+
+  // a page left open outlives its file links, so an old one is swapped for a new one on the tap
+  function openFile(event: MouseEvent<HTMLAnchorElement>, fileId: string) {
+    if (!fileLinkOld(dataUpdatedAt)) return;
+    event.preventDefault();
+    const current = event.currentTarget.href;
+    // the tab opens now, not after the wait: a phone blocks one opened any later than the tap
+    const tab = window.open("", "_blank");
+    const link = devPreview
+      ? Promise.resolve(current)
+      : freshFileLink({ data: { id: fileId } }).then((fresh) => fresh.href);
+    void link
+      .then((href) => {
+        if (tab) tab.location.href = href;
+        else window.location.href = href;
+        void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
+      })
+      .catch((error: unknown) => {
+        tab?.close();
+        toast.error(error instanceof Error ? error.message : "could not open this file");
+      });
+  }
 
   async function cancelLetter(messageId: string) {
     if (devPreview) {
@@ -1259,30 +1296,32 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   async function keepStudioFile(file: File): Promise<string | null> {
     if (devPreview) {
       setLocalFiles((current) => [...current, { id: crypto.randomUUID(), name: file.name, file }]);
-      toast.message("file kept on this lead in preview.");
-      return null;
+      return `preview/${file.name}`;
     }
     const path = studioFileKey(`inquiries/${inquiryId}`, file.name);
-    const upload = await supabase.storage.from("project-files").upload(path, file, {
-      contentType: fileContentType(file),
-      upsert: false,
-    });
-    if (upload.error) {
-      toast.error(upload.error.message);
-      return null;
-    }
     try {
+      const upload = await supabase.storage.from("project-files").upload(path, file, {
+        contentType: fileContentType(file),
+        upsert: false,
+      });
+      if (upload.error) throw new Error(upload.error.message);
       await saveFile({
         data: { inquiry_id: inquiryId, file_path: path, file_type: fileContentType(file) },
       });
-      toast.success("file added");
       void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
       return path;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "could not keep this file");
+      const reason = error instanceof Error ? error.message : "something went wrong";
+      toast.error(`${file.name} didn't upload: ${reason}`);
       return null;
     }
   }
+
+  /** the files tab has no chip to show a file arrived, so it says so */
+  async function addToFiles(file: File) {
+    if (await keepStudioFile(file)) toast.success("file added");
+  }
+
   const candidate = isReviewCandidate(inquiry);
   const peek = sourceExcerpt(source_message?.subject, source_message?.body ?? inquiry.message, 280);
   const confidence = confidenceLabel(inquiry.detection_confidence);
@@ -1868,6 +1907,10 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       }
       draft={draft}
       setDraft={setDraft}
+      files={letterFiles}
+      setFiles={setLetterFiles}
+      sendAt={letterSendAt}
+      setSendAt={setLetterSendAt}
       pending={post.isPending}
       canSend={sendAs === "note" || gmailConnected || devPreview}
       clientName={client?.name}
@@ -1883,15 +1926,18 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       copyTo={copyTo}
       onMoreTo={setMoreTo}
       onCopyTo={setCopyTo}
-      onSend={(body, sendAt, attachments) =>
+      onSend={(body, sendAt, attachments, held) =>
         queueLetter(
           () =>
-            post.mutate({
-              body,
-              ...(sendAt ? { sendAt } : {}),
-              ...(attachments?.length ? { attachments } : {}),
-            }),
-          () => setDraft(body),
+            post.mutate(
+              {
+                body,
+                ...(sendAt ? { sendAt } : {}),
+                ...(attachments.length ? { attachments } : {}),
+              },
+              { onError: () => restoreLetter(held) },
+            ),
+          () => restoreLetter(held),
           client?.name ?? null,
         )
       }
@@ -2458,7 +2504,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 messages={threadedMessages}
                 clientName={client?.name}
                 person={isPersonType(client?.type)}
-                fileHrefs={fileHrefs}
+                files={allFiles}
+                openable={openable}
+                onOpenFile={openFile}
                 viewedAtByToken={viewedAtByToken}
                 onCancel={(messageId) => void cancelLetter(messageId)}
               />
@@ -3294,7 +3342,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               event.preventDefault();
               setFileOver(false);
               const dropped = event.dataTransfer.files;
-              for (const file of Array.from(dropped)) void keepStudioFile(file);
+              for (const file of Array.from(dropped)) void addToFiles(file);
             }}
           >
             <Upload aria-hidden="true" strokeWidth={1.5} />
@@ -3306,7 +3354,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
-                if (file) void keepStudioFile(file);
+                if (file) void addToFiles(file);
               }}
             />
           </label>
@@ -3321,6 +3369,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                     target="_blank"
                     rel="noreferrer"
                     className="studio-file-open"
+                    onClick={(event) => openFile(event, file.id)}
                   >
                     <b>{name}</b>
                   </a>
