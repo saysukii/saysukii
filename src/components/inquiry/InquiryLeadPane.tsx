@@ -13,7 +13,15 @@ import {
   User,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 
 import { TextShimmer } from "@/components/core/text-shimmer";
@@ -37,6 +45,7 @@ import {
 } from "@/lib/os/inquiry-holds";
 import { mailRecord, replyAllPeople, uniqueMails } from "@/lib/os/mail-people";
 import { noteWriter, signatureName } from "@/lib/os/mail-signature";
+import { fileLinkOld } from "@/lib/app-file-link";
 import { convenienceFee } from "@/lib/convenience-fee";
 import { DiscountField } from "@/components/inquiry/lead/discount-field";
 import { discountCents, discountPercent, type DiscountMode } from "@/lib/discount";
@@ -114,6 +123,7 @@ import { isReviewCandidate } from "@/lib/os/inquiry-detection";
 import {
   addInquiryMessage,
   attachInquiryFile,
+  freshInquiryFileLink,
   cancelScheduledLetter,
   deleteInquiryNote,
   removeInquiryFile,
@@ -153,7 +163,6 @@ import {
 import {
   PROPOSAL_THREAD,
   formatSendAt,
-  PORTAL_FILES,
   latestMailThread,
   threadBase,
   firstName,
@@ -334,6 +343,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const clearProposalFn = useServerFn(clearProposal);
   const [confirmClear, setConfirmClear] = useState(false);
   const saveFile = useServerFn(attachInquiryFile);
+  const freshFileLink = useServerFn(freshInquiryFileLink);
   const dropFile = useServerFn(removeInquiryFile);
   const updateStatus = useServerFn(setInquiryStatus);
   const saveMomentFields = useServerFn(updateInquiryMoment);
@@ -431,7 +441,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const keptPdfPath = useRef("");
   const keepProposal = useRef<() => void>(() => {});
 
-  const { data, isPending, isError } = useQuery({
+  const { data, dataUpdatedAt, isPending, isError } = useQuery({
     queryKey: ["os", "inquiry-workspace", id, devPreview],
     queryFn: () =>
       devPreview ? getDevPreviewInquiryWorkspace(id) : fetchWorkspace({ data: { id } }),
@@ -1211,16 +1221,28 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
       created_at: "",
     })),
   ];
-  const fileHrefs = {
-    ...PORTAL_FILES,
-    ...Object.fromEntries(
-      allFiles.flatMap((file) => {
-        const name = file.name ?? "";
-        return name && file.signed_url ? [[name, file.signed_url]] : [];
-      }),
-    ),
-    ...openable,
-  };
+
+  // a page left open outlives its file links, so an old one is swapped for a new one on the tap
+  function openFile(event: MouseEvent<HTMLAnchorElement>, fileId: string) {
+    if (!fileLinkOld(dataUpdatedAt)) return;
+    event.preventDefault();
+    const current = event.currentTarget.href;
+    // the tab opens now, not after the wait: a phone blocks one opened any later than the tap
+    const tab = window.open("", "_blank");
+    const link = devPreview
+      ? Promise.resolve(current)
+      : freshFileLink({ data: { id: fileId } }).then((fresh) => fresh.href);
+    void link
+      .then((href) => {
+        if (tab) tab.location.href = href;
+        else window.location.href = href;
+        void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
+      })
+      .catch((error: unknown) => {
+        tab?.close();
+        toast.error(error instanceof Error ? error.message : "could not open this file");
+      });
+  }
 
   async function cancelLetter(messageId: string) {
     if (devPreview) {
@@ -2458,7 +2480,9 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                 messages={threadedMessages}
                 clientName={client?.name}
                 person={isPersonType(client?.type)}
-                fileHrefs={fileHrefs}
+                files={allFiles}
+                openable={openable}
+                onOpenFile={openFile}
                 viewedAtByToken={viewedAtByToken}
                 onCancel={(messageId) => void cancelLetter(messageId)}
               />
@@ -3321,6 +3345,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                     target="_blank"
                     rel="noreferrer"
                     className="studio-file-open"
+                    onClick={(event) => openFile(event, file.id)}
                   >
                     <b>{name}</b>
                   </a>

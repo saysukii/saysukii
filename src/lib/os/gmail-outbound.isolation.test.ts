@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  attachmentHeaders,
   buildRfc822,
   encodeGmailRaw,
   fetchGmailReplyHeaders,
@@ -76,6 +77,35 @@ describe("Gmail outbound composer", () => {
     assert.equal(sent.gmail_message_id, "msg-out-1");
     assert.equal(sent.gmail_thread_id, "thread-pamm");
     assert.equal(sendResultContainsSecrets(sent, TOKEN), false);
+  });
+
+  it("encodes a filename's quote marks and brackets so filename* stays well formed", () => {
+    const [type, disposition] = attachmentHeaders({
+      name: "Bride's moodboard (final)*.pdf",
+      type: "application/pdf",
+    });
+    assert.equal(type, `Content-Type: application/pdf; name="Bride's moodboard (final)*.pdf"`);
+    assert.equal(
+      disposition,
+      `Content-Disposition: attachment; filename="Bride's moodboard (final)*.pdf"; filename*=UTF-8''Bride%27s%20moodboard%20%28final%29%2A.pdf`,
+    );
+    const value = /filename\*=UTF-8''(.+)$/.exec(disposition ?? "")?.[1] ?? "";
+    assert.match(value, /^[A-Za-z0-9!#$&+\-.^_`|~%]+$/);
+    assert.equal(decodeURIComponent(value), "Bride's moodboard (final)*.pdf");
+  });
+
+  it("keeps a raw name from breaking out of a file's headers", () => {
+    const lines = attachmentHeaders({
+      name: 'proposal "final"\r\nBcc: someone@example.com é.pdf',
+      type: "application/pdf\r\nX-Evil: 1",
+    });
+    for (const line of lines) assert.doesNotMatch(line, /[\r\n]/);
+    assert.match(lines[0] ?? "", /^Content-Type: application\/pdfX-Evil: 1; name="proposal final/);
+    assert.match(lines[1] ?? "", /filename="proposal finalBcc: someone@example.com _\.pdf"/);
+    assert.match(
+      lines[1] ?? "",
+      /filename\*=UTF-8''proposal%20finalBcc%3A%20someone%40example\.com%20%C3%A9\.pdf$/,
+    );
   });
 
   it("attaches files as real parts and sends them through gmail's upload endpoint on the thread", async () => {

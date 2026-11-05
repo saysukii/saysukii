@@ -5,7 +5,7 @@ import { Resend } from "resend";
 import type { EventType } from "@/integrations/supabase/types";
 import { emailKind, renderSaySukiiEmail, studioLinkOrigin } from "@/lib/os/email-layout";
 import { studioNotificationEmail } from "@/lib/os/email.server";
-import { encodeGmailRaw } from "@/lib/os/gmail-outbound.server";
+import { attachmentHeaders, encodeGmailRaw } from "@/lib/os/gmail-outbound.server";
 import { EVENT_LABEL, recordSlug } from "@/lib/os/inquiry-desk";
 
 const STUDIO_INBOX = "info@saysukii.com";
@@ -145,9 +145,7 @@ function noticeRfc822(
     ...letter,
     ...files.flatMap((file) => [
       `--${mixed}`,
-      `Content-Type: ${file.type}; name="${file.name}"`,
-      "Content-Transfer-Encoding: base64",
-      `Content-Disposition: attachment; filename="${file.name}"`,
+      ...attachmentHeaders(file),
       "",
       base64Lines(file.data),
     ]),

@@ -1352,6 +1352,24 @@ export function getDevPreviewInquiryWorkspace(id: string) {
         created_at: hoursAgo(5),
       },
       {
+        // a sent letter with files: its chips open what's kept on the lead, under storage's names
+        id: "msg-out-maya-files",
+        inquiry_id: inquiry.id,
+        direction: "outbound",
+        channel: "email",
+        subject: "re: october 1 at the hard rock",
+        body: "The room as we have it so far.\n\nAttached: Ceremony Layout.pdf, Garden side, dusk.pdf",
+        from_address: "info@saysukii.com",
+        to_address: client?.email ?? null,
+        gmail_message_id: "gmail-out-maya-files",
+        gmail_thread_id: "thread-maya",
+        author: "say sukii",
+        sent_at: hoursAgo(4),
+        status: "sent",
+        created_by: null,
+        created_at: hoursAgo(4),
+      },
+      {
         id: "msg-in-maya",
         inquiry_id: inquiry.id,
         direction: "inbound",
@@ -1576,7 +1594,22 @@ export function getDevPreviewInquiryWorkspace(id: string) {
                 signed_url: null as string | null,
               },
             ]
-          : [],
+          : inquiry.id === PREVIEW_IDS.inquiryFresh
+            ? [
+                ["1793898269303-ceremony-layout.pdf", "file-maya-layout"],
+                ["1793898269304-garden-side-dusk.pdf", "file-maya-garden"],
+              ].map(([name, id]) => ({
+                id: id!,
+                owner_type: "inquiry" as const,
+                owner_id: inquiry.id,
+                file_path: `inquiries/${inquiry.id}/${name}`,
+                file_type: "application/pdf",
+                uploaded_by: null,
+                created_at: hoursAgo(5),
+                name: name!,
+                signed_url: "/attachments/ceremony-layout.pdf" as string | null,
+              }))
+            : [],
     gmailConnected: false,
     // a stand-in for the owner's signature from settings
     studioSignature: { name: "Sukii", image: PREVIEW_STUDIO_SIGNATURE } as {

@@ -9,7 +9,14 @@ import {
   SquarePen,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEventHandler,
+} from "react";
 
 import {
   Dialog,
@@ -71,7 +78,15 @@ export function ContextPreview({ name, body }: { name: string; body: string }) {
   );
 }
 
-export function MailFile({ name, href }: { name: string; href?: string | null | undefined }) {
+export function MailFile({
+  name,
+  href,
+  onOpen,
+}: {
+  name: string;
+  href?: string | null | undefined;
+  onOpen?: MouseEventHandler<HTMLAnchorElement> | undefined;
+}) {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   const archive = ext === "zip";
   const body = (
@@ -89,7 +104,7 @@ export function MailFile({ name, href }: { name: string; href?: string | null | 
   );
   if (!href) return <span className="studio-mail-file">{body}</span>;
   return (
-    <a className="studio-mail-file" href={href} target="_blank" rel="noreferrer">
+    <a className="studio-mail-file" href={href} target="_blank" rel="noreferrer" onClick={onOpen}>
       {body}
     </a>
   );
