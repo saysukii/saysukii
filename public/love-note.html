@@ -490,9 +490,10 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     .composer .note-field.has-voice textarea{padding-right:116px}
   }
   .note-video{
-    /* sized by the page alone, not the camera's own shape: phones otherwise size a live video by its stream.
-       52% of the page's height at 3:4 is 57.7% of its width */
-    position:absolute;left:21.15%;top:3%;width:57.7%;height:52%;transform:scaleX(-1);
+    /* the same 12px from the page's top and sides, and ends 12px above the to line (the to and from
+       lines take the bottom 48px). Sized by the page alone, not the camera's own shape: phones
+       otherwise size a live video by its stream */
+    position:absolute;left:12px;top:12px;width:calc(100% - 24px);height:calc(100% - 72px);transform:scaleX(-1);
     object-fit:cover;background:#ece6de;display:none;
   }
   .note.with-video .note-video{display:block}
@@ -882,29 +883,33 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     if (joined.length >= MAX_NOTE && session === s) stopRecording();
   }
 
+  // started inside the tap itself: an iPhone only lets dictation begin from a tap, so started any later
+  // it never heard a word. Each result rebuilds the words of this run whole, since an iPhone sends
+  // every result again each time rather than only the new ones
   function startWords(s){
     var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition){ s.noWords = true; return; }
     var r = new Recognition();
+    s.quickEnds = 0;
     r.continuous = true; r.interimResults = true; r.lang = navigator.language || 'en-US';
     r.onresult = function(e){
-      var interim = '';
-      for (var i = e.resultIndex; i < e.results.length; i++){
-        var t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) s.finals += t.trim() + ' ';
-        else interim += t;
+      if (session && session !== s) return;
+      var run = [];
+      for (var i = 0; i < e.results.length; i++){
+        var t = e.results[i][0].transcript.trim();
+        if (t) run.push(t);
       }
-      s.interim = interim;
+      s.interim = run.join(' ');
       s.gotWords = true;
       showWords(s);
     };
     r.onerror = function(e){
-      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      if (e.error === 'no-speech' || e.error === 'aborted' || e.error === 'audio-capture') return;
       s.noWords = true;
     };
     // browsers end recognition after a pause, so it's restarted until the person stops
     r.onend = function(){
-      if (session !== s || s.noWords) return;
+      if (s.over || s.noWords) return;
       if (s.interim){ s.finals += s.interim.trim() + ' '; s.interim = ''; }
       if (performance.now() - s.wordsStarted < 300 && ++s.quickEnds > 3){ s.noWords = true; return; }
       try { s.wordsStarted = performance.now(); r.start(); } catch(_){ s.noWords = true; }
@@ -984,7 +989,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     else noteVideo.load();
   }
 
-  var IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var latest = null;                     // the newest recording asked for
   function startRecording(kind){
     openForNote();
     var video = kind === 'video';
@@ -997,13 +1002,21 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     var device = video ? 'camera' : 'microphone';
     button.disabled = true;
     setStatus('allow your ' + device);
+    // the words start now, inside the tap. Android can't share the microphone between recording
+    // and transcribing, so there it just records; a video note carries no words
+    var s = { ctx:ctx, video:video, base:input.value.trim(), finals:'', interim:'', chunks:[], quickEnds:0 };
+    if (video) s.base = '';
+    latest = s;
+    if (video || (window.MediaRecorder && /android/i.test(navigator.userAgent))) s.noWords = true;
+    else startWords(s);
     var constraints = { audio:{ echoCancellation:true, noiseSuppression:true } };
     if (video) constraints.video = { facingMode:'user', width:{ ideal:720 }, height:{ ideal:960 }, frameRate:{ ideal:24, max:30 } };
     md.getUserMedia(constraints).then(function(stream){
       button.disabled = false;
       // a video note is just the video, so anything typed is cleared
       if (video){ input.value = ''; noteText.textContent = ''; }
-      var s = { stream:stream, ctx:ctx, video:video, base:input.value.trim(), finals:'', interim:'', chunks:[], startedAt:performance.now(), quickEnds:0 };
+      s.stream = stream;
+      s.startedAt = performance.now();
       session = s;
       voice = null;
       noteField.classList.remove('has-voice', 'has-video');
@@ -1035,15 +1048,13 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
         setStatus('this browser can\u2019t record video, type or record your voice instead');
         return;
       }
-      // video carries no words. Android can't share the microphone between recording and transcribing,
-      // and on an iPhone transcribing silences the recording, so there they just record
-      if (video || (s.recorder && (/android/i.test(navigator.userAgent) || IS_IOS))) s.noWords = true;
-      else startWords(s);
       startLevels(s);
       tick(s);
     }, function(err){
       button.disabled = false;
       dropCtx();
+      s.over = true;
+      if (s.recognition){ s.recognition.onend = null; try { s.recognition.abort(); } catch(_){} }
       var name = err && err.name;
       if (name === 'NotAllowedError' || name === 'SecurityError') setStatus(device + ' is blocked, allow it or type instead');
       else if (name === 'NotFoundError') setStatus('no ' + device + ' found');
@@ -1055,6 +1066,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   // ends the session; resolves once any audio is ready
   function endSession(s, keep){
     if (session === s) session = null;
+    s.over = true;
     clearTimeout(s.ticker);
     cancelAnimationFrame(s.levelFrame);
     noteField.classList.remove('recording', 'recording-video');
@@ -1078,7 +1090,8 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
           var blob = s.chunks.length ? new Blob(s.chunks, { type:s.recorder.mimeType || s.chunks[0].type }) : null;
           voice = { blob:blob, seconds:secs, transcribed:!!s.gotWords, video:!!(s.video && blob) };
         }
-        if (s.video) showVideo(keep && voice && voice.video ? voice.blob : null);
+        // a take thrown away for a new one leaves the new camera on the page
+        if (s.video && latest === s) showVideo(keep && voice && voice.video ? voice.blob : null);
         done();
       };
       if (s.recorder && s.recorder.state !== 'inactive'){ s.recorder.onstop = finish; s.recorder.stop(); }
@@ -1127,13 +1140,12 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   startOverBtn.addEventListener('click', function(e){
     e.preventDefault();                  // it sits inside the field's label
     // while recording: throw this take away and begin again, the same way
+    // the new take starts inside this tap, so an iPhone lets its words begin
     if (session){
       var s = session;
-      endSession(s, false).then(function(){
-        if (s.video) showVideo(null);
-        input.value = s.base; noteText.textContent = s.base; growInput();
-        startRecording(s.video ? 'video' : 'voice');
-      });
+      endSession(s, false);
+      input.value = s.base; noteText.textContent = s.base; growInput();
+      startRecording(s.video ? 'video' : 'voice');
       return;
     }
     clearVoice();
