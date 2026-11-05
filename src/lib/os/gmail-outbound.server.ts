@@ -17,9 +17,6 @@ export type MailAttachment = {
   data: Uint8Array;
 };
 
-/** Gmail refuses anything over 25mb of attachments for most recipients. */
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
-
 export type Rfc822Input = {
   from: string;
   fromName?: string | null;

@@ -3,7 +3,14 @@ import { describe, it } from "node:test";
 
 import { fileLinkOld, FILE_LINK_SECONDS } from "../app-file-link";
 import { studioFileKey, studioFileSlug } from "./inquiry-holds";
-import { attachedNames, storedFileFor } from "./letter-files";
+import {
+  attachedNames,
+  letterBodyWithFiles,
+  letterFileProblem,
+  MAX_ATTACHMENT_BYTES,
+  MAX_LETTER_FILES,
+  storedFileFor,
+} from "./letter-files";
 
 function stored(name: string, created_at = "2026-11-01T10:00:00Z") {
   return { id: name, name, signed_url: `/file/project-files/${name}?token=t`, created_at };
@@ -125,5 +132,63 @@ describe("fileLinkOld", () => {
   it("replaces a link close to running out, and one past it", () => {
     assert.equal(fileLinkOld(fetched, fetched + (FILE_LINK_SECONDS - 60) * 1000), true);
     assert.equal(fileLinkOld(fetched, fetched + FILE_LINK_SECONDS * 2000), true);
+  });
+});
+
+describe("the files on a letter being written", () => {
+  const MB = 1024 * 1024;
+  const kept = (name: string, size = MB) => ({
+    name,
+    size,
+    path: `inquiries/abc/1-${name}`,
+    failed: false,
+  });
+  const lost = (name: string) => ({ name, size: MB, path: null, failed: true });
+
+  it("only names files the letter really carries", () => {
+    assert.equal(
+      letterBodyWithFiles("  the room  ", [kept("a.png"), lost("b.png"), kept("c.png")]),
+      "the room\n\nAttached: a.png, c.png",
+    );
+    assert.equal(letterBodyWithFiles("", [kept("a.png")]), "Attached: a.png");
+    assert.equal(letterBodyWithFiles("just words", [lost("b.png")]), "just words");
+  });
+
+  it("stops a letter with a file that didn't upload, and says which", () => {
+    assert.equal(
+      letterFileProblem([kept("a.png"), lost("b.png")], true),
+      "b.png didn't upload. retry or remove to send.",
+    );
+    assert.equal(
+      letterFileProblem([lost("a.png"), lost("b.png")], true),
+      "2 files didn't upload. retry or remove to send.",
+    );
+    assert.match(letterFileProblem([lost("b.png")], false) ?? "", /didn't upload/);
+  });
+
+  it("counts gmail's 25mb across the letter, not per file", () => {
+    assert.equal(letterFileProblem([kept("a.png", MAX_ATTACHMENT_BYTES)], true), null);
+    assert.equal(
+      letterFileProblem([kept("a.png", 15 * MB), kept("b.png", 15 * MB)], true),
+      "these files are 30.0 mb together, and gmail takes 25 mb per letter. remove 5.0 mb to send.",
+    );
+    assert.match(
+      letterFileProblem([kept("a.png", MAX_ATTACHMENT_BYTES + 1)], true) ?? "",
+      /0\.1 mb/,
+    );
+  });
+
+  it("holds a letter to its file count", () => {
+    const files = (count: number) =>
+      Array.from({ length: count }, (_, index) => kept(`${index}.png`));
+    assert.equal(letterFileProblem(files(MAX_LETTER_FILES), true), null);
+    assert.equal(
+      letterFileProblem(files(MAX_LETTER_FILES + 2), true),
+      "a letter can carry 10 files. remove 2 to send.",
+    );
+  });
+
+  it("doesn't hold a note to gmail's limits, since it isn't emailed", () => {
+    assert.equal(letterFileProblem([kept("a.png", 40 * MB)], false), null);
   });
 });

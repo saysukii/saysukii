@@ -8,6 +8,7 @@ import { appFileLink, FILE_LINK_SECONDS } from "@/lib/app-file-link";
 import { capitalizeName } from "@/lib/name-case";
 import { inquirySlugs, isRecordUuid, shareNote } from "@/lib/os/inquiry-desk";
 import { belongsInReview } from "@/lib/os/inquiry-mail";
+import { MAX_LETTER_FILES } from "@/lib/os/letter-files";
 import { lessonVerdict } from "@/lib/os/inquiry-lessons";
 import { loadInquiryLessons } from "@/lib/os/inquiry-routing.server";
 import { assembleStudioToday } from "@/lib/os/studio-today";
@@ -1107,7 +1108,7 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
               name: z.string().trim().min(1).max(255),
             }),
           )
-          .max(10)
+          .max(MAX_LETTER_FILES)
           .optional()
           .default([]),
         send_at: z.string().datetime({ offset: true }).optional(),

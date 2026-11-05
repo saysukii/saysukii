@@ -7,6 +7,50 @@ export type StoredLetterFile = {
   created_at: string;
 };
 
+/** Gmail takes 25mb of attachments on a letter, counted together rather than per file. */
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/** How many files one letter can carry. */
+export const MAX_LETTER_FILES = 10;
+
+type DraftFileState = {
+  name: string;
+  size: number;
+  path: string | null;
+  failed: boolean;
+};
+
+/** A letter's words, with its "Attached:" line naming only files it really carries. */
+export function letterBodyWithFiles(text: string, files: readonly DraftFileState[]) {
+  const words = text.trim();
+  const names = files.filter((file) => file.path).map((file) => file.name);
+  if (!names.length) return words;
+  const line = `Attached: ${names.join(", ")}`;
+  return words ? `${words}\n\n${line}` : line;
+}
+
+function inMb(bytes: number) {
+  return (bytes / (1024 * 1024)).toFixed(1);
+}
+
+/** What stops these files going out on a letter, in words for the person sending it. */
+export function letterFileProblem(files: readonly DraftFileState[], email: boolean) {
+  const failed = files.filter((file) => file.failed);
+  const [first] = failed;
+  if (first) {
+    const who = failed.length === 1 ? first.name : `${failed.length} files`;
+    return `${who} didn't upload. retry or remove to send.`;
+  }
+  if (!email) return null;
+  if (files.length > MAX_LETTER_FILES) {
+    return `a letter can carry ${MAX_LETTER_FILES} files. remove ${files.length - MAX_LETTER_FILES} to send.`;
+  }
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  if (total <= MAX_ATTACHMENT_BYTES) return null;
+  const over = Math.ceil(((total - MAX_ATTACHMENT_BYTES) / (1024 * 1024)) * 10) / 10;
+  return `these files are ${inMb(total)} mb together, and gmail takes 25 mb per letter. remove ${over.toFixed(1)} mb to send.`;
+}
+
 const HAS_EXTENSION = /\.[a-z0-9]*[a-z][a-z0-9]*\s*$/i;
 
 /**
