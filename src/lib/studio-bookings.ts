@@ -1,7 +1,6 @@
 import { DEFAULT_CALENDAR, slotStarts, type CalendarSettings } from "@/lib/calendar-settings";
 
 const STORAGE_KEY = "say-sukii-bookings";
-const CAPTURE_KEY = "say-sukii-meeting-captures";
 
 export type StudioBooking = {
   id: string;
@@ -21,12 +20,6 @@ export type MeetingBrief = {
   words: string;
 };
 
-export type MeetingCapture = {
-  recording: boolean;
-  done: boolean;
-  summary: string;
-};
-
 export const STUDIO_ZONE = "America/New_York";
 
 export type BusyWindow = { start: string; end: string };
@@ -40,28 +33,6 @@ export function readBookings(): StudioBooking[] {
   } catch {
     return [];
   }
-}
-
-export function readMeetingCaptures(): Record<string, MeetingCapture> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(CAPTURE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, MeetingCapture>) : {};
-    if (!parsed || typeof parsed !== "object") return {};
-    return Object.fromEntries(
-      Object.entries(parsed).filter(
-        (entry): entry is [string, MeetingCapture] =>
-          typeof entry[1]?.summary === "string" && typeof entry[1]?.done === "boolean",
-      ),
-    );
-  } catch {
-    return {};
-  }
-}
-
-export function writeMeetingCapture(id: string, capture: MeetingCapture) {
-  const captures = { ...readMeetingCaptures(), [id]: capture };
-  window.localStorage.setItem(CAPTURE_KEY, JSON.stringify(captures));
 }
 
 export function rememberBooking(draft: Omit<StudioBooking, "id">) {

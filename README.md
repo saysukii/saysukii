@@ -230,7 +230,7 @@ In Google Cloud, add those callbacks and enable Gmail send, Gmail read, Calendar
 
 Site URL is `https://inside.saysukii.com`. Allow redirects to `/auth/callback`, `/onboarding`, and `/onboarding?reset=1`.
 
-**Every five minutes.** The `studio_cron` migration has Supabase call two routes on the app: `/api/cron/scheduled-letters` sends letters whose time has come, and `/api/cron/gmail-inbound` files a client's reply onto the inquiry. It reads the app's address and the cron secret from Vault, so add both once in the SQL editor, using the same `CRON_SECRET` that's on Vercel:
+**Every five minutes.** The `studio_cron` migration has Supabase call two routes on the app: `/api/cron/scheduled-letters` sends letters whose time has come, and `/api/cron/gmail-inbound` files a client's reply onto the inquiry. The `meeting_summary_sync` migration adds `/api/cron/meeting-summaries`, which brings in Granola's summary for each call on the Google calendar that started in the last twelve hours. It needs an API key from the Granola account that records the calls, made with the **Personal notes** scope, saved in **Settings**. A workspace key only sees notes shared with the whole workspace, so it misses new calls. It reads the app's address and the cron secret from Vault, so add both once in the SQL editor, using the same `CRON_SECRET` that's on Vercel:
 
 ```sql
 select vault.create_secret('https://inside.saysukii.com', 'studio_app_url');

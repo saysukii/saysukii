@@ -1998,3 +1998,14 @@ export function getDevPreviewSettings() {
 export function getDevPreviewDirectories() {
   return { venues, vendors };
 }
+
+/** the preview's granola summaries, by meeting: yesterday's call with maya has one */
+export function getDevPreviewMeetingSummaries() {
+  return [
+    {
+      eventId: "preview-talk-maya",
+      summary:
+        "sample summary: maya wants the hard rock ceremony outside if the weather holds, then dinner inside. garden roses lead, nothing too precious. she'll send the final guest count by friday.",
+    },
+  ];
+}

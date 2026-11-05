@@ -27,7 +27,7 @@ import { markPerson, PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
 import { listFreshArrivals, syncStudioInbox } from "@/lib/os/inquiries.functions";
-import { listFreshBookings } from "@/lib/os/bookings.functions";
+import { listFreshBookings, listFreshMeetingSummaries } from "@/lib/os/bookings.functions";
 import { loveNoteNotice } from "@/lib/love-note-view";
 import { listFreshLoveNotes } from "@/lib/os/love-notes.functions";
 import { listFreshPayments } from "@/lib/os/proposals.functions";
@@ -139,6 +139,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const bookings = useServerFn(listFreshBookings);
   const payments = useServerFn(listFreshPayments);
   const loveNotes = useServerFn(listFreshLoveNotes);
+  const meetingSummaries = useServerFn(listFreshMeetingSummaries);
   const syncInbox = useServerFn(syncStudioInbox);
   const recentIssues = useServerFn(listRecentIssues);
   const queryClient = useQueryClient();
@@ -270,6 +271,34 @@ export function Shell({ children }: { children: ReactNode }) {
       window.clearInterval(timer);
     };
   }, [arrivals, bookings, devPreview, loveNotes, payments, profile.role, router]);
+
+  // a call's summary, brought in from granola on the server, says so wherever the studio is
+  useEffect(() => {
+    if (profile.role !== "admin" || devPreview) return;
+    let stop = false;
+    async function look() {
+      try {
+        const rows = await meetingSummaries();
+        if (stop) return;
+        for (const row of rows) {
+          pushNotice({
+            id: `summary-${row.id}`,
+            title: "a call summary is ready",
+            body: `${row.title}. open the schedule to read it.`,
+            href: "/calendar",
+          });
+        }
+      } catch {
+        // summaries can be quiet too, and never get in the way of the rest
+      }
+    }
+    void look();
+    const timer = window.setInterval(() => void look(), 60_000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [devPreview, meetingSummaries, profile.role]);
 
   // locally, paying the fenty demo is a new booking too
   useEffect(() => {
@@ -519,6 +548,10 @@ function useNoticeModal(notices: StudioNotice[]) {
                     }
                     if (href === "/love-notes") {
                       void router.navigate({ to: "/love-notes" });
+                      return;
+                    }
+                    if (href === "/calendar") {
+                      void router.navigate({ to: "/calendar" });
                       return;
                     }
                     const slug = href.split("/").filter(Boolean).pop();
