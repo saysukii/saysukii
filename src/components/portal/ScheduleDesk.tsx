@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +17,7 @@ import {
 import { readLocalCalendar } from "@/lib/calendar-settings";
 import {
   bookingWindow,
+  MEETING_CAPTURES_CHANGED,
   readMeetingCaptures,
   scheduleMeetingUrl,
   writeMeetingCapture,
@@ -25,20 +27,15 @@ import {
   type MeetingCapture,
   type StudioBooking,
 } from "@/lib/studio-bookings";
+import {
+  checkAgain,
+  foundSummary,
+  shouldLookOnOpen,
+  startWaiting,
+  summaryStatus,
+} from "@/lib/meeting-summary";
+import { checkMeetingSummary } from "@/lib/os/bookings.functions";
 import { cn } from "@/lib/utils";
-
-const PREVIEW_SUMMARIES: Record<string, string> = {
-  "preview-talk-camila":
-    "camila is planning a wedding at the w hotel. she wants garden roses and a low ceremony piece, and asked for a palette before friday.",
-};
-
-function stoppedCapture(bookingId: string, capture?: MeetingCapture): MeetingCapture {
-  return {
-    recording: false,
-    done: true,
-    summary: capture?.summary || PREVIEW_SUMMARIES[bookingId] || "",
-  };
-}
 
 export function ScheduleDesk({
   bookings,
@@ -63,6 +60,9 @@ export function ScheduleDesk({
   useEffect(() => {
     setMinutes(readLocalCalendar().durationMinutes);
     setCaptures(readMeetingCaptures());
+    const sync = () => setCaptures(readMeetingCaptures());
+    window.addEventListener(MEETING_CAPTURES_CHANGED, sync);
+    return () => window.removeEventListener(MEETING_CAPTURES_CHANGED, sync);
   }, []);
 
   const byDay = useMemo(() => {
@@ -91,13 +91,6 @@ export function ScheduleDesk({
   }, [briefs]);
   const dayBookings = byDay.get(dayKey) ?? [];
   const dayLabel = labelDay(dayKey, todayKey);
-  const liveRecordings = bookings.filter((booking) => captures[booking.id]?.recording);
-
-  function stopRecording(booking: StudioBooking) {
-    const next = stoppedCapture(booking.id, captures[booking.id]);
-    setCaptures((current) => ({ ...current, [booking.id]: next }));
-    writeMeetingCapture(booking.id, next);
-  }
 
   function chooseDay(key: string) {
     setDayKey(key);
@@ -145,35 +138,6 @@ export function ScheduleDesk({
       </header>
 
       <div className="studio-book-body studio-schedule-scroll">
-        {liveRecordings.length > 0 ? (
-          <section className="studio-listen" aria-label="recording">
-            <p className="studio-home-label">recording</p>
-            {liveRecordings.map((booking) => (
-              <article key={booking.id} className="studio-meet is-recording">
-                <div className="studio-meet-go">
-                  <button
-                    type="button"
-                    className="studio-today-go is-pearl is-recording"
-                    aria-pressed="true"
-                    aria-label={`stop recording ${booking.name}`}
-                    onClick={() => stopRecording(booking)}
-                  >
-                    <i className="studio-rec" aria-hidden="true" />
-                    live
-                  </button>
-                  <button
-                    type="button"
-                    className="studio-listen-who"
-                    onClick={() => openMeeting(booking)}
-                  >
-                    <PersonName name={booking.name} asTyped={!booking.email} />
-                  </button>
-                  <ListeningLine />
-                </div>
-              </article>
-            ))}
-          </section>
-        ) : null}
         {pending ? <p className="studio-empty">gathering…</p> : null}
         <div className="studio-schedule">
           <section className="studio-agenda" aria-label="month">
@@ -280,10 +244,7 @@ export function ScheduleDesk({
                 capture={captures[open.id]}
                 granolaConnected={granolaConnected}
                 onBack={() => setOpenId(null)}
-                onCapture={(capture) => {
-                  setCaptures((current) => ({ ...current, [open.id]: capture }));
-                  writeMeetingCapture(open.id, capture);
-                }}
+                onCapture={(capture) => writeMeetingCapture(open.id, capture)}
               />
             ) : (
               <DayList label={dayLabel} bookings={dayBookings} onOpen={openMeeting} />
@@ -320,18 +281,17 @@ export function ScheduleDesk({
   );
 }
 
-function ListeningLine() {
-  return (
-    <p className="studio-meet-live" role="status" aria-label="actively listening">
-      <span className="studio-wave" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-        <i />
-      </span>
-      actively listening
-    </p>
-  );
+/**
+ * Opens a new note in the granola app on this computer, and asks it to start transcribing. The
+ * link comes from the app itself rather than granola's docs, so a granola update could change it;
+ * the summary still comes back either way if the call is recorded there.
+ */
+const GRANOLA_NEW_NOTE = "granola://new-document?creation_source=say_sukii_os&auto_transcribe=1";
+
+function openInGranola() {
+  const link = document.createElement("a");
+  link.href = GRANOLA_NEW_NOTE;
+  link.click();
 }
 
 function DayList({
@@ -403,12 +363,32 @@ function MeetingRecord({
   onBack: () => void;
   onCapture: (capture: MeetingCapture) => void;
 }) {
-  const recording = capture?.recording ?? false;
-  const summary = capture?.done ? capture.summary : "";
+  const status = summaryStatus(capture);
+  const lookForSummary = useServerFn(checkMeetingSummary);
+  const meeting = { name: booking.name, email: booking.email, startsAt: booking.startsAt };
+
+  // a call recorded straight in granola arrives too, without pressing anything here
+  useEffect(() => {
+    if (!granolaConnected || !shouldLookOnOpen(capture, booking, Date.now())) return;
+    let stop = false;
+    lookForSummary({ data: { ...meeting, startedAt: booking.startsAt } })
+      .then(({ summary }) => {
+        if (!stop && summary) onCapture(foundSummary(meeting, summary));
+      })
+      .catch(() => {
+        // nothing to show yet; it can be opened in granola as usual
+      });
+    return () => {
+      stop = true;
+    };
+    // once for each meeting opened
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking.id, granolaConnected]);
+
   const joinUrl = meetingJoinUrl(booking.joinUrl);
 
   return (
-    <section className={cn("studio-meet", recording && "is-recording")}>
+    <section className="studio-meet">
       <button type="button" className="studio-ghost" onClick={onBack}>
         back
       </button>
@@ -430,38 +410,64 @@ function MeetingRecord({
             join
           </a>
         ) : null}
-        <button
-          type="button"
-          className={cn("studio-today-go is-pearl", recording && "is-recording")}
-          aria-pressed={recording}
-          aria-label={recording ? "stop recording" : "record"}
-          title="studio intelligence"
-          onClick={() => {
-            if (recording) {
-              onCapture(stoppedCapture(booking.id, capture));
-              return;
-            }
-            if (granolaConnected == null) return;
-            if (!granolaConnected) {
-              toast("granola isn't connected, so we cannot record. connect it to move forward.");
-              return;
-            }
-            onCapture({ recording: true, done: false, summary: capture?.summary ?? "" });
-          }}
-        >
-          {recording ? (
-            <i className="studio-rec" aria-hidden="true" />
-          ) : (
+        {status === "none" || status === "not_found" ? (
+          <button
+            type="button"
+            className="studio-today-go is-pearl"
+            title="studio intelligence"
+            onClick={() => {
+              if (granolaConnected == null) return;
+              if (!granolaConnected) {
+                toast(
+                  "granola isn't connected, so summaries can't come back. connect it in settings.",
+                );
+                return;
+              }
+              openInGranola();
+              onCapture(startWaiting(meeting, Date.now()));
+            }}
+          >
             <span className="studio-summary-mark" aria-hidden="true" />
-          )}
-          {recording ? "live" : "record"}
-        </button>
-        {recording ? <ListeningLine /> : null}
+            open in granola
+          </button>
+        ) : null}
       </div>
-      {capture?.done ? (
+      {status === "creating" ? (
         <div className="studio-meet-notes">
           <p className="studio-home-label">summary</p>
-          <p className="studio-meet-summary">{summary}</p>
+          <p className="studio-meet-summary is-creating" role="status">
+            <span className="studio-wave" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+            </span>
+            recording happens in granola. your summary will appear here once it's done.
+          </p>
+        </div>
+      ) : null}
+      {status === "ready" ? (
+        <div className="studio-meet-notes">
+          <p className="studio-home-label">summary</p>
+          <p className="studio-meet-summary">{capture?.summary}</p>
+        </div>
+      ) : null}
+      {status === "not_found" ? (
+        <div className="studio-meet-notes">
+          <p className="studio-home-label">summary</p>
+          <p className="studio-meet-summary">
+            no summary from granola yet. check that it recorded this call, and that the key in
+            settings can see its notes.
+          </p>
+          {capture?.startedAt ? (
+            <button
+              type="button"
+              className="studio-ghost"
+              onClick={() => onCapture(checkAgain(capture, Date.now()))}
+            >
+              check again
+            </button>
+          ) : null}
         </div>
       ) : null}
     </section>

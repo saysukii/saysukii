@@ -183,6 +183,40 @@ export const getGranolaStatus = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => readGranolaConnected());
 
+const meetingSummaryInput = z.object({
+  name: z.string().max(200),
+  email: z.string().max(320),
+  startsAt: z.string().max(40),
+  startedAt: z.string().max(40),
+});
+
+/** Looks for a finished meeting's summary in granola, and keeps it with the studio's meetings. */
+export const checkMeetingSummary = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) => meetingSummaryInput.parse(input))
+  .handler(async ({ data }) => {
+    const { findMeetingNote, openGranolaKey, supabaseGranolaVault } =
+      await import("./granola.server");
+    const key = openGranolaKey(await supabaseGranolaVault().read());
+    if (!key) return { summary: null };
+    const note = await findMeetingNote(key, data);
+    if (!note?.summary_text) return { summary: null };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("meetings").upsert(
+      {
+        granola_note_id: note.id,
+        title: note.title ?? data.name,
+        occurred_at: data.startedAt,
+        summary: note.summary_text,
+        attendees: note.attendees ?? [],
+      },
+      { onConflict: "granola_note_id" },
+    );
+    if (error) throw new Error(error.message);
+    return { summary: note.summary_text };
+  });
+
 export const getGranolaStatusDev = createServerFn({ method: "GET" }).handler(async () => {
   if (!import.meta.env.DEV) throw new Error("Unauthorized");
   return readGranolaConnected();

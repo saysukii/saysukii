@@ -27,8 +27,14 @@ import { markPerson, PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
 import { listFreshArrivals, syncStudioInbox } from "@/lib/os/inquiries.functions";
-import { listFreshBookings } from "@/lib/os/bookings.functions";
+import { checkMeetingSummary, listFreshBookings } from "@/lib/os/bookings.functions";
 import { loveNoteNotice } from "@/lib/love-note-view";
+import { afterCheck, SUMMARY_CHECK_MS, summaryStatus } from "@/lib/meeting-summary";
+import {
+  MEETING_CAPTURES_CHANGED,
+  readMeetingCaptures,
+  writeMeetingCapture,
+} from "@/lib/studio-bookings";
 import { listFreshLoveNotes } from "@/lib/os/love-notes.functions";
 import { listFreshPayments } from "@/lib/os/proposals.functions";
 import { listRecentIssues } from "@/lib/os/settings.functions";
@@ -51,6 +57,10 @@ type NavItem = {
   to: string;
   label: string;
 };
+
+/** what the local preview shows, since it has no real granola to read */
+const PREVIEW_SUMMARY =
+  "sample summary: camila is planning a wedding at the w hotel. she wants garden roses and a low ceremony piece.";
 
 const ADMIN_NAV: NavItem[] = [
   { to: "/dashboard", label: "today" },
@@ -139,6 +149,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const bookings = useServerFn(listFreshBookings);
   const payments = useServerFn(listFreshPayments);
   const loveNotes = useServerFn(listFreshLoveNotes);
+  const meetingSummary = useServerFn(checkMeetingSummary);
   const syncInbox = useServerFn(syncStudioInbox);
   const recentIssues = useServerFn(listRecentIssues);
   const queryClient = useQueryClient();
@@ -270,6 +281,66 @@ export function Shell({ children }: { children: ReactNode }) {
       window.clearInterval(timer);
     };
   }, [arrivals, bookings, devPreview, loveNotes, payments, profile.role, router]);
+
+  // a meeting's summary, looked for from anywhere in the studio, so its note always arrives
+  useEffect(() => {
+    if (profile.role !== "admin") return;
+    let stop = false;
+    let looking = false;
+    async function look() {
+      if (looking) return;
+      looking = true;
+      for (const [id, capture] of Object.entries(readMeetingCaptures())) {
+        if (summaryStatus(capture) !== "creating") continue;
+        const meeting = {
+          name: capture.name ?? "",
+          email: capture.email ?? "",
+          startsAt: capture.startsAt ?? "",
+          startedAt: capture.startedAt ?? "",
+        };
+        let summary: string | null = null;
+        try {
+          if (devPreview) {
+            const since = capture.waitingSince ? Date.parse(capture.waitingSince) : 0;
+            if (Date.now() - since > 6000) summary = PREVIEW_SUMMARY;
+          } else {
+            summary = (await meetingSummary({ data: meeting })).summary;
+          }
+        } catch {
+          // granola can be quiet for a moment, and if it stays that way the wait still ends
+        }
+        if (stop) return;
+        const next = afterCheck(capture, summary, Date.now());
+        if (next === capture) continue;
+        writeMeetingCapture(id, next);
+        const who = firstName(meeting.name) || "your call";
+        pushNotice(
+          next.status === "ready"
+            ? {
+                id: `summary-${id}-${next.waitingSince}`,
+                title: `${who}'s summary is ready`,
+                body: "open the schedule to read it.",
+                href: "/calendar",
+              }
+            : {
+                id: `summary-${id}-${next.waitingSince}`,
+                title: `no summary found for ${who}`,
+                body: "check that granola recorded this call.",
+                href: "/calendar",
+              },
+        );
+      }
+      looking = false;
+    }
+    void look();
+    const timer = window.setInterval(() => void look(), devPreview ? 2000 : SUMMARY_CHECK_MS);
+    window.addEventListener(MEETING_CAPTURES_CHANGED, look);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+      window.removeEventListener(MEETING_CAPTURES_CHANGED, look);
+    };
+  }, [devPreview, meetingSummary, profile.role]);
 
   // locally, paying the fenty demo is a new booking too
   useEffect(() => {
@@ -519,6 +590,10 @@ function useNoticeModal(notices: StudioNotice[]) {
                     }
                     if (href === "/love-notes") {
                       void router.navigate({ to: "/love-notes" });
+                      return;
+                    }
+                    if (href === "/calendar") {
+                      void router.navigate({ to: "/calendar" });
                       return;
                     }
                     const slug = href.split("/").filter(Boolean).pop();

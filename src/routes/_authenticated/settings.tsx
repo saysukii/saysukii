@@ -317,8 +317,14 @@ function SettingsPage() {
       }
       return connectGranolaFn({ data: { apiKey: granolaKey } });
     },
-    onSuccess: () => {
-      toast.success("granola connected");
+    onSuccess: (connected) => {
+      if (connected.sees_notes === false) {
+        toast(
+          "granola connected, but this key can't see any notes yet. summaries need a key that can see the meeting notes.",
+        );
+      } else {
+        toast.success("granola connected");
+      }
       setGranolaKey("");
       setReplacingGranola(false);
       void refresh();
@@ -584,7 +590,9 @@ function SettingsPage() {
                 {granola.status}
               </span>
             </div>
-            <p>meeting notes for calls on the schedule. paste the workspace key from granola.</p>
+            <p>
+              meeting notes for calls on the schedule. paste a key from granola that can see them.
+            </p>
             <p className="studio-connect-seen">updated {formatSeen(granola.updated_at)}</p>
             {showGranolaKey ? (
               <label className="studio-field studio-granola-key">
@@ -610,7 +618,11 @@ function SettingsPage() {
                 disabled={granolaConnect.isPending || !granolaKey.trim()}
                 onClick={() => granolaConnect.mutate()}
               >
-                {granolaConnect.isPending ? "connecting…" : granolaConnected ? "save key" : "connect"}
+                {granolaConnect.isPending
+                  ? "connecting…"
+                  : granolaConnected
+                    ? "save key"
+                    : "connect"}
               </button>
             ) : (
               <button
