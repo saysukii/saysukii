@@ -610,7 +610,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   <form class="composer" id="composer" autocomplete="off">
     <label class="note-field">
       <span class="sr">your note</span>
-      <textarea id="noteInput" rows="1" maxlength="650" placeholder="write your note" enterkeyhint="next"></textarea>
+      <textarea id="noteInput" rows="1" maxlength="650" placeholder="write your note" enterkeyhint="enter"></textarea>
       <canvas class="voice-line" id="voiceLine" aria-hidden="true"></canvas>
       <button type="button" class="mic" id="mic" aria-label="record a voice note" aria-pressed="false">
         <svg class="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>
@@ -1155,14 +1155,9 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   });
   addEventListener('pagehide', function(){ if (session) endSession(session, false); });
 
-  /* ================= on a phone: the enter icon, or the keyboard's return key, says the note is done ================= */
+  /* ================= on a phone: the enter icon says the note is done; the keyboard's return key starts a new line ================= */
   document.getElementById('noteDone').addEventListener('click', function(e){
     e.preventDefault();                  // it sits inside the field's label
-    openSendSheet();
-  });
-  input.addEventListener('keydown', function(e){
-    if (innerWidth >= 720 || e.key !== 'Enter' || e.isComposing) return;
-    e.preventDefault();
     openSendSheet();
   });
 
