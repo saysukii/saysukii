@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, Json } from "@/integrations/supabase/types";
 import { isReviewCandidate } from "@/lib/os/inquiry-detection";
+import { MAX_ATTACHMENT_BYTES } from "@/lib/os/letter-files";
 import { refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
 import { signatureText } from "@/lib/os/mail-signature";
 import { syncInquiryAutoTaskFor } from "@/lib/os/tasks.functions";
@@ -230,7 +231,6 @@ export async function sendDueLetters(client: StudioClient, now = new Date()) {
 
 async function letterAttachments(client: StudioClient, inquiryId: string, picked: LetterFile[]) {
   if (!picked.length) return [];
-  const { MAX_ATTACHMENT_BYTES } = await import("@/lib/os/gmail-outbound.server");
   const files = [];
   let total = 0;
   for (const file of picked) {

@@ -4,10 +4,11 @@ import { z } from "zod";
 
 import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, EventType, InquiryStatus } from "@/integrations/supabase/types";
-import { appFileLink } from "@/lib/app-file-link";
+import { appFileLink, FILE_LINK_SECONDS } from "@/lib/app-file-link";
 import { capitalizeName } from "@/lib/name-case";
 import { inquirySlugs, isRecordUuid, shareNote } from "@/lib/os/inquiry-desk";
 import { belongsInReview } from "@/lib/os/inquiry-mail";
+import { MAX_LETTER_FILES } from "@/lib/os/letter-files";
 import { lessonVerdict } from "@/lib/os/inquiry-lessons";
 import { loadInquiryLessons } from "@/lib/os/inquiry-routing.server";
 import { assembleStudioToday } from "@/lib/os/studio-today";
@@ -836,7 +837,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
       (filesResult.data ?? []).map(async (file) => {
         const signed = await context.supabase.storage
           .from("project-files")
-          .createSignedUrl(file.file_path, 60 * 30);
+          .createSignedUrl(file.file_path, FILE_LINK_SECONDS);
         return {
           ...file,
           name: file.file_path.split("/").pop() ?? "file",
@@ -1107,7 +1108,7 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
               name: z.string().trim().min(1).max(255),
             }),
           )
-          .max(10)
+          .max(MAX_LETTER_FILES)
           .optional()
           .default([]),
         send_at: z.string().datetime({ offset: true }).optional(),
@@ -1193,6 +1194,26 @@ export const cancelScheduledLetter = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!removed?.length) throw new Error("that letter already went out.");
     return { ok: true as const };
+  });
+
+/** A new link for a file on a lead, for a page left open past the one it loaded with. */
+export const freshInquiryFileLink = createServerFn({ method: "POST" })
+  .middleware([requireStudioAuth])
+  .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: file, error } = await context.supabase
+      .from("files")
+      .select("owner_type, file_path")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!file || file.owner_type !== "inquiry") throw new Error("that file is no longer here.");
+    const signed = await context.supabase.storage
+      .from("project-files")
+      .createSignedUrl(file.file_path, FILE_LINK_SECONDS);
+    const href = appFileLink(signed.data?.signedUrl);
+    if (!href) throw new Error("that file is no longer here.");
+    return { href };
   });
 
 export const removeInquiryFile = createServerFn({ method: "POST" })

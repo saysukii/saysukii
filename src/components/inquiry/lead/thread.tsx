@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { toast } from "sonner";
 
 import { PersonName } from "@/components/studio/PersonName";
+import { storedFileFor, type StoredLetterFile } from "@/lib/os/letter-files";
 import { noteAuthor, wroteNote } from "@/lib/os/mail-signature";
 import type { InquiryMessageRow } from "@/integrations/supabase/types";
 import { proposalCards } from "@/lib/proposal-link";
@@ -193,14 +194,19 @@ export function MailFace({
   messages,
   clientName,
   person = false,
-  fileHrefs,
+  files,
+  openable,
+  onOpenFile,
   viewedAtByToken,
   onCancel,
 }: {
   messages: InquiryMessageRow[];
   clientName: string | null | undefined;
   person?: boolean;
-  fileHrefs: Record<string, string>;
+  files: StoredLetterFile[];
+  /** files attached in this tab, openable from memory until the page learns their stored links */
+  openable: Record<string, string>;
+  onOpenFile: (event: MouseEvent<HTMLAnchorElement>, fileId: string) => void;
   viewedAtByToken: Record<string, string>;
   onCancel?: (id: string) => void;
 }) {
@@ -282,13 +288,17 @@ export function MailFace({
                   {studio && !mail.relayed ? <MailSignature name={mail.name} tone="ink" /> : null}
                   {mail.files.length ? (
                     <div className="studio-mail-files">
-                      {mail.files.map((name) => (
-                        <MailFile
-                          key={name}
-                          name={name}
-                          href={fileHrefs[name] ?? PORTAL_FILES[name]}
-                        />
-                      ))}
+                      {mail.files.map((name) => {
+                        const stored = storedFileFor(name, files, messages[index]?.created_at);
+                        return (
+                          <MailFile
+                            key={name}
+                            name={name}
+                            href={stored?.signed_url ?? openable[name] ?? PORTAL_FILES[name]}
+                            onOpen={stored ? (event) => onOpenFile(event, stored.id) : undefined}
+                          />
+                        );
+                      })}
                     </div>
                   ) : null}
                 </div>

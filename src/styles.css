@@ -10484,6 +10484,31 @@ button.studio-metric:hover {
   height: 12px;
 }
 
+.studio-composer-chip.is-failed {
+  box-shadow: inset 0 0 0 1px #c2185b;
+}
+
+.studio-composer-chip.is-failed small {
+  color: #c2185b;
+}
+
+.studio-composer-chip button.studio-composer-chip-retry {
+  width: auto;
+  padding: 0 6px;
+  color: #c2185b;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.studio-composer-note.is-problem {
+  color: #c2185b;
+}
+
+.studio-composer-bar .studio-today-go:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .studio-composer-when,
 .studio-composer-note {
   margin: 0;
