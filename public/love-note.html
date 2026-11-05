@@ -9,6 +9,23 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   document.querySelector('meta[name=viewport]').content = 'width=device-width, initial-scale=1.0, maximum-scale=1';
 </script>
 <title>Say Sukii Love Notes</title>
+<!-- the link preview. lovenote.saysukii.com answers every address with the card, so the picture lives on the studio's address -->
+<meta name="description" content="as say sukii celebrates 11 years of creating, connecting + spreading love through flowers, leave a love note in writing, voice, or video.">
+<meta property="og:title" content="say sukii love notes">
+<meta property="og:site_name" content="say sukii">
+<meta property="og:description" content="as say sukii celebrates 11 years of creating, connecting + spreading love through flowers, leave a love note in writing, voice, or video.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://lovenote.saysukii.com/">
+<meta property="og:image" content="https://inside.saysukii.com/love-note-og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="960">
+<meta property="og:image:height" content="1200">
+<meta property="og:image:alt" content="Sukii in a gold skirt, laughing, holding a towering bouquet of purple hydrangeas, calla lilies, orchids and trailing amaranth.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="say sukii love notes">
+<meta name="twitter:description" content="as say sukii celebrates 11 years of creating, connecting + spreading love through flowers, leave a love note in writing, voice, or video.">
+<meta name="twitter:image" content="https://inside.saysukii.com/love-note-og.jpg">
+<meta name="twitter:image:alt" content="Sukii in a gold skirt, laughing, holding a towering bouquet of purple hydrangeas, calla lilies, orchids and trailing amaranth.">
 <style>
   :root{
     --rx:0deg; --ry:0deg;
@@ -19,7 +36,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     --W:320px; --H:450px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html{height:100%;overflow-x:hidden}
+  html{height:100%;overflow-x:hidden;overflow-anchor:none;-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation}
   body{min-height:100%}
   body{
     display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -400,11 +417,16 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     font-synthesis:none;-webkit-font-smoothing:antialiased;
     background:rgba(255,255,255,.42);-webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);
   }
-  .intro-panel{width:min(550px,100%);display:grid;gap:12px;margin:auto}
+  .intro-panel{width:min(550px,100%);display:grid;gap:12px;margin:auto;container-type:inline-size}
   .intro p{margin:0;text-wrap:wrap}
-  .intro-words,.intro-close,.intro-signoff{display:grid;gap:12px}
-  .intro .intro-quote{font-size:12.5px;margin-top:12px;color:rgba(38,33,30,.62)}
-  .intro-go{display:flex;align-items:center;justify-content:center}
+  .intro-words,.intro-close,.intro-signoff{display:grid;gap:.857em}
+  .intro .intro-quote{font-size:.893em;margin-top:.96em;color:rgba(38,33,30,.62)}
+  /* every line breaks where it does on a computer: on a narrower screen the letter just gets smaller.
+     Its longest line is 531px at 14px, so 14px per 545px of panel keeps a little to spare */
+  .intro-words{font-size:min(14px,2.569cqw)}
+  .intro-words p{white-space:nowrap}
+  /* the button is the same size as the letter, so on a phone it gets smaller with it */
+  .intro-go{display:flex;align-items:center;justify-content:center;font-size:min(14px,2.569cqw)}
   .intro-go button{
     appearance:none;-webkit-appearance:none;background:none;border:0;padding:0;cursor:pointer;font:inherit;color:#ff4d94;
     transition:opacity .2s,transform .12s ease;-webkit-tap-highlight-color:transparent;
@@ -412,16 +434,12 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   @media (hover:hover){.intro-go button:hover{opacity:.62}}
   .intro-go button:active{opacity:.42;transform:translateY(1px)}
   .intro-go button:focus-visible{outline:2px solid #b5485d;outline-offset:3px}
-  /* on a phone the lines wrap on their own */
-  @media (max-width:600px){
-    .intro-line{display:none}
-    .intro p{text-wrap:balance}
-  }
   /* short screens: small phones and phones on their side keep the note and its button in view */
   @media (max-height:590px){
     .intro{line-height:1.38;padding-top:10px;padding-bottom:10px}
-    .intro-panel,.intro-words,.intro-close,.intro-signoff{gap:7px}
-    .intro .intro-quote{margin-top:7px}
+    .intro-panel{gap:7px}
+    .intro-words,.intro-close,.intro-signoff{gap:.5em}
+    .intro .intro-quote{margin-top:.56em}
   }
   /* night garden: a deep veil and light words */
   body.on-dark .intro{background:rgba(22,48,28,.78);color:#fcfcfc}
@@ -453,6 +471,47 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   body.intro-on .intro-back{display:none}
   body:has(.recording) .intro-back,body:has(#sendSheet:not([hidden])) .intro-back,body:has(#noteInput:focus) .intro-back{visibility:hidden}
 
+  /* ---------- video note: the camera sits beside the mic, and the video plays on the card's page ---------- */
+  .cam{right:30px}
+  .cam .i-cam{width:19px;height:19px}
+  .note-field.recording .cam .i-cam{display:none}
+  body.on-dark .note-field.recording #cam{color:#ff9db1}
+  .note-field.recording-video .cam{right:0}
+  .note-field.has-video .cam{right:30px}
+  .note-field.has-voice:not(.has-video) .cam,.note-field.recording:not(.recording-video) .cam,
+  .note-field.has-video #mic,.note-field.recording-video #mic{display:none}
+  .composer .note-field textarea{padding-right:64px}
+  @media (max-width:719px){
+    .cam{right:32px}
+    .note-field.can-finish .cam{right:70px}
+    .note-field.can-finish.recording-video .cam{right:32px}
+    .composer .note-field textarea{padding-right:78px}
+    .composer .note-field.can-finish textarea{padding-right:116px}
+    .composer .note-field.has-voice textarea{padding-right:116px}
+  }
+  .note-video{
+    /* the same 12px from the page's top and sides, and ends 12px above the to line (the to and from
+       lines take the bottom 48px). Sized by the page alone, not the camera's own shape: phones
+       otherwise size a live video by its stream */
+    position:absolute;left:12px;top:12px;width:calc(100% - 24px);height:calc(100% - 72px);transform:scaleX(-1);
+    object-fit:cover;background:#ece6de;display:none;
+  }
+  .note.with-video .note-video{display:block}
+  /* a video note is just the video: no words go with it */
+  .note.with-video .note-block{display:none}
+  .note-field.recording-video textarea,.note-field.has-video textarea{visibility:hidden}
+  /* start over sits beside the stop button while recording, so a take can be thrown away and begun again */
+  .note-field.recording .redo{display:grid;right:30px}
+  /* and stays in that spot once it stops, so the record button never turns into start over under a finger */
+  .note-field.has-voice .redo{right:30px}
+  .note-field.has-voice #mic,.note-field.has-video .cam{right:0}
+  .composer .note-field.recording textarea{padding-right:64px}
+  @media (max-width:719px){
+    .note-field.recording .redo,.note-field.has-voice .redo{right:70px}
+    .note-field.has-voice #mic,.note-field.has-video .cam{right:32px}
+    .composer .note-field.can-finish.recording textarea{padding-right:116px}
+  }
+
   /* text sizes: the note's 14px for the note field, leave note and the pop-up; back's 12px for the voice note line and consent */
   .composer{font-size:14px;line-height:1.5}
   .voice-status{font-size:12px}
@@ -474,7 +533,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
       <p>whether it's a testimonial, a birthday wish, a favorite memory, words of <br class="intro-line">encouragement, or a suggestion for how we can grow — i’d love to hear from you!</p>
       <p>please share your love note in writing, voice, or video.</p>
       <div class="intro-close">
-        <p>your time + presence is appreciated. always in all ways.</p>
+        <p>your time + presence is appreciated. always, in all ways.</p>
         <div class="intro-signoff">
           <p>with gratitude,</p>
           <p>sukii<br>est. 11.19</p>
@@ -496,6 +555,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
           <div class="page inside-right">
             <div class="sheet tex-inside">
               <div class="note">
+                <video class="note-video" id="noteVideo" playsinline muted aria-hidden="true"></video>
                 <div class="to-from">
                   <p><span class="tf-label">to:</span> <span>say sukii</span></p>
                   <p><span class="tf-label">from:</span> <span id="fromOnCard"></span></p>
@@ -542,18 +602,22 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     <p class="sheet-row"><span class="tf-label">to:</span> <span>say sukii</span></p>
     <label class="sheet-row" id="fromRow"><span class="tf-label">from:</span> <input id="fromName" type="text" maxlength="60" placeholder="your name" autocomplete="name" enterkeyhint="send"></label>
     <div class="consent" id="consent" hidden>
-      <label id="consentRow"><input id="consentBox" type="checkbox"> <span>i give say sukii permission to store and use my voice note.</span></label>
-      <label><input id="marketingBox" type="checkbox"> <span>i give say sukii permission to use my voice note in its marketing. (optional)</span></label>
+      <label id="consentRow"><input id="consentBox" type="checkbox"> <span data-video="i give say sukii permission to store and use my video note.">i give say sukii permission to store and use my voice note.</span></label>
+      <label><input id="marketingBox" type="checkbox"> <span data-video="i give say sukii permission to use my video note in its marketing. (optional)">i give say sukii permission to use my voice note in its marketing. (optional)</span></label>
     </div>
     <button type="button" class="sheet-send" id="sheetSend"><span class="send-word">leave note</span></button>
   </div>
   <form class="composer" id="composer" autocomplete="off">
     <label class="note-field">
       <span class="sr">your note</span>
-      <textarea id="noteInput" rows="1" maxlength="650" placeholder="write your note" enterkeyhint="next"></textarea>
+      <textarea id="noteInput" rows="1" maxlength="650" placeholder="write your note" enterkeyhint="enter"></textarea>
       <canvas class="voice-line" id="voiceLine" aria-hidden="true"></canvas>
       <button type="button" class="mic" id="mic" aria-label="record a voice note" aria-pressed="false">
         <svg class="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>
+        <svg class="i-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="8" y="8" width="8" height="8" rx="1.2"/></svg>
+      </button>
+      <button type="button" class="mic cam" id="cam" aria-label="record a video note" aria-pressed="false">
+        <svg class="i-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="M15.5 10.5l6-3.5v10l-6-3.5"/></svg>
         <svg class="i-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="8" y="8" width="8" height="8" rx="1.2"/></svg>
       </button>
       <button type="button" class="mic redo" id="startOver" aria-label="start over" title="start over">
@@ -588,12 +652,15 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   /* ================= fit to screen ================= */
   var composer = document.getElementById('composer');
   var scaler = document.getElementById('scaler');
+  var qNow = 0;            // how far the cover has turned, 0..1
+  // on a phone the page being written on stays where it is as the cover turns away from it
+  function placeX(){
+    var tx = innerWidth < 720 ? -qNow * W / 2 * scale : 0;
+    root.style.setProperty('--tx', tx.toFixed(2) + 'px');
+  }
   function fit(){
-    var narrow = innerWidth < 720, tx = 0;
-    if (narrow && goal){                         // just the page you're writing on
-      scale = Math.min(1.15, (innerWidth - 24) / W);
-      tx = -W / 2 * scale;
-    } else if (narrow){                          // the envelope and card
+    var narrow = innerWidth < 720;
+    if (narrow){                                 // the same size closed and open: it just opens
       scale = Math.min(1.15, (innerWidth - 24) / 420);
     } else {
       var room = (innerHeight - composer.offsetHeight - 150) / 471;
@@ -601,9 +668,8 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     }
     // a phone on its side sizes the card by height, so the card and the note field are seen together
     if (innerHeight < 480) scale = Math.min(scale, Math.max(.6, (innerHeight - composer.offsetHeight - 90) / 471));
-    if (narrow && goal) tx = -W / 2 * scale;     // keeps the page centred at whatever size it ended up
     root.style.setProperty('--s', scale);
-    root.style.setProperty('--tx', tx + 'px');
+    placeX();
   }
   addEventListener('resize', fit); fit();
 
@@ -615,6 +681,8 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     var e = Math.max(0, Math.min(1, v / ENV_STAGE));
     var q = Math.max(0, Math.min(1, (v - ENV_STAGE) / (1 - ENV_STAGE)));
     shift = (1 - e) * -42;
+    qNow = q;
+    if (innerWidth < 720) placeX();
     stage.style.setProperty('--e', e.toFixed(4));
     stage.style.setProperty('--q', q.toFixed(4));
     stage.style.setProperty('--shift', shift.toFixed(2) + 'px');
@@ -644,7 +712,6 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     card.setAttribute('aria-label', 'Thank you card. Click or drag to ' + (g ? 'close.' : 'open.'));
     root.style.setProperty('--env-room', g ? 0 : 1);
     animateTo(g, msPerUnit || 1550, ease || easeInOut);
-    if (innerWidth < 720){ scaler.classList.add('zooming'); fit(); }
   }
   function toggle(){ setGoal(goal ? 0 : 1); }
 
@@ -782,9 +849,13 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   input.addEventListener('blur', function(){ document.body.style.paddingBottom = ''; });
 
   /* ================= voice note ================= */
-  var MAX_NOTE = 650, MAX_SECONDS = 120;
+  var MAX_NOTE = 650, MAX_SECONDS = 120, MAX_VIDEO_SECONDS = 60;
   var noteField = document.querySelector('.note-field');
   var micBtn = document.getElementById('mic');
+  var camBtn = document.getElementById('cam');
+  var noteVideo = document.getElementById('noteVideo');
+  var noteArea = noteVideo.parentNode;
+  var videoUrl = '';
   var startOverBtn = document.getElementById('startOver');
   var voiceStatus = document.getElementById('voiceStatus');
   var voiceLine = document.getElementById('voiceLine');
@@ -812,29 +883,33 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     if (joined.length >= MAX_NOTE && session === s) stopRecording();
   }
 
+  // started inside the tap itself: an iPhone only lets dictation begin from a tap, so started any later
+  // it never heard a word. Each result rebuilds the words of this run whole, since an iPhone sends
+  // every result again each time rather than only the new ones
   function startWords(s){
     var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Recognition){ s.noWords = true; return; }
     var r = new Recognition();
+    s.quickEnds = 0;
     r.continuous = true; r.interimResults = true; r.lang = navigator.language || 'en-US';
     r.onresult = function(e){
-      var interim = '';
-      for (var i = e.resultIndex; i < e.results.length; i++){
-        var t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) s.finals += t.trim() + ' ';
-        else interim += t;
+      if (session && session !== s) return;
+      var run = [];
+      for (var i = 0; i < e.results.length; i++){
+        var t = e.results[i][0].transcript.trim();
+        if (t) run.push(t);
       }
-      s.interim = interim;
+      s.interim = run.join(' ');
       s.gotWords = true;
       showWords(s);
     };
     r.onerror = function(e){
-      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      if (e.error === 'no-speech' || e.error === 'aborted' || e.error === 'audio-capture') return;
       s.noWords = true;
     };
     // browsers end recognition after a pause, so it's restarted until the person stops
     r.onend = function(){
-      if (session !== s || s.noWords) return;
+      if (s.over || s.noWords) return;
       if (s.interim){ s.finals += s.interim.trim() + ' '; s.interim = ''; }
       if (performance.now() - s.wordsStarted < 300 && ++s.quickEnds > 3){ s.noWords = true; return; }
       try { s.wordsStarted = performance.now(); r.start(); } catch(_){ s.noWords = true; }
@@ -844,11 +919,15 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     try { r.start(); } catch(_){ s.noWords = true; }
   }
 
-  function startLevels(s){
+  // made inside the tap itself: iOS keeps an AudioContext made any later silent, so the voice line never moved
+  function audioContextNow(){
     var Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
+    if (!Ctx) return null;
+    try { var ctx = new Ctx(); if (ctx.resume) ctx.resume(); return ctx; } catch(_){ return null; }
+  }
+  function startLevels(s){
+    if (!s.ctx) return;
     try {
-      s.ctx = new Ctx();
       if (s.ctx.resume) s.ctx.resume();
       s.analyser = s.ctx.createAnalyser();
       s.analyser.fftSize = 512;
@@ -883,65 +962,119 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   function tick(s){
     if (session !== s) return;
     var secs = (performance.now() - s.startedAt) / 1000;
-    if (secs >= MAX_SECONDS){ stopRecording(); return; }
+    if (secs >= (s.video ? MAX_VIDEO_SECONDS : MAX_SECONDS)){ stopRecording(); return; }
     if (s.analyser && !s.heard && secs > 4) setStatus('no sound yet, check your microphone');
     else if (s.noWords) setStatus('recording ' + clock(secs));
     else setStatus('listening ' + clock(secs));
     s.ticker = setTimeout(function(){ tick(s); }, 250);
   }
 
-  function startRecording(){
+  // the video on the card's page: the camera while recording, then the recording on a quiet loop
+  function showVideo(source){
+    if (videoUrl){ URL.revokeObjectURL(videoUrl); videoUrl = ''; }
+    noteVideo.pause();
+    noteVideo.srcObject = null;
+    noteVideo.removeAttribute('src');
+    if (source instanceof Blob){
+      videoUrl = URL.createObjectURL(source);
+      noteVideo.src = videoUrl;
+      noteVideo.loop = true;
+    } else if (source){
+      noteVideo.srcObject = source;
+      noteVideo.loop = false;
+    }
+    noteVideo.muted = true;
+    noteArea.classList.toggle('with-video', !!source);
+    if (source){ var playing = noteVideo.play(); if (playing && playing.catch) playing.catch(function(){}); }
+    else noteVideo.load();
+  }
+
+  var latest = null;                     // the newest recording asked for
+  function startRecording(kind){
     openForNote();
+    var video = kind === 'video';
+    var ctx = audioContextNow();
+    var dropCtx = function(){ if (ctx && ctx.close) ctx.close(); };
+    var button = video ? camBtn : micBtn;
     var md = navigator.mediaDevices;
-    if (!md || !md.getUserMedia){ setStatus('voice notes need a secure https link'); return; }
-    micBtn.disabled = true;
-    setStatus('allow your microphone');
-    md.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true } }).then(function(stream){
-      micBtn.disabled = false;
-      var s = { stream:stream, base:input.value.trim(), finals:'', interim:'', chunks:[], startedAt:performance.now(), quickEnds:0 };
+    if (!md || !md.getUserMedia){ dropCtx(); setStatus((video ? 'video' : 'voice') + ' notes need a secure https link'); return; }
+    if (video && !window.MediaRecorder){ dropCtx(); setStatus('this browser can\u2019t record video, type or record your voice instead'); return; }
+    var device = video ? 'camera' : 'microphone';
+    button.disabled = true;
+    setStatus('allow your ' + device);
+    // the words start now, inside the tap. Android can't share the microphone between recording
+    // and transcribing, so there it just records; a video note carries no words
+    var s = { ctx:ctx, video:video, base:input.value.trim(), finals:'', interim:'', chunks:[], quickEnds:0 };
+    if (video) s.base = '';
+    latest = s;
+    if (video || (window.MediaRecorder && /android/i.test(navigator.userAgent))) s.noWords = true;
+    else startWords(s);
+    var constraints = { audio:{ echoCancellation:true, noiseSuppression:true } };
+    if (video) constraints.video = { facingMode:'user', width:{ ideal:720 }, height:{ ideal:960 }, frameRate:{ ideal:24, max:30 } };
+    md.getUserMedia(constraints).then(function(stream){
+      button.disabled = false;
+      // a video note is just the video, so anything typed is cleared
+      if (video){ input.value = ''; noteText.textContent = ''; }
+      s.stream = stream;
+      s.startedAt = performance.now();
       session = s;
       voice = null;
-      noteField.classList.remove('has-voice');
+      noteField.classList.remove('has-voice', 'has-video');
+      showVideo(video ? stream : null);
       growInput();
       input.readOnly = true;
-      input.placeholder = 'listening';
+      input.placeholder = video ? 'recording' : 'listening';
       noteField.classList.add('recording');
-      micBtn.setAttribute('aria-pressed', 'true');
-      micBtn.setAttribute('aria-label', 'stop recording');
+      noteField.classList.toggle('recording-video', video);
+      button.setAttribute('aria-pressed', 'true');
+      button.setAttribute('aria-label', 'stop recording');
       updateLeave();
       // Android can't share the microphone between recording and transcribing, so there it keeps the recording
       if (window.MediaRecorder){
         try {
-          var type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].filter(function(t){ return MediaRecorder.isTypeSupported(t); })[0];
-          var opts = { audioBitsPerSecond:32000 };
+          var types = video
+            ? ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+            : ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'];
+          var type = types.filter(function(t){ return MediaRecorder.isTypeSupported(t); })[0];
+          var opts = video ? { videoBitsPerSecond:1200000, audioBitsPerSecond:64000 } : { audioBitsPerSecond:32000 };
           if (type) opts.mimeType = type;
           s.recorder = new MediaRecorder(stream, opts);
           s.recorder.ondataavailable = function(e){ if (e.data && e.data.size) s.chunks.push(e.data); };
           s.recorder.start(1000);
         } catch(_){ s.recorder = null; }
       }
-      if (s.recorder && /android/i.test(navigator.userAgent)) s.noWords = true;
-      else startWords(s);
+      if (video && !s.recorder){
+        endSession(s, false);
+        setStatus('this browser can\u2019t record video, type or record your voice instead');
+        return;
+      }
       startLevels(s);
       tick(s);
     }, function(err){
-      micBtn.disabled = false;
+      button.disabled = false;
+      dropCtx();
+      s.over = true;
+      if (s.recognition){ s.recognition.onend = null; try { s.recognition.abort(); } catch(_){} }
       var name = err && err.name;
-      if (name === 'NotAllowedError' || name === 'SecurityError') setStatus('microphone is blocked, allow it or type instead');
-      else if (name === 'NotFoundError') setStatus('no microphone found');
-      else setStatus('microphone isn\u2019t available, type instead');
+      if (name === 'NotAllowedError' || name === 'SecurityError') setStatus(device + ' is blocked, allow it or type instead');
+      else if (name === 'NotFoundError') setStatus('no ' + device + ' found');
+      else if (name === 'NotReadableError') setStatus('the ' + device + ' is in use by another app');
+      else setStatus(device + ' isn\u2019t available, type instead');
     });
   }
 
   // ends the session; resolves once any audio is ready
   function endSession(s, keep){
     if (session === s) session = null;
+    s.over = true;
     clearTimeout(s.ticker);
     cancelAnimationFrame(s.levelFrame);
-    noteField.classList.remove('recording');
+    noteField.classList.remove('recording', 'recording-video');
     micBtn.setAttribute('aria-pressed', 'false');
     micBtn.setAttribute('aria-label', 'record a voice note');
-    input.readOnly = false;
+    camBtn.setAttribute('aria-pressed', 'false');
+    camBtn.setAttribute('aria-label', 'record a video note');
+    input.readOnly = !!(keep && s.video);   // a video note takes no words
     input.placeholder = 'write your note';
     if (s.recognition){
       s.recognition.onend = null;
@@ -955,8 +1088,10 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
         s.stream.getTracks().forEach(function(t){ t.stop(); });
         if (keep){
           var blob = s.chunks.length ? new Blob(s.chunks, { type:s.recorder.mimeType || s.chunks[0].type }) : null;
-          voice = { blob:blob, seconds:secs, transcribed:!!s.gotWords };
+          voice = { blob:blob, seconds:secs, transcribed:!!s.gotWords, video:!!(s.video && blob) };
         }
+        // a take thrown away for a new one leaves the new camera on the page
+        if (s.video && latest === s) showVideo(keep && voice && voice.video ? voice.blob : null);
         done();
       };
       if (s.recorder && s.recorder.state !== 'inactive'){ s.recorder.onstop = finish; s.recorder.stop(); }
@@ -971,6 +1106,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
       // a last few words can arrive just after stopping
       setTimeout(function(){ if (s.recognition) s.recognition.onresult = null; }, 900);
       noteField.classList.add('has-voice');
+      noteField.classList.toggle('has-video', !!(voice && voice.video));
       growInput();                       // the icons take up room, so the text may rewrap
       setStatus(voiceSummary());
       updateLeave();
@@ -978,24 +1114,40 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   }
 
   function voiceSummary(){
+    if (voice.video) return 'video note ' + clock(voice.seconds);
     return 'voice note ' + clock(voice.seconds) + (voice.transcribed ? ', edit the words if you like' : ', type your words above');
   }
 
   function clearVoice(){
     voice = null;
     setStatus('');
-    noteField.classList.remove('has-voice');
+    if (noteArea.classList.contains('with-video')) showVideo(null);
+    input.readOnly = false;
+    noteField.classList.remove('has-voice', 'has-video');
     growInput();
   }
 
   micBtn.addEventListener('click', function(e){
     e.preventDefault();                  // it sits inside the field's label
-    if (session) stopRecording(); else startRecording();
+    if (session) stopRecording(); else startRecording('voice');
+  });
+  camBtn.addEventListener('click', function(e){
+    e.preventDefault();                  // it sits inside the field's label
+    if (session) stopRecording(); else startRecording('video');
   });
 
   // clears the note and the recording, back to the start: they can choose again how to leave their note
   startOverBtn.addEventListener('click', function(e){
     e.preventDefault();                  // it sits inside the field's label
+    // while recording: throw this take away and begin again, the same way
+    // the new take starts inside this tap, so an iPhone lets its words begin
+    if (session){
+      var s = session;
+      endSession(s, false);
+      input.value = s.base; noteText.textContent = s.base; growInput();
+      startRecording(s.video ? 'video' : 'voice');
+      return;
+    }
     clearVoice();
     input.value = ''; noteText.textContent = ''; growInput();
     consentBox.checked = false; marketingBox.checked = false;
@@ -1003,14 +1155,9 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   });
   addEventListener('pagehide', function(){ if (session) endSession(session, false); });
 
-  /* ================= on a phone: the enter icon, or the keyboard's return key, says the note is done ================= */
+  /* ================= on a phone: the enter icon says the note is done; the keyboard's return key starts a new line ================= */
   document.getElementById('noteDone').addEventListener('click', function(e){
     e.preventDefault();                  // it sits inside the field's label
-    openSendSheet();
-  });
-  input.addEventListener('keydown', function(e){
-    if (innerWidth >= 720 || e.key !== 'Enter' || e.isComposing) return;
-    e.preventDefault();
     openSendSheet();
   });
 
@@ -1031,13 +1178,16 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     var stop = new AbortController();
     var timer = setTimeout(function(){ stop.abort(); }, 120000);
     var blob = voice && voice.blob;
+    var isVideo = !!(voice && voice.video);
     return postNote('', {
       text:text,
       name:fromName.value.trim(),
       consent:!!voice && consentBox.checked,
       consentMarketing:!!voice && marketingBox.checked,
-      audioType:blob ? blob.type : '',
-      audioBytes:blob ? blob.size : 0,
+      audioType:blob && !isVideo ? blob.type : '',
+      audioBytes:blob && !isVideo ? blob.size : 0,
+      videoType:blob && isVideo ? blob.type : '',
+      videoBytes:blob && isVideo ? blob.size : 0,
       website:document.getElementById('hp').value
     }, stop.signal).then(function(res){
       if (!res.uploadUrl) return;
@@ -1085,14 +1235,14 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
   }
 
   function rainGlitter(){
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
     var ms = 4200;
     var canvas = document.createElement('canvas');
     canvas.className = 'celebrate-glitter';
     canvas.setAttribute('aria-hidden', 'true');
     document.body.appendChild(canvas);
     var context = canvas.getContext('2d');
-    if (!context) { canvas.remove(); return; }
+    if (!context) { canvas.remove(); return null; }
     var scale = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(window.innerWidth * scale);
     canvas.height = Math.round(window.innerHeight * scale);
@@ -1110,28 +1260,32 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     var spawnUntil = started + ms - 1400;
     var last = started;
     var frame = 0;
+    var H = window.innerHeight, W = window.innerWidth;
+    // the same rain as before, only each fleck lives long enough to fall the whole screen:
+    // it settles to about 140px a second
+    function fleck(y){
+      var life = H / 140 + 0.6 + Math.random() * 1.2;
+      return {
+        x: Math.random() * W,
+        y: y,
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: 1.2 + Math.random() * 2.4,
+        life: life,
+        maxLife: life,
+        size: 1.6 + Math.random() * 3,
+        color: GLITTER[Math.floor(Math.random() * GLITTER.length)],
+        glow: Math.random() < 0.5,
+        spin: (Math.random() - 0.5) * 0.2,
+        phase: Math.random() * Math.PI * 2
+      };
+    }
 
     function tick(now){
       var step = Math.min((now - last) / 16.67, 3);
       last = now;
       // keeps adding glitter for most of the moment
       if (now < spawnUntil) {
-        for (var n = 0; n < 5; n++) {
-          var life = 3 + Math.random() * 1.5;
-          flecks.push({
-            x: Math.random() * window.innerWidth,
-            y: -10,
-            vx: (Math.random() - 0.5) * 0.8,
-            vy: 1.2 + Math.random() * 2.4,
-            life: life,
-            maxLife: life,
-            size: 1.6 + Math.random() * 3,
-            color: GLITTER[Math.floor(Math.random() * GLITTER.length)],
-            glow: Math.random() < 0.5,
-            spin: (Math.random() - 0.5) * 0.2,
-            phase: Math.random() * Math.PI * 2
-          });
-        }
+        for (var n = 0; n < 5; n++) flecks.push(fleck(-10));
       }
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, canvas.width, canvas.height);
@@ -1149,7 +1303,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
         item.y += item.vy * step;
         item.phase += item.spin * step;
         var twinkle = 0.55 + 0.45 * Math.sin(now / 90 + item.phase * 6);
-        var fade = Math.min(1, item.life / (item.maxLife * 0.35));
+        var fade = Math.min(1, item.life / (item.maxLife * 0.15));
         var sprite = spriteFor(item.color, item.glow);
         var size = (item.size / SPRITE_RADIUS) * (0.7 + 0.3 * twinkle);
         context.globalAlpha = fade * twinkle;
@@ -1167,10 +1321,17 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
       else canvas.remove();
     }
     frame = requestAnimationFrame(tick);
-    setTimeout(function(){
+    var ends = setTimeout(function(){
       cancelAnimationFrame(frame);
       canvas.remove();
-    }, ms + 3000);
+    }, ms + (H / 140 + 2) * 1000);
+    // a note that didn't send: the glitter fades away
+    return { stop: function(){
+      spawnUntil = 0;
+      canvas.style.transition = 'opacity .5s';
+      canvas.style.opacity = '0';
+      setTimeout(function(){ cancelAnimationFrame(frame); clearTimeout(ends); canvas.remove(); }, 520);
+    } };
   }
 
   var sending = false;
@@ -1183,8 +1344,10 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     leaveBtn.disabled = true;
     leaveBtn.textContent = 'sending';
     if (innerWidth < 720) setStatus('');
+    // the glitter starts the moment the note is left, while it travels
+    var glitter = rainGlitter();
     stopRecording().then(function(){
-      return sendNote(input.value.trim());
+      return sendNote(voice && voice.video ? '' : input.value.trim());
     }).then(function(){
       sending = false;
       input.blur();
@@ -1201,11 +1364,11 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
         input.placeholder = 'thank you';
         setTimeout(function(){ if (input.placeholder === 'thank you') input.placeholder = 'write your note'; }, 2600);
       }
-      rainGlitter();
       setTimeout(function(){ leaveBtn.textContent = 'leave note'; }, 2600);
     }, function(err){
       // keep what they wrote, so they can simply try again
       console.error(err);
+      if (glitter) glitter.stop();
       sending = false;
       leaveBtn.disabled = false;
       leaveBtn.textContent = 'not sent, try again';
@@ -1238,6 +1401,11 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     stopRecording().then(function(){
       setStatus('');
       consentArea.hidden = !voice;
+      // the consent names what was recorded: a voice note or a video note
+      Array.prototype.forEach.call(consentArea.querySelectorAll('span[data-video]'), function(span){
+        if (!span.dataset.voice) span.dataset.voice = span.textContent;
+        span.textContent = voice && voice.video ? span.dataset.video : span.dataset.voice;
+      });
       sendSheet.hidden = false;
       placeSheet();
       updateSheet();
@@ -1315,7 +1483,7 @@ if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'Mac
     root.style.setProperty('--o', 0);
     root.style.setProperty('--shine', 0);
   }
-  document.addEventListener('pointermove', function(e){ setTilt(e.clientX, e.clientY); });
+  document.addEventListener('pointermove', function(e){ if (e.pointerType !== 'touch') setTilt(e.clientX, e.clientY); });
   document.documentElement.addEventListener('pointerleave', resetTilt);
   document.addEventListener('touchend', function(){ if (!drag) resetTilt(); });
 

@@ -6,6 +6,8 @@ import { z } from "zod";
 import type { Database } from "@/integrations/supabase/types";
 import {
   parseLoveNote,
+  VIDEO_CONSENT_WORDING,
+  VIDEO_MARKETING_WORDING,
   VOICE_CONSENT_WORDING,
   VOICE_MARKETING_WORDING,
 } from "@/lib/love-note-input.ts";
@@ -54,7 +56,7 @@ export async function createLoveNote(
   // a bot is told it worked, so it has no reason to try again
   if (parsed.kind === "bot") return { status: 200, body: { ok: true, id: null } };
   if (parsed.kind === "invalid") return refuse(400, parsed.error);
-  const { note, name, audio, marketing } = parsed.input;
+  const { note, name, audio, video, marketing } = parsed.input;
 
   const anHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   if (
@@ -67,6 +69,8 @@ export async function createLoveNote(
 
   const id = crypto.randomUUID();
   const audioPath = audio ? `${id}/voice.${audio.extension}` : null;
+  const videoPath = video ? `${id}/video.${video.extension}` : null;
+  const recordingPath = audioPath ?? videoPath;
   const storage = client.storage.from(BUCKET);
 
   const now = new Date().toISOString();
@@ -75,17 +79,24 @@ export async function createLoveNote(
     note,
     from_name: name,
     audio_path: audioPath,
-    consent_given_at: audioPath ? now : null,
-    consent_wording: audioPath ? VOICE_CONSENT_WORDING : null,
+    // only named when there is a video, so text and voice notes still save on a database that
+    // hasn't had the video migration yet
+    ...(videoPath ? { video_path: videoPath } : {}),
+    consent_given_at: recordingPath ? now : null,
+    consent_wording: recordingPath ? (video ? VIDEO_CONSENT_WORDING : VOICE_CONSENT_WORDING) : null,
     marketing_consent_given_at: marketing ? now : null,
-    marketing_consent_wording: marketing ? VOICE_MARKETING_WORDING : null,
-    status: audioPath ? "uploading" : "received",
+    marketing_consent_wording: marketing
+      ? video
+        ? VIDEO_MARKETING_WORDING
+        : VOICE_MARKETING_WORDING
+      : null,
+    status: recordingPath ? "uploading" : "received",
     sender_hash: senderHash,
   });
   if (inserted.error) throw inserted.error;
 
-  if (!audioPath) return { status: 200, body: { ok: true, id } };
-  const link = await storage.createSignedUploadUrl(audioPath);
+  if (!recordingPath) return { status: 200, body: { ok: true, id } };
+  const link = await storage.createSignedUploadUrl(recordingPath);
   if (link.error) throw link.error;
   return { status: 200, body: { ok: true, id, uploadUrl: link.data.signedUrl } };
 }
@@ -100,14 +111,15 @@ export async function finishLoveNote(client: Client, raw: unknown): Promise<Love
 
   const { data: row, error } = await client
     .from("love_notes")
-    .select("status, audio_path")
+    .select("*")
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
   if (!row) return refuse(404, "note not found");
-  if (row.status === "received" || !row.audio_path) return { status: 200, body: { ok: true, id } };
+  const recordingPath = row.audio_path ?? row.video_path ?? null;
+  if (row.status === "received" || !recordingPath) return { status: 200, body: { ok: true, id } };
 
-  const name = row.audio_path.split("/").pop()!;
+  const name = recordingPath.split("/").pop()!;
   const listed = await client.storage.from(BUCKET).list(id, { search: name });
   if (listed.error) throw listed.error;
   if (!listed.data.some((file) => file.name === name))
