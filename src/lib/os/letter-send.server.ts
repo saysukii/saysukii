@@ -7,6 +7,7 @@ import { refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
 import { signatureText } from "@/lib/os/mail-signature";
 import { syncInquiryAutoTaskFor } from "@/lib/os/tasks.functions";
 import { proposalCards } from "@/lib/proposal-link";
+import { inquiryProblem } from "@/lib/os/inquiry-lookup";
 
 type StudioClient = SupabaseClient<Database>;
 
@@ -27,19 +28,23 @@ export type LetterRequest = {
 };
 
 async function letterRecipients(client: StudioClient, request: LetterRequest) {
-  const inquiry = await client
+  // an archived inquiry can still be written to; archiving only takes it off the board
+  const found = await client
     .from("inquiries")
-    .select("id, status, client_id, detection_status")
+    .select("id, status, client_id, detection_status, archived")
     .eq("id", request.inquiryId)
-    .eq("archived", false)
-    .single();
-  if (inquiry.error) throw new Error(inquiry.error.message);
+    .maybeSingle();
+  if (found.error) throw new Error(found.error.message);
+  const problem = inquiryProblem(found.data);
+  if (problem || !found.data) throw new Error(problem ?? "");
+  const inquiry = { data: found.data };
   const person = await client
     .from("clients")
     .select("email, name")
     .eq("id", inquiry.data.client_id)
-    .single();
+    .maybeSingle();
   if (person.error) throw new Error(person.error.message);
+  if (!person.data) throw new Error("this inquiry's client is no longer here.");
 
   const { mailRecord } = await import("@/lib/os/mail-people");
   const clientEmail = person.data.email?.trim() ?? "";

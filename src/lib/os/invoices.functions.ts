@@ -5,6 +5,7 @@ import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { fillTemplate } from "@/lib/email-templates";
 import { signatureName } from "@/lib/os/mail-signature";
+import { inquiryProblem } from "@/lib/os/inquiry-lookup";
 
 const item = z.object({
   name: z.string().trim().max(200),
@@ -52,13 +53,15 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
     const total = subtotal - data.courtesy_cents;
     const dueNow = data.pay_in_full ? total : Math.round(total / 2);
 
-    const inquiry = await context.supabase
+    const found = await context.supabase
       .from("inquiries")
-      .select("id, client_id, event_date, event_date_tbd")
+      .select("id, client_id, event_date, event_date_tbd, archived")
       .eq("id", data.inquiry_id)
-      .eq("archived", false)
-      .single();
-    if (inquiry.error) throw new Error(inquiry.error.message);
+      .maybeSingle();
+    if (found.error) throw new Error(found.error.message);
+    const problem = inquiryProblem(found.data, "send an invoice");
+    if (problem || !found.data) throw new Error(problem ?? "");
+    const inquiry = { data: found.data };
     const person = await context.supabase
       .from("clients")
       .select("name, email")

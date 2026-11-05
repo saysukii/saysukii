@@ -11,6 +11,7 @@ import {
   shouldSpawnInquiryAutoTask,
   type InquiryAutoDraft,
 } from "@/lib/os/inquiry-tasks";
+import { inquiryProblem } from "@/lib/os/inquiry-lookup";
 
 type StudioClient = SupabaseClient<Database>;
 
@@ -242,13 +243,14 @@ export const createManualTask = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     if (data.linked_type === "inquiry" && data.linked_id) {
-      const { error } = await context.supabase
+      const { data: row, error } = await context.supabase
         .from("inquiries")
-        .select("id")
+        .select("archived")
         .eq("id", data.linked_id)
-        .eq("archived", false)
-        .single();
-      if (error) throw new Error("Inquiry not found");
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      const problem = inquiryProblem(row, "add a task to it");
+      if (problem) throw new Error(problem);
     }
     if (data.linked_type === "project" && data.linked_id) {
       const { error } = await context.supabase
