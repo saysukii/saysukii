@@ -597,11 +597,11 @@ function SettingsPage() {
             <p className="studio-connect-seen">updated {formatSeen(granola.updated_at)}</p>
             {showGranolaKey ? (
               <label className="studio-field studio-granola-key">
-                <span>workspace key</span>
+                <span>api key</span>
                 <input
                   className="studio-input"
                   type="password"
-                  name="granola-workspace-key"
+                  name="granola-api-key"
                   autoComplete="off"
                   spellCheck={false}
                   placeholder="grn_…"
