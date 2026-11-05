@@ -1,5 +1,15 @@
 /** the storage buckets the studio's files live in, the only ones /file serves */
-export const APP_FILE_BUCKETS = ["project-files", "documents"] as const;
+export const APP_FILE_BUCKETS = ["project-files", "documents", "love-notes"] as const;
+
+/** A name that's safe to hand a browser for a download: plain letters, numbers, dots and dashes. */
+export function safeDownloadName(name: string) {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 120);
+}
 
 /** how long a signed file link lasts, in seconds */
 export const FILE_LINK_SECONDS = 60 * 30;

@@ -25,6 +25,7 @@ import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
 import { Route as AuthenticatedLoadingRouteImport } from './routes/_authenticated/loading'
+import { Route as AuthenticatedLoveNotesRouteImport } from './routes/_authenticated/love-notes'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedShelfRouteImport } from './routes/_authenticated/shelf'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -45,6 +46,8 @@ import { Route as ApiCronBalanceRemindersRouteImport } from './routes/api/cron/b
 import { Route as ApiCronGmailInboundRouteImport } from './routes/api/cron/gmail-inbound'
 import { Route as ApiCronGmailRouteRouteImport } from './routes/api/cron/gmail-route'
 import { Route as ApiCronScheduledLettersRouteImport } from './routes/api/cron/scheduled-letters'
+import { Route as ApiLoveNotesIndexRouteImport } from './routes/api/love-notes/index'
+import { Route as ApiLoveNotesFinishRouteImport } from './routes/api/love-notes/finish'
 import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
 import { Route as AuthenticatedDirectoriesVendorsIndexRouteImport } from './routes/_authenticated/directories.vendors.index'
 import { Route as AuthenticatedDirectoriesVendorsIdRouteImport } from './routes/_authenticated/directories.vendors.$id'
@@ -131,6 +134,11 @@ const AuthenticatedLibraryRoute = AuthenticatedLibraryRouteImport.update({
 const AuthenticatedLoadingRoute = AuthenticatedLoadingRouteImport.update({
   id: '/loading',
   path: '/loading',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLoveNotesRoute = AuthenticatedLoveNotesRouteImport.update({
+  id: '/love-notes',
+  path: '/love-notes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
@@ -237,6 +245,16 @@ const ApiCronScheduledLettersRoute = ApiCronScheduledLettersRouteImport.update({
   path: '/api/cron/scheduled-letters',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLoveNotesIndexRoute = ApiLoveNotesIndexRouteImport.update({
+  id: '/api/love-notes/',
+  path: '/api/love-notes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLoveNotesFinishRoute = ApiLoveNotesFinishRouteImport.update({
+  id: '/api/love-notes/finish',
+  path: '/api/love-notes/finish',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSquareWebhookRoute = ApiSquareWebhookRouteImport.update({
   id: '/api/square/webhook',
   path: '/api/square/webhook',
@@ -301,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/library': typeof AuthenticatedLibraryRoute
   '/loading': typeof AuthenticatedLoadingRoute
+  '/love-notes': typeof AuthenticatedLoveNotesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -320,8 +339,10 @@ export interface FileRoutesByFullPath {
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
+  '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/pipeline/': typeof AuthenticatedPipelineIndexRoute
+  '/api/love-notes/': typeof ApiLoveNotesIndexRoute
   '/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
   '/directories/venues/$id': typeof AuthenticatedDirectoriesVenuesIdRoute
   '/api/integrations/gmail/callback': typeof ApiIntegrationsGmailCallbackRoute
@@ -345,6 +366,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/library': typeof AuthenticatedLibraryRoute
   '/loading': typeof AuthenticatedLoadingRoute
+  '/love-notes': typeof AuthenticatedLoveNotesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -362,8 +384,10 @@ export interface FileRoutesByTo {
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
+  '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/pipeline': typeof AuthenticatedPipelineIndexRoute
+  '/api/love-notes': typeof ApiLoveNotesIndexRoute
   '/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
   '/directories/venues/$id': typeof AuthenticatedDirectoriesVenuesIdRoute
   '/api/integrations/gmail/callback': typeof ApiIntegrationsGmailCallbackRoute
@@ -390,6 +414,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/library': typeof AuthenticatedLibraryRoute
   '/_authenticated/loading': typeof AuthenticatedLoadingRoute
+  '/_authenticated/love-notes': typeof AuthenticatedLoveNotesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -409,8 +434,10 @@ export interface FileRoutesById {
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
+  '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/_authenticated/pipeline/': typeof AuthenticatedPipelineIndexRoute
+  '/api/love-notes/': typeof ApiLoveNotesIndexRoute
   '/_authenticated/directories/vendors/$id': typeof AuthenticatedDirectoriesVendorsIdRoute
   '/_authenticated/directories/venues/$id': typeof AuthenticatedDirectoriesVenuesIdRoute
   '/api/integrations/gmail/callback': typeof ApiIntegrationsGmailCallbackRoute
@@ -437,6 +464,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/library'
     | '/loading'
+    | '/love-notes'
     | '/settings'
     | '/shelf'
     | '/auth/callback'
@@ -456,8 +484,10 @@ export interface FileRouteTypes {
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/scheduled-letters'
+    | '/api/love-notes/finish'
     | '/api/square/webhook'
     | '/pipeline/'
+    | '/api/love-notes/'
     | '/directories/vendors/$id'
     | '/directories/venues/$id'
     | '/api/integrations/gmail/callback'
@@ -481,6 +511,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/library'
     | '/loading'
+    | '/love-notes'
     | '/settings'
     | '/shelf'
     | '/auth/callback'
@@ -498,8 +529,10 @@ export interface FileRouteTypes {
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/scheduled-letters'
+    | '/api/love-notes/finish'
     | '/api/square/webhook'
     | '/pipeline'
+    | '/api/love-notes'
     | '/directories/vendors/$id'
     | '/directories/venues/$id'
     | '/api/integrations/gmail/callback'
@@ -525,6 +558,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/library'
     | '/_authenticated/loading'
+    | '/_authenticated/love-notes'
     | '/_authenticated/settings'
     | '/_authenticated/shelf'
     | '/auth/callback'
@@ -544,8 +578,10 @@ export interface FileRouteTypes {
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/scheduled-letters'
+    | '/api/love-notes/finish'
     | '/api/square/webhook'
     | '/_authenticated/pipeline/'
+    | '/api/love-notes/'
     | '/_authenticated/directories/vendors/$id'
     | '/_authenticated/directories/venues/$id'
     | '/api/integrations/gmail/callback'
@@ -577,7 +613,9 @@ export interface RootRouteChildren {
   ApiCronGmailInboundRoute: typeof ApiCronGmailInboundRoute
   ApiCronGmailRouteRoute: typeof ApiCronGmailRouteRoute
   ApiCronScheduledLettersRoute: typeof ApiCronScheduledLettersRoute
+  ApiLoveNotesFinishRoute: typeof ApiLoveNotesFinishRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
+  ApiLoveNotesIndexRoute: typeof ApiLoveNotesIndexRoute
   ApiIntegrationsGmailCallbackRoute: typeof ApiIntegrationsGmailCallbackRoute
   ApiIntegrationsGoogleCallbackRoute: typeof ApiIntegrationsGoogleCallbackRoute
   ApiIntegrationsSquareCallbackRoute: typeof ApiIntegrationsSquareCallbackRoute
@@ -695,6 +733,13 @@ declare module '@tanstack/react-router' {
       path: '/loading'
       fullPath: '/loading'
       preLoaderRoute: typeof AuthenticatedLoadingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/love-notes': {
+      id: '/_authenticated/love-notes'
+      path: '/love-notes'
+      fullPath: '/love-notes'
+      preLoaderRoute: typeof AuthenticatedLoveNotesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings': {
@@ -837,6 +882,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronScheduledLettersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/love-notes/': {
+      id: '/api/love-notes/'
+      path: '/api/love-notes'
+      fullPath: '/api/love-notes/'
+      preLoaderRoute: typeof ApiLoveNotesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/love-notes/finish': {
+      id: '/api/love-notes/finish'
+      path: '/api/love-notes/finish'
+      fullPath: '/api/love-notes/finish'
+      preLoaderRoute: typeof ApiLoveNotesFinishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/square/webhook': {
       id: '/api/square/webhook'
       path: '/api/square/webhook'
@@ -937,6 +996,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLibraryRoute: typeof AuthenticatedLibraryRoute
   AuthenticatedLoadingRoute: typeof AuthenticatedLoadingRoute
+  AuthenticatedLoveNotesRoute: typeof AuthenticatedLoveNotesRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShelfRoute: typeof AuthenticatedShelfRoute
   AuthenticatedClientsIdRoute: typeof AuthenticatedClientsIdRoute
@@ -952,6 +1012,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLibraryRoute: AuthenticatedLibraryRoute,
   AuthenticatedLoadingRoute: AuthenticatedLoadingRoute,
+  AuthenticatedLoveNotesRoute: AuthenticatedLoveNotesRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShelfRoute: AuthenticatedShelfRoute,
   AuthenticatedClientsIdRoute: AuthenticatedClientsIdRoute,
@@ -1012,7 +1073,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronGmailInboundRoute: ApiCronGmailInboundRoute,
   ApiCronGmailRouteRoute: ApiCronGmailRouteRoute,
   ApiCronScheduledLettersRoute: ApiCronScheduledLettersRoute,
+  ApiLoveNotesFinishRoute: ApiLoveNotesFinishRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,
+  ApiLoveNotesIndexRoute: ApiLoveNotesIndexRoute,
   ApiIntegrationsGmailCallbackRoute: ApiIntegrationsGmailCallbackRoute,
   ApiIntegrationsGoogleCallbackRoute: ApiIntegrationsGoogleCallbackRoute,
   ApiIntegrationsSquareCallbackRoute: ApiIntegrationsSquareCallbackRoute,

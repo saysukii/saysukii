@@ -16,7 +16,7 @@ export default defineConfig(({ command }) => {
   );
   const routeRules = storage
     ? Object.fromEntries(
-        ["project-files", "documents"].map((bucket) => [
+        ["project-files", "documents", "love-notes"].map((bucket) => [
           `/file/${bucket}/**`,
           { proxy: `${storage}/storage/v1/object/sign/${bucket}/**` },
         ]),

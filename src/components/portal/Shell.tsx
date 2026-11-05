@@ -28,6 +28,8 @@ import { firstName } from "@/lib/os/connect-letter";
 import { recordSlug } from "@/lib/os/inquiry-desk";
 import { listFreshArrivals, syncStudioInbox } from "@/lib/os/inquiries.functions";
 import { listFreshBookings } from "@/lib/os/bookings.functions";
+import { loveNoteNotice } from "@/lib/love-note-view";
+import { listFreshLoveNotes } from "@/lib/os/love-notes.functions";
 import { listFreshPayments } from "@/lib/os/proposals.functions";
 import { listRecentIssues } from "@/lib/os/settings.functions";
 import { getDevPreviewSettings } from "@/lib/dev-preview";
@@ -136,6 +138,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const arrivals = useServerFn(listFreshArrivals);
   const bookings = useServerFn(listFreshBookings);
   const payments = useServerFn(listFreshPayments);
+  const loveNotes = useServerFn(listFreshLoveNotes);
   const syncInbox = useServerFn(syncStudioInbox);
   const recentIssues = useServerFn(listRecentIssues);
   const queryClient = useQueryClient();
@@ -250,6 +253,15 @@ export function Shell({ children }: { children: ReactNode }) {
       } catch {
         // the book can be quiet if the studio cannot reach it
       }
+      try {
+        const notes = await loveNotes();
+        if (stop) return;
+        for (const row of notes) {
+          pushNotice(loveNoteNotice({ ...row, name: firstName(row.name) }));
+        }
+      } catch {
+        // love notes can be quiet too, and never get in the way of the rest
+      }
     }
     void look();
     const timer = window.setInterval(() => void look(), 20_000);
@@ -257,7 +269,7 @@ export function Shell({ children }: { children: ReactNode }) {
       stop = true;
       window.clearInterval(timer);
     };
-  }, [arrivals, bookings, devPreview, payments, profile.role, router]);
+  }, [arrivals, bookings, devPreview, loveNotes, payments, profile.role, router]);
 
   // locally, paying the fenty demo is a new booking too
   useEffect(() => {
@@ -379,9 +391,14 @@ export function Shell({ children }: { children: ReactNode }) {
             </span>
             <div className="studio-pearl-drawer-actions">
               {isAdmin ? (
-                <Link to="/settings" onClick={() => setOpen(false)}>
-                  settings
-                </Link>
+                <>
+                  <Link to="/love-notes" onClick={() => setOpen(false)}>
+                    love notes
+                  </Link>
+                  <Link to="/settings" onClick={() => setOpen(false)}>
+                    settings
+                  </Link>
+                </>
               ) : null}
               <button type="button" onClick={signOut}>
                 sign out
@@ -440,7 +457,9 @@ function noticeWhen(value: string) {
 /** a notice's line with the person it's about keeping their capitals: "Tai wrote in" */
 function noticeTitle(title: string): ReactNode {
   const line = noticeLine(title);
-  const who = line.match(/^(.+?)\s+(?:wrote in|paid\b|booked a call|requested a change)/i)?.[1];
+  const who = line.match(
+    /^(.+?)\s+(?:wrote in|left a love note|paid\b|booked a call|requested a change)/i,
+  )?.[1];
   return markPerson(line, who);
 }
 
@@ -496,6 +515,10 @@ function useNoticeModal(notices: StudioNotice[]) {
                   onClick: () => {
                     if (href === "/settings") {
                       void router.navigate({ to: "/settings" });
+                      return;
+                    }
+                    if (href === "/love-notes") {
+                      void router.navigate({ to: "/love-notes" });
                       return;
                     }
                     const slug = href.split("/").filter(Boolean).pop();
@@ -678,9 +701,14 @@ function AccountMenu({
           <span>{email}</span>
         </div>
         {isAdmin ? (
-          <DropdownMenuItem asChild>
-            <Link to="/settings">settings</Link>
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem asChild>
+              <Link to="/love-notes">love notes</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/settings">settings</Link>
+            </DropdownMenuItem>
+          </>
         ) : null}
         <DropdownMenuItem onClick={onSignOut}>sign out</DropdownMenuItem>
       </DropdownMenuContent>

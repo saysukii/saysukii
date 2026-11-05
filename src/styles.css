@@ -18301,3 +18301,155 @@ a.studio-kicker:hover {
   width: 12px;
   height: 12px;
 }
+
+/* the love notes page: what people left on the card, in the same veil and type as today */
+.studio-love-page {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+}
+
+.studio-love-notes {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.studio-love-note {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: var(--studio-veil);
+  box-shadow: inset 0 0 0 1px var(--studio-veil-line);
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.studio-love-note header,
+.studio-love-note footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.studio-love-note header p,
+.studio-love-note footer p {
+  margin: 0;
+}
+
+.studio-love-note header span:first-child {
+  color: var(--auth-muted);
+}
+
+.studio-love-note time,
+.studio-love-consent,
+.studio-love-delete,
+.studio-love-empty {
+  margin: 0;
+  color: var(--auth-muted);
+  font-size: 12px;
+  font-weight: 300;
+}
+
+.studio-love-words {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.studio-love-note audio {
+  display: block;
+  width: 100%;
+  height: 32px;
+}
+
+.studio-love-consent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.studio-love-consent .is-yes {
+  color: #ff4d94;
+}
+
+.studio-love-delete {
+  display: flex;
+  gap: 10px;
+}
+
+.studio-love-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.studio-love-actions a {
+  color: var(--auth-muted);
+  font-size: 12px;
+  font-weight: 300;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.studio-love-actions a:hover {
+  color: #24221f;
+}
+
+.studio-love-delete button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.studio-love-delete button:hover {
+  color: #24221f;
+}
+
+.studio-love-delete button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* with room, each note is one line: who and when, their words, the recording, then what's allowed */
+@media (min-width: 1000px) {
+  .studio-love-note {
+    grid-template-columns: 130px minmax(0, 1fr) 210px 200px;
+    gap: 6px 20px;
+    align-items: center;
+  }
+
+  .studio-love-note header {
+    grid-column: 1;
+    display: grid;
+    gap: 2px;
+  }
+
+  .studio-love-words {
+    grid-column: 2;
+  }
+
+  .studio-love-note audio,
+  .studio-love-note > .studio-love-empty {
+    grid-column: 3;
+  }
+
+  .studio-love-note footer {
+    grid-column: 4;
+    display: grid;
+    gap: 4px;
+    justify-content: stretch;
+  }
+}
