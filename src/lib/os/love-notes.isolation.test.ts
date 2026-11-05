@@ -89,6 +89,14 @@ test("a named note is saved as received, with no upload link or consent", async 
   assert.equal(calls.signed.length, 0);
 });
 
+test("text and voice notes never name the video column, so they save before the video migration", async () => {
+  const { client, calls } = fakeClient();
+  await createLoveNote(client, { text: "thank you", name }, "s");
+  await createLoveNote(client, { name, consent: true, audioType: "audio/mp4", audioBytes: 900 }, "s");
+  assert.equal("video_path" in calls.inserts[0], false);
+  assert.equal("video_path" in calls.inserts[1], false);
+});
+
 test("a voice note waits as uploading, with its consent on record and a link only for its own file", async () => {
   const { client, calls } = fakeClient();
   const result = await createLoveNote(

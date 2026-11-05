@@ -79,7 +79,9 @@ export async function createLoveNote(
     note,
     from_name: name,
     audio_path: audioPath,
-    video_path: videoPath,
+    // only named when there is a video, so text and voice notes still save on a database that
+    // hasn't had the video migration yet
+    ...(videoPath ? { video_path: videoPath } : {}),
     consent_given_at: recordingPath ? now : null,
     consent_wording: recordingPath ? (video ? VIDEO_CONSENT_WORDING : VOICE_CONSENT_WORDING) : null,
     marketing_consent_given_at: marketing ? now : null,
@@ -109,12 +111,12 @@ export async function finishLoveNote(client: Client, raw: unknown): Promise<Love
 
   const { data: row, error } = await client
     .from("love_notes")
-    .select("status, audio_path, video_path")
+    .select("*")
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
   if (!row) return refuse(404, "note not found");
-  const recordingPath = row.audio_path ?? row.video_path;
+  const recordingPath = row.audio_path ?? row.video_path ?? null;
   if (row.status === "received" || !recordingPath) return { status: 200, body: { ok: true, id } };
 
   const name = recordingPath.split("/").pop()!;
