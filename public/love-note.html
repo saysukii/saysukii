@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+/* iphones zoom the page when a field under 16px is tapped. this stops that, and people can still pinch to zoom */
+if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+  document.querySelector('meta[name=viewport]').content = 'width=device-width, initial-scale=1.0, maximum-scale=1';
+</script>
 <title>Say Sukii Love Notes</title>
 <style>
   :root{
@@ -385,9 +390,101 @@
   /* whole flower: the six petals sit in a ring around the middle of the page, so none is cut off */
   body.bg-centered .fcw-bloom{inset:-2%}
   body.bg-centered .fcw-mist{top:50%;left:50%;transform:translate(-50%,-50%)}
+
+  /* ---------- the note before the card ---------- */
+  body:not(.intro-on) .intro{display:none}
+  body.intro-on .love{display:none}
+  .intro{
+    position:fixed;inset:0;z-index:55;display:grid;place-items:center;overflow-y:auto;padding:20px 16px;
+    color:#26211e;font:300 14px/1.5 "Nohemi",sans-serif;text-transform:lowercase;text-align:center;
+    font-synthesis:none;-webkit-font-smoothing:antialiased;
+    background:rgba(255,255,255,.42);-webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);
+  }
+  .intro-panel{width:min(550px,100%);display:grid;gap:12px;margin:auto}
+  .intro p{margin:0;text-wrap:wrap}
+  .intro-words,.intro-close,.intro-signoff{display:grid;gap:12px}
+  .intro .intro-quote{font-size:12.5px;margin-top:12px;color:rgba(38,33,30,.62)}
+  .intro-go{display:flex;align-items:center;justify-content:center}
+  .intro-go button{
+    appearance:none;-webkit-appearance:none;background:none;border:0;padding:0;cursor:pointer;font:inherit;color:#ff4d94;
+    transition:opacity .2s,transform .12s ease;-webkit-tap-highlight-color:transparent;
+  }
+  @media (hover:hover){.intro-go button:hover{opacity:.62}}
+  .intro-go button:active{opacity:.42;transform:translateY(1px)}
+  .intro-go button:focus-visible{outline:2px solid #b5485d;outline-offset:3px}
+  /* on a phone the lines wrap on their own */
+  @media (max-width:600px){
+    .intro-line{display:none}
+    .intro p{text-wrap:balance}
+  }
+  /* short screens: small phones and phones on their side keep the note and its button in view */
+  @media (max-height:590px){
+    .intro{line-height:1.38;padding-top:10px;padding-bottom:10px}
+    .intro-panel,.intro-words,.intro-close,.intro-signoff{gap:7px}
+    .intro .intro-quote{margin-top:7px}
+  }
+  /* night garden: a deep veil and light words */
+  body.on-dark .intro{background:rgba(22,48,28,.78);color:#fcfcfc}
+  body.on-dark .intro .intro-quote{color:rgba(252,252,252,.68)}
+  /* word by word, the button a second in, and the proverb fading in once the rest has arrived */
+  .intro.is-arriving .intro-w{animation:a-word 1.6s cubic-bezier(.25,.1,.25,1) both;animation-delay:var(--d,0ms);display:inline-block}
+  .intro.is-arriving .intro-quote{animation:a-fade 1.8s ease both;animation-delay:var(--q,0ms)}
+  .intro.is-arriving .intro-go{animation:a-go .9s ease 1s both}
+  /* coming back shows the whole note at once, so there's no waiting to read it */
+  .intro.is-returning{animation:a-fade .45s ease both}
+  @keyframes a-word{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+  @keyframes a-fade{from{opacity:0}to{opacity:1}}
+  @keyframes a-go{from{opacity:0;pointer-events:none}to{opacity:1;pointer-events:auto}}
+  @media (prefers-reduced-motion:reduce){.intro,.intro *{animation:none !important}}
+
+  /* the way back to the note: quiet, in its own strip at the foot of the page, and away while recording, typing or in the pop-up */
+  body{position:relative;padding-bottom:calc(env(safe-area-inset-bottom) + 42px)}
+  .intro-back{
+    position:absolute;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 6px);
+    appearance:none;-webkit-appearance:none;background:none;border:0;margin:0;padding:12px;
+    font:300 12px/1 Nohemi,sans-serif;color:#26211e;opacity:.5;cursor:pointer;
+    transition:opacity .2s;animation:a-back .8s ease .3s backwards;-webkit-tap-highlight-color:transparent;
+  }
+  @keyframes a-back{from{opacity:0}}
+  @media (hover:hover){.intro-back:hover{opacity:.9}}
+  .intro-back:active{opacity:.9}
+  .intro-back:focus-visible{outline:1px solid currentColor;outline-offset:-4px;opacity:.9}
+  body.on-dark .intro-back{color:#fcfcfc}
+  body.intro-on .intro-back{display:none}
+  body:has(.recording) .intro-back,body:has(#sendSheet:not([hidden])) .intro-back,body:has(#noteInput:focus) .intro-back{visibility:hidden}
+
+  /* text sizes: the note's 14px for the note field, leave note and the pop-up; back's 12px for the voice note line and consent */
+  .composer{font-size:14px;line-height:1.5}
+  .voice-status{font-size:12px}
+  .send-sheet,.send-sheet .sheet-row,.send-sheet .tf-label,.send-sheet input[type=text],.send-sheet .send-word,.send-sheet .sheet-send{font-size:14px}
+  .send-sheet .consent{font-size:12px}
+
+  /* the send icon, on the screens that show it: hot pink */
+  .note-field .mic.done,.note-field.recording .mic.done,
+  body.on-dark .note-field .mic.done,body.on-dark .note-field.recording .mic.done{color:#ff4d94}
 </style>
 </head>
-<body>
+<body class="intro-on">
+<button type="button" class="intro-back" id="introBack" aria-label="read the note again">back</button>
+<div class="intro" id="intro" role="dialog" aria-label="welcome to the love note portal">
+  <div class="intro-panel">
+    <div class="intro-words">
+      <p>as say sukii celebrates 11 years of creating, connecting + spreading love <br class="intro-line">through flowers, we invite you to be part of our celebration through <br class="intro-line">the love note portal.</p>
+      <p>i’ve created this space to gather the people who make my work meaningful. <br class="intro-line">it’s a time capsule of the magic created and the community built. reflecting on <br class="intro-line">the moments that shaped us is an essential step into this next chapter.</p>
+      <p>whether it's a testimonial, a birthday wish, a favorite memory, words of <br class="intro-line">encouragement, or a suggestion for how we can grow — i’d love to hear from you!</p>
+      <p>please share your love note in writing, voice, or video.</p>
+      <div class="intro-close">
+        <p>your time + presence is appreciated. always in all ways.</p>
+        <div class="intro-signoff">
+          <p>with gratitude,</p>
+          <p>sukii<br>est. 11.19</p>
+        </div>
+        <p class="intro-quote">“the past is a telescope through which we can see the future.” — proverb</p>
+      </div>
+    </div>
+    <div class="intro-go"><button type="button" id="introEnter">leave a love note</button></div>
+  </div>
+</div>
 <div class="fcw-ground" aria-hidden="true"><div class="fcw-bloom" id="fcwBloom"></div><div class="fcw-mist" id="fcwMist"></div><div class="fcw-grain"></div></div>
   <div class="scaler-box">
   <div class="scaler" id="scaler">
@@ -499,9 +596,12 @@
     } else if (narrow){                          // the envelope and card
       scale = Math.min(1.15, (innerWidth - 24) / 420);
     } else {
-      var room = (innerHeight - composer.offsetHeight - 120) / 471;
+      var room = (innerHeight - composer.offsetHeight - 150) / 471;
       scale = Math.min(1.35, (innerWidth - 24) / 700, Math.max(.72, room));
     }
+    // a phone on its side sizes the card by height, so the card and the note field are seen together
+    if (innerHeight < 480) scale = Math.min(scale, Math.max(.6, (innerHeight - composer.offsetHeight - 90) / 471));
+    if (narrow && goal) tx = -W / 2 * scale;     // keeps the page centred at whatever size it ended up
     root.style.setProperty('--s', scale);
     root.style.setProperty('--tx', tx + 'px');
   }
@@ -1257,6 +1357,75 @@
   document.body.classList.toggle('bg-centered', !!b.centered);
   document.getElementById('fcwBloom').style.background = b.blooms;
   document.getElementById('fcwMist').style.background = 'radial-gradient(circle at 50% 40%, ' + b.mist + ' 0%, transparent 72%)';
+})();
+</script>
+<script>
+/* ================= the note before the card ================= */
+(function(){
+  var intro = document.getElementById('intro');
+  var entered = false;
+  var lines = Array.prototype.slice.call(intro.querySelectorAll('.intro-words p:not(.intro-quote)'));
+  var wordsReady = false, doneTimer = 0;
+  function splitWords(){
+    if (wordsReady) return;
+    wordsReady = true;
+    lines.forEach(function(line){
+      Array.prototype.slice.call(line.childNodes).forEach(function(node){
+        if (node.nodeType !== 3) return;
+        var frag = document.createDocumentFragment();
+        node.textContent.split(/(\s+)/).forEach(function(part){
+          if (!part) return;
+          if (/^\s+$/.test(part)){ frag.appendChild(document.createTextNode(' ')); return; }
+          var w = document.createElement('span');
+          w.className = 'intro-w'; w.textContent = part;
+          frag.appendChild(w);
+        });
+        node.parentNode.replaceChild(frag, node);
+      });
+    });
+  }
+  var WORD_STAGGER = 78, LINE_REST = 420;
+  function arrive(){
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var t = 300;
+    splitWords();
+    lines.forEach(function(line){
+      Array.prototype.forEach.call(line.querySelectorAll('.intro-w'), function(w){
+        w.style.setProperty('--d', t + 'ms');
+        t += WORD_STAGGER;
+      });
+      t += LINE_REST;
+    });
+    intro.style.setProperty('--q', (t + 400) + 'ms');
+    void intro.offsetWidth;
+    intro.classList.add('is-arriving');
+    doneTimer = setTimeout(finishArriving, t + 2300);
+  }
+  function finishArriving(){ clearTimeout(doneTimer); intro.classList.remove('is-arriving'); }
+  // a tap anywhere shows the whole note at once
+  intro.addEventListener('click', function(e){
+    if (!e.target.closest('button')) finishArriving();
+  });
+  function enter(){
+    document.body.classList.remove('intro-on');
+    finishArriving();
+    // the card takes back the page, and its tap prompt appears the first time
+    window.dispatchEvent(new Event('resize'));
+    if (!entered) document.getElementById('love').classList.add('on');
+    entered = true;
+  }
+  function goBack(){
+    // nothing on the card changes: the note just sits over it again, all there at once
+    intro.classList.remove('is-returning');
+    document.body.classList.add('intro-on');
+    finishArriving();
+    intro.scrollTop = 0;
+    void intro.offsetWidth;
+    intro.classList.add('is-returning');
+  }
+  document.getElementById('introEnter').addEventListener('click', enter);
+  document.getElementById('introBack').addEventListener('click', goBack);
+  arrive();
 })();
 </script>
 </body>
