@@ -22,18 +22,10 @@ export type MeetingBrief = {
 };
 
 export type MeetingCapture = {
+  recording: boolean;
   done: boolean;
   summary: string;
-  status?: "creating" | "ready" | "not_found";
-  name?: string;
-  email?: string;
-  startsAt?: string;
-  startedAt?: string;
-  waitingSince?: string;
 };
-
-/** Fired whenever a meeting's recording or summary changes, for anything showing it. */
-export const MEETING_CAPTURES_CHANGED = "say-sukii-meeting-captures-changed";
 
 export const STUDIO_ZONE = "America/New_York";
 
@@ -70,7 +62,6 @@ export function readMeetingCaptures(): Record<string, MeetingCapture> {
 export function writeMeetingCapture(id: string, capture: MeetingCapture) {
   const captures = { ...readMeetingCaptures(), [id]: capture };
   window.localStorage.setItem(CAPTURE_KEY, JSON.stringify(captures));
-  window.dispatchEvent(new Event(MEETING_CAPTURES_CHANGED));
 }
 
 export function rememberBooking(draft: Omit<StudioBooking, "id">) {
