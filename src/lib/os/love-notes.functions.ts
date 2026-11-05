@@ -14,9 +14,8 @@ export const listLoveNotes = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<LoveNote[]> => {
     const { data, error } = await context.supabase
       .from("love_notes")
-      .select(
-        "id, note, from_name, created_at, audio_path, video_path, consent_given_at, consent_wording, marketing_consent_given_at, marketing_consent_wording",
-      )
+      // every column, so a database still waiting on the video migration reads no video, not an error
+      .select("*")
       .eq("status", "received")
       .order("created_at", { ascending: false })
       .limit(300);
@@ -24,7 +23,7 @@ export const listLoveNotes = createServerFn({ method: "GET" })
     const rows = data ?? [];
 
     const recordingOf = (row: { audio_path: string | null; video_path: string | null }) =>
-      row.audio_path ?? row.video_path;
+      row.audio_path ?? row.video_path ?? null;
     const paths = rows.flatMap((row) => {
       const path = recordingOf(row);
       return path ? [path] : [];
@@ -70,7 +69,7 @@ export const listFreshLoveNotes = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await context.supabase
       .from("love_notes")
-      .select("id, from_name, audio_path, video_path")
+      .select("*")
       .eq("status", "received")
       .gte("created_at", since)
       .order("created_at", { ascending: false })
@@ -91,14 +90,14 @@ export const deleteLoveNote = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from("love_notes")
-      .select("audio_path, video_path")
+      .select("*")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) return { ok: true as const };
 
     // the recording goes first, so a note is never gone while its recording stays behind
-    const recording = row.audio_path ?? row.video_path;
+    const recording = row.audio_path ?? row.video_path ?? null;
     if (recording) {
       const removed = await context.supabase.storage.from(BUCKET).remove([recording]);
       if (removed.error) throw new Error(removed.error.message);
