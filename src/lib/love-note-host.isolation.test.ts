@@ -34,3 +34,11 @@ test("only sending a note gets through to the app", () => {
   assert.equal(loveNoteHostAction("POST", "/"), "refuse");
   assert.equal(loveNoteHostAction("GET", "/_serverFn/anything"), "card");
 });
+
+test("opening the note routes shows the card, never the studio", () => {
+  assert.equal(loveNoteHostAction("GET", "/api/love-notes"), "card");
+  assert.equal(loveNoteHostAction("GET", "/api/love-notes/finish"), "card");
+  assert.equal(loveNoteHostAction("HEAD", "/api/love-notes"), "card");
+  assert.equal(loveNoteHostAction("POST", "/api/love-notes/anything-else"), "refuse");
+  assert.equal(loveNoteHostAction("OPTIONS", "/api/love-notes"), "refuse");
+});

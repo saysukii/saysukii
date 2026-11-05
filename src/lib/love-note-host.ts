@@ -6,8 +6,11 @@ export function isLoveNoteHost(headers: Headers) {
   return host?.toLowerCase() === LOVE_NOTE_HOST;
 }
 
+/** The only two addresses the card sends notes to. Opening either one just shows the card. */
+const NOTE_ROUTES = ["/api/love-notes", "/api/love-notes/finish"];
+
 /** What a request to the card's address gets. */
 export function loveNoteHostAction(method: string, pathname: string) {
-  if (pathname === "/api/love-notes" || pathname.startsWith("/api/love-notes/")) return "pass";
+  if (method === "POST" && NOTE_ROUTES.includes(pathname)) return "pass";
   return method === "GET" || method === "HEAD" ? "card" : "refuse";
 }
