@@ -31,6 +31,7 @@ import { fileNameFromNotes, signerFromAgreement } from "@/lib/floral-agreement";
 import { SENT_LETTER_EVENTS, sentLetterLine, type SentLetter } from "@/lib/sent-letters";
 import { invoiceTitle } from "@/lib/invoice-title";
 import { proposalCards } from "@/lib/proposal-link";
+import { inquiryProblem } from "@/lib/os/inquiry-lookup";
 
 const eventType = z.enum([
   "wedding",
@@ -595,12 +596,22 @@ export const updateInquiryMoment = createServerFn({ method: "POST" })
       patch.event_date_tbd = false;
     }
     if (!Object.keys(patch).length) return { ok: true as const };
-    const { error } = await context.supabase
+    const { data: changed, error } = await context.supabase
       .from("inquiries")
       .update(patch)
       .eq("id", data.id)
-      .eq("archived", false);
+      .eq("archived", false)
+      .select("id");
     if (error) throw new Error(error.message);
+    if (!changed?.length) {
+      // nothing changed: say why, rather than looking saved
+      const { data: row } = await context.supabase
+        .from("inquiries")
+        .select("archived")
+        .eq("id", data.id)
+        .maybeSingle();
+      throw new Error(inquiryProblem(row, "change its details") ?? "this didn't save. try again.");
+    }
     await refreshInquirySummarySafe(context.supabase, data.id);
     return { ok: true as const };
   });
@@ -1035,9 +1046,10 @@ export const reviewDetectedInquiry = createServerFn({ method: "POST" })
       .from("inquiries")
       .select("*")
       .eq("id", data.id)
-      .eq("archived", false)
-      .single();
+      .maybeSingle();
     if (findError) throw new Error(findError.message);
+    const reviewProblem = inquiryProblem(current, "review it");
+    if (reviewProblem || !current) throw new Error(reviewProblem ?? "");
     if (current.origin !== "detected" || current.detection_status !== "candidate") {
       throw new Error("Only detected candidates can be approved or dismissed.");
     }
@@ -1116,20 +1128,23 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    // an archived inquiry can still be written to; archiving only takes it off the board
     const inquiryResult = await context.supabase
       .from("inquiries")
-      .select("id, status, client_id, detection_status")
+      .select("id, status, client_id, detection_status, archived")
       .eq("id", data.inquiry_id)
-      .eq("archived", false)
-      .single();
+      .maybeSingle();
     if (inquiryResult.error) throw new Error(inquiryResult.error.message);
+    const letterProblem = inquiryProblem(inquiryResult.data);
+    if (letterProblem || !inquiryResult.data) throw new Error(letterProblem ?? "");
 
     const clientResult = await context.supabase
       .from("clients")
       .select("email, name")
       .eq("id", inquiryResult.data.client_id)
-      .single();
+      .maybeSingle();
     if (clientResult.error) throw new Error(clientResult.error.message);
+    if (!clientResult.data) throw new Error("this inquiry's client is no longer here.");
 
     const outbound = data.channel === "email";
     const sentAt = new Date().toISOString();
@@ -1297,13 +1312,15 @@ export const attachInquiryFile = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    // files can be added to an archived inquiry too, like its letters
     const inquiryResult = await context.supabase
       .from("inquiries")
-      .select("id")
+      .select("id, archived")
       .eq("id", data.inquiry_id)
-      .eq("archived", false)
-      .single();
+      .maybeSingle();
     if (inquiryResult.error) throw new Error(inquiryResult.error.message);
+    const fileProblem = inquiryProblem(inquiryResult.data);
+    if (fileProblem) throw new Error(fileProblem);
 
     const { error } = await context.supabase.from("files").insert({
       owner_type: "inquiry",

@@ -50,6 +50,7 @@ import { syncInquiryAutoTaskFor } from "@/lib/os/tasks.functions";
 import { renderSaySukiiEmail } from "@/lib/os/email-layout";
 import { sendStudioNotice, studioNotificationEmail } from "@/lib/os/email.server";
 import { refreshInquirySummarySafe } from "@/lib/os/inquiry-summary.server";
+import { inquiryProblem } from "@/lib/os/inquiry-lookup";
 
 const lineItemInput = z.object({
   kind: z.enum(["arrangement", "labor", "delivery", "install", "breakdown", "custom"]),
@@ -239,11 +240,12 @@ export const importProposalPdf = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const inquiryResult = await context.supabase
       .from("inquiries")
-      .select("id, client_id, event_date, venue_id, venue_text")
+      .select("id, client_id, event_date, venue_id, venue_text, archived")
       .eq("id", data.inquiry_id)
-      .eq("archived", false)
-      .single();
+      .maybeSingle();
     if (inquiryResult.error) throw new Error(inquiryResult.error.message);
+    const proposalProblem = inquiryProblem(inquiryResult.data, "add a proposal");
+    if (proposalProblem || !inquiryResult.data) throw new Error(proposalProblem ?? "");
     const inquiry = inquiryResult.data;
 
     // an inquiry holds one proposal; a cleared one is archived and reopened here
