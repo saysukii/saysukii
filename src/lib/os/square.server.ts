@@ -475,6 +475,28 @@ export async function readSquareInvoice(invoiceId: string) {
   return { status: invoice?.status ?? "UNKNOWN", paidCents };
 }
 
+/**
+ * Cancels an older invoice that was sent through square's own invoice page, so its pay link there
+ * stops taking payments too. One square already closed (paid, canceled) is left as it is.
+ */
+export async function cancelSquareInvoice(invoiceId: string) {
+  const auth = { Authorization: `Bearer ${await squareAccessToken()}` };
+  const path = `/v2/invoices/${encodeURIComponent(invoiceId)}`;
+  const current = await squareRequest<{ invoice?: { status?: string; version?: number } }>(path, {
+    method: "GET",
+    headers: auth,
+  });
+  const status = current.invoice?.status ?? "";
+  if (["CANCELED", "PAID", "REFUNDED", "FAILED"].includes(status)) return status;
+  if (current.invoice?.version == null) throw new Error("Square did not return the invoice");
+  await squareRequest(`${path}/cancel`, {
+    method: "POST",
+    headers: auth,
+    body: JSON.stringify({ version: current.invoice.version }),
+  });
+  return "CANCELED";
+}
+
 export async function verifySquareWebhook(body: string, signature: string) {
   const signatureKey = process.env["SQUARE_WEBHOOK_SIGNATURE_KEY"];
   const notificationUrl = process.env["SQUARE_WEBHOOK_URL"];

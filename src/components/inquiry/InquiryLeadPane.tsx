@@ -105,7 +105,11 @@ import {
   loadInvoiceDraft,
   type InvoiceDraft,
 } from "@/lib/invoice-items";
-import { recordInvoicePayment, sendInquiryInvoice } from "@/lib/os/invoices.functions";
+import {
+  cancelInquiryInvoice,
+  recordInvoicePayment,
+  sendInquiryInvoice,
+} from "@/lib/os/invoices.functions";
 import { listSquareItems } from "@/lib/os/square-catalog.functions";
 import {
   EVENT_LABEL,
@@ -491,6 +495,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const balanceInvoiceFn = useServerFn(sendBalanceInvoice);
   const recordProposalPaymentFn = useServerFn(recordProposalPayment);
   const recordInvoicePaymentFn = useServerFn(recordInvoicePayment);
+  const cancelInvoiceFn = useServerFn(cancelInquiryInvoice);
   const [balanceLetter, setBalanceLetter] = useState<{
     proposalId: string;
     to: string;
@@ -998,6 +1003,26 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
     onError: (error: Error) => toast.error(error.message),
   });
 
+  /** the invoice whose cancel is being asked about, and the ones canceled in the local preview */
+  const [cancelAsk, setCancelAsk] = useState<string | null>(null);
+  const [previewCanceled, setPreviewCanceled] = useState<string[]>([]);
+  const cancelInvoiceMutation = useMutation({
+    mutationFn: async (invoice: { id: string; number: string }) => {
+      if (devPreview) {
+        setPreviewCanceled((current) => [...current, invoice.id]);
+        return { number: invoice.number, preview: true };
+      }
+      const result = await cancelInvoiceFn({ data: { invoice_id: invoice.id } });
+      return { number: result.number, preview: false };
+    },
+    onSuccess: (result) => {
+      setCancelAsk(null);
+      toast.success(`${result.number} canceled${result.preview ? " · preview" : ""}`);
+      void queryClient.invalidateQueries({ queryKey: ["os", "inquiry-workspace", id] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const sendHold = useRef<{ timer: number; run: () => void; undo: () => void } | null>(null);
   const [holding, setHolding] = useState<{ id: number; line: string } | null>(null);
 
@@ -1222,7 +1247,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const sentInvoices: SentInvoice[] = [
     ...previewInvoices,
     ...("invoices" in data && Array.isArray(data.invoices) ? (data.invoices as SentInvoice[]) : []),
-  ];
+  ].map((sent) => (previewCanceled.includes(sent.id) ? { ...sent, status: "canceled" } : sent));
   const time = inquiryTime(inquiry.message);
   const allFiles = [
     ...files,
@@ -3267,7 +3292,10 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
             <div className="studio-sent-invoices">
               <p className="studio-ask-label">sent</p>
               {sentInvoices.map((sent) => (
-                <div key={sent.id} className="studio-ledger-row">
+                <div
+                  key={sent.id}
+                  className={cn("studio-ledger-row", sent.status === "canceled" && "is-canceled")}
+                >
                   <b>
                     {sent.number}
                     <small>
@@ -3313,7 +3341,40 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
                         mark paid
                       </button>
                     ) : null}
+                    {/* only an invoice nothing's been paid on; one with a payment needs a refund */}
+                    {sent.status === "sent" && sent.paid_cents === 0 && cancelAsk !== sent.id ? (
+                      <button
+                        type="button"
+                        className="auth-text-action"
+                        onClick={() => setCancelAsk(sent.id)}
+                      >
+                        cancel
+                      </button>
+                    ) : null}
                   </span>
+                  {cancelAsk === sent.id ? (
+                    <div className="studio-invoice-cancel" role="alert">
+                      <span>cancel {sent.number}? its pay link stops working.</span>
+                      <button
+                        type="button"
+                        className="auth-text-action is-danger"
+                        disabled={cancelInvoiceMutation.isPending}
+                        onClick={() =>
+                          cancelInvoiceMutation.mutate({ id: sent.id, number: sent.number })
+                        }
+                      >
+                        {cancelInvoiceMutation.isPending ? "canceling…" : "cancel invoice"}
+                      </button>
+                      <button
+                        type="button"
+                        className="auth-text-action"
+                        disabled={cancelInvoiceMutation.isPending}
+                        onClick={() => setCancelAsk(null)}
+                      >
+                        keep it
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

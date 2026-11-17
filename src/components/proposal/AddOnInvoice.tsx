@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
+import { InquireScene } from "@/components/inquiry/InquireScene";
 import { Wordmark } from "@/components/portal/bits";
 import { SquarePay } from "@/components/proposal/SquarePay";
 import { NotOnTheBooks } from "@/components/studio/NotOnTheBooks";
@@ -23,12 +24,26 @@ export function AddOnInvoice({ token }: { token: string }) {
   const fetchInvoice = useServerFn(getInvoicePage);
   const queryClient = useQueryClient();
   const queryKey = ["public-invoice", token];
-  const { data, isPending, isError } = useQuery({
+  const { data, error, isPending, isError } = useQuery({
     queryKey,
     queryFn: () => fetchInvoice({ data: { token } }),
+    // a canceled invoice won't come back, so it isn't asked for again
+    retry: (count, failure) => !/canceled/i.test(failure.message) && count < 3,
   });
 
   if (isPending) return <main className="client-packet" />;
+  if (isError && /canceled/i.test(error.message)) {
+    return (
+      <InquireScene>
+        <section className="studio-lost" aria-labelledby="invoice-canceled-title">
+          <div className="studio-lost-say">
+            <h1 id="invoice-canceled-title">this invoice was canceled</h1>
+            <p>nothing is owed on it. if you have a question, reply to the email it came with.</p>
+          </div>
+        </section>
+      </InquireScene>
+    );
+  }
   if (isError || !data) return <NotOnTheBooks />;
 
   const paid = data.paidCents >= data.totalCents;

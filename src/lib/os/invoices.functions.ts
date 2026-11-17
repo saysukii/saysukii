@@ -178,3 +178,56 @@ export const recordInvoicePayment = createServerFn({ method: "POST" })
     );
     return { paid: data.amount_cents >= owed };
   });
+
+/**
+ * Cancels an add-on invoice nothing has been paid on: its page stops taking payments and tells the
+ * client it was canceled. One sent through square's own page is canceled in square too. An invoice
+ * with a payment on it isn't canceled here, since that money would need a refund first.
+ */
+export const cancelInquiryInvoice = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((input: unknown) => z.object({ invoice_id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("inquiry_invoices")
+      .select("id, number, status, paid_cents, square_invoice_id, inquiry_id")
+      .eq("id", data.invoice_id)
+      .single();
+    if (error) throw new Error(error.message);
+    if (row.status === "canceled") return { number: row.number };
+    if (row.paid_cents > 0 || row.status !== "sent") {
+      throw new Error(
+        `${row.number} has a payment on it, so it can't be canceled here. refund it in square first.`,
+      );
+    }
+
+    if (row.square_invoice_id) {
+      const { cancelSquareInvoice } = await import("@/lib/os/square.server");
+      const status = await cancelSquareInvoice(row.square_invoice_id).catch(
+        (squareError: unknown) => {
+          const reason =
+            squareError instanceof Error ? squareError.message : "square didn't answer";
+          throw new Error(`square didn't cancel ${row.number} (${reason}). nothing changed.`);
+        },
+      );
+      if (status === "PAID") {
+        throw new Error(`${row.number} was just paid in square, so it stays.`);
+      }
+    }
+
+    // only while it's still unpaid, so a payment landing at the same moment wins
+    const { data: saved, error: saveError } = await context.supabase
+      .from("inquiry_invoices")
+      .update({ status: "canceled" })
+      .eq("id", row.id)
+      .eq("status", "sent")
+      .eq("paid_cents", 0)
+      .select("id");
+    if (saveError) throw new Error(saveError.message);
+    if (!saved?.length) throw new Error(`${row.number} was just paid, so it stays.`);
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { refreshInquirySummarySafe } = await import("@/lib/os/inquiry-summary.server");
+    await refreshInquirySummarySafe(supabaseAdmin, row.inquiry_id);
+    return { number: row.number };
+  });
