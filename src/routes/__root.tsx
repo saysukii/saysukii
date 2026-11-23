@@ -105,6 +105,14 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        {/* an iPhone zooms into any field under 16px when it's tapped; a maximum scale stops that, and
+            on iOS pinch-to-zoom still works. other phones don't zoom on tap, so they keep the plain
+            viewport and their pinch-to-zoom. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);if(!ios)return;var meta=document.createElement("meta");meta.name="viewport";meta.content="width=device-width, initial-scale=1, maximum-scale=1";document.head.appendChild(meta);}catch(e){}})();`,
+          }}
+        />
       </head>
       <body>
         <script

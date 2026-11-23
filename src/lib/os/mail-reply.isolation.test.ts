@@ -73,13 +73,14 @@ describe("reply all", () => {
       ],
       "camila@example.com",
     );
+    // maya is on the team, so she stays off the reply even though the client copied her
     assert.deepEqual(people, {
       to: ["ana@planner.example"],
-      cc: ["maya@saysukii.com", "mom@example.com"],
+      cc: ["mom@example.com"],
     });
   });
 
-  it("puts a teammate who wrote from gmail back on to", () => {
+  it("leaves a teammate who wrote from gmail off the reply", () => {
     const people = replyAllPeople(
       [
         {
@@ -91,8 +92,30 @@ describe("reply all", () => {
       ],
       "camila@example.com",
     );
-    assert.deepEqual(people, { to: ["maya@saysukii.com"], cc: [] });
+    assert.deepEqual(people, { to: [], cc: [] });
   });
+
+  it("leaves off a teammate writing from another address once they've written from the studio", () => {
+    const people = replyAllPeople(
+      [
+        {
+          direction: "outbound",
+          from_address: "jess.florals@gmail.com",
+          to_address: "camila@example.com",
+          status: "received",
+        },
+        {
+          direction: "inbound",
+          from_address: "camila@example.com",
+          to_address: "info@saysukii.com · cc: jess.florals@gmail.com, mom@example.com",
+          status: "received",
+        },
+      ],
+      "camila@example.com",
+    );
+    assert.deepEqual(people, { to: [], cc: ["mom@example.com"] });
+  });
+
   it("shows a gmail reaction without its link address", () => {
     assert.equal(
       clientReplyText(

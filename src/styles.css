@@ -4654,7 +4654,15 @@
   flex-direction: column;
   padding: 8px 8px 10px;
   border-radius: 18px;
-  background: var(--auth-panel);
+  /* the toast's blush, solid, so the page under the menu doesn't read through it */
+  background-color: #f5e6e8;
+  background-image: linear-gradient(
+    color-mix(in srgb, #ffdbdb 8%, rgba(255, 255, 255, 0.42)),
+    color-mix(in srgb, #ffdbdb 8%, rgba(255, 255, 255, 0.42))
+  );
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 77, 148, 0.18),
+    0 12px 32px rgba(36, 34, 31, 0.12);
 }
 
 .studio-pearl-drawer-foot {
@@ -5313,10 +5321,8 @@
 
 .studio-pearl:has(.studio-home) .studio-pearl-rail,
 .studio-pearl:has(.studio-home) .studio-pearl-bar,
-.studio-pearl:has(.studio-home) .studio-pearl-drawer,
 .studio-pearl:has(.studio-desk) .studio-pearl-rail,
-.studio-pearl:has(.studio-desk) .studio-pearl-bar,
-.studio-pearl:has(.studio-desk) .studio-pearl-drawer {
+.studio-pearl:has(.studio-desk) .studio-pearl-bar {
   background: var(--studio-rail);
   box-shadow: inset 0 0 0 1px var(--studio-veil-line);
 }
@@ -7305,8 +7311,10 @@ button.studio-metric:hover {
 }
 
 .studio-mail-line input {
-  flex: 1;
-  min-width: 8em;
+  /* sized from zero, not its default width, so it fits beside an address instead of dropping a line */
+  flex: 1 1 4em;
+  width: 0;
+  min-width: 4em;
   border: 0;
   background: transparent;
   color: #24221f;
@@ -10259,6 +10267,75 @@ button.studio-metric:hover {
   overflow-wrap: anywhere;
 }
 
+/* a letter's recipients: a to row and a cc row, labels in one column so the addresses start together,
+   each row scrolling sideways instead of wrapping, so the thread keeps its height */
+.studio-mail-face.is-soft .studio-mail-cc-rows {
+  display: grid;
+  gap: 4px;
+  max-width: min(34rem, calc(100% - 12px));
+  min-width: 0;
+}
+
+.studio-mail-cc-row {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.studio-mail-cc-label {
+  color: rgba(36, 34, 31, 0.36);
+}
+
+.studio-mail-cc-line {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.studio-mail-cc-line::-webkit-scrollbar {
+  display: none;
+}
+
+.studio-mail-cc-address {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(36, 34, 31, 0.045);
+}
+
+/* in the composer's to/cc field, every row of addresses is one 32px line, so "to" and "cc" sit on the
+   first line and start at the same left edge even when the addresses wrap */
+.studio-mail-people.is-inline .studio-mail-line > span:first-child {
+  align-self: start;
+  line-height: 32px;
+}
+
+.studio-mail-people.is-inline .studio-mail-line-body {
+  row-gap: 0;
+}
+
+.studio-mail-people.is-inline .studio-mail-line em {
+  margin-block: 5px;
+}
+
+.studio-mail-people.is-inline .studio-mail-line input {
+  height: 32px;
+}
+
+@media (max-width: 720px) {
+  .studio-mail-people.is-inline .studio-mail-cc-open {
+    padding-inline: 0;
+  }
+}
+
 .studio-mail-people > .studio-mail-cc-open {
   justify-self: end;
 }
@@ -10317,6 +10394,26 @@ button.studio-metric:hover {
   padding: 14px;
   border-radius: 18px;
   background: var(--auth-panel);
+}
+
+/* a long letter scrolls inside the field, so the send button stays in reach */
+.studio-composer > .studio-textarea {
+  max-height: min(40vh, 320px);
+  max-height: min(40dvh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* the lead's thread panel has a set height, so a long letter stops sooner there and the thread above
+   it keeps a few messages in view while writing */
+.studio-lead-thread .studio-composer > .studio-textarea {
+  max-height: 200px;
+}
+
+@media (max-width: 720px) {
+  .studio-lead-thread .studio-composer > .studio-textarea {
+    max-height: 150px;
+  }
 }
 
 .studio-composer-editor {
@@ -15573,6 +15670,13 @@ a.studio-kicker:hover {
     /* above every field's own size, which is what the phone measures */
     font-size: 16px !important;
   }
+
+  /* the message field matches the letters in the thread (13px); on iPhone the viewport's maximum scale
+     (in __root) keeps it from zooming instead */
+  .studio-composer > .studio-textarea.studio-textarea {
+    font-size: 13px !important;
+    line-height: 1.55;
+  }
 }
 
 .book-meet-confirm .studio-today-go {
@@ -16345,6 +16449,20 @@ a.studio-kicker:hover {
   font-weight: 300;
 }
 
+/* on a phone the number and amount get the full width, with the status and actions on a line below */
+@media (max-width: 720px) {
+  .studio-sent-invoices .studio-ledger-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .studio-sent-invoices .studio-file-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+  }
+}
+
 .studio-invoice-status {
   padding: 2px 9px;
   border-radius: 999px;
@@ -16363,6 +16481,36 @@ a.studio-kicker:hover {
 .studio-invoice-status.is-paid {
   background: rgba(111, 138, 114, 0.16);
   color: #4f6b52;
+}
+
+.studio-invoice-status.is-canceled {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.14);
+  color: rgba(36, 34, 31, 0.45);
+}
+
+.studio-ledger-row.is-canceled b {
+  color: rgba(36, 34, 31, 0.45);
+}
+
+/* asking before an invoice is canceled: a line of its own under the row */
+.studio-invoice-cancel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  font-size: 12px;
+  font-weight: 300;
+  color: rgba(36, 34, 31, 0.62);
+}
+
+.studio-invoice-cancel span {
+  margin-right: auto;
+}
+
+.auth-text-action.is-danger {
+  color: #c2410c;
 }
 
 .studio-mail-wait .studio-ghost {

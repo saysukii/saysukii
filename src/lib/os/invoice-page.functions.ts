@@ -13,10 +13,11 @@ async function invoiceByToken(token: string) {
     .from("inquiry_invoices")
     .select("*, inquiries(event_date, clients(name, email))")
     .eq("access_token", token)
-    .neq("status", "canceled")
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("This invoice isn't available.");
+  // a canceled invoice can't be opened or paid; the client is told why
+  if (data.status === "canceled") throw new Error("This invoice was canceled.");
   return data;
 }
 

@@ -38,22 +38,30 @@ type ThreadMail = {
   status?: string;
 };
 
+/** the studio's own domain: the team writes from it, so a reply never goes back to them */
+const STUDIO_DOMAIN = "@saysukii.com";
+
 /**
  * Reply all, the way gmail does it: whoever wrote the latest letter and everyone on its to line go on to,
- * its cc stays on cc. The studio's own sending address and the client (always on to) are left out.
+ * its cc stays on cc. The studio and its team (anyone on the studio's domain, or who has written to the
+ * client from the studio, here or from their own gmail) and the client (always on to) are left out.
  */
 export function replyAllPeople(messages: ThreadMail[], clientEmail: string | null | undefined) {
   const studio = new Set(["info@saysukii.com"]);
   for (const message of messages) {
-    if (message.direction === "outbound" && message.status !== "received" && message.from_address) {
+    if (message.direction === "outbound" && message.from_address) {
       studio.add(message.from_address.trim().toLowerCase());
     }
   }
   const latest = [...messages].reverse().find((message) => message.direction !== "note");
   if (!latest) return { to: [], cc: [] };
   const line = readMailLine(latest.to_address);
-  const skip = (email: string) =>
-    studio.has(email.toLowerCase()) || email.toLowerCase() === clientEmail?.trim().toLowerCase();
+  const skip = (email: string) => {
+    const key = email.toLowerCase();
+    return (
+      studio.has(key) || key.endsWith(STUDIO_DOMAIN) || key === clientEmail?.trim().toLowerCase()
+    );
+  };
   const to = uniqueMails([latest.from_address, ...line.to]).filter((email) => !skip(email));
   const taken = new Set(to.map((email) => email.toLowerCase()));
   const cc = line.cc.filter((email) => !skip(email) && !taken.has(email.toLowerCase()));

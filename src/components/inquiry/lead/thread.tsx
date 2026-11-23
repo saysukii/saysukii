@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { PersonName } from "@/components/studio/PersonName";
 import { storedFileFor, type StoredLetterFile } from "@/lib/os/letter-files";
 import { noteAuthor, wroteNote } from "@/lib/os/mail-signature";
+import { readMailLine } from "@/lib/os/mail-people";
 import type { InquiryMessageRow } from "@/integrations/supabase/types";
 import { proposalCards } from "@/lib/proposal-link";
 import { shareNote } from "@/lib/os/inquiry-desk";
@@ -174,6 +175,34 @@ export function NoteCard({
   );
 }
 
+/** everyone a letter went to: a to line and a cc line that start together, each scrolling sideways when it runs long */
+function MailRecipients({ line }: { line: string }) {
+  const { to, cc } = readMailLine(line);
+  if (to.length + cc.length < 2) return <p className="studio-mail-cc">{line}</p>;
+  const groups = [
+    ["to", to],
+    ["cc", cc],
+  ] as const;
+  return (
+    <div className="studio-mail-cc studio-mail-cc-rows">
+      {groups.map(([label, list]) =>
+        list.length ? (
+          <p key={label} className="studio-mail-cc-row">
+            <span className="studio-mail-cc-label">{label}</span>
+            <span className="studio-mail-cc-line">
+              {list.map((address) => (
+                <span key={address} className="studio-mail-cc-address">
+                  {address}
+                </span>
+              ))}
+            </span>
+          </p>
+        ) : null,
+      )}
+    </div>
+  );
+}
+
 export function ViewedReceipt({
   text,
   viewedAtByToken,
@@ -303,7 +332,7 @@ export function MailFace({
                   ) : null}
                 </div>
               </article>
-              {/[,·]/.test(recipients) ? <p className="studio-mail-cc">{recipients}</p> : null}
+              {/[,·]/.test(recipients) ? <MailRecipients line={recipients} /> : null}
               {runEnds && !mail.note ? (
                 <p className="studio-mail-time">{mailTime(mail.at)}</p>
               ) : null}
