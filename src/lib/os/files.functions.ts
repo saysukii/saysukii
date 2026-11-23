@@ -261,13 +261,12 @@ async function resolveRelations(
     supabase.from("clients").select("id, name, type, created_at").in("id", clientIdList),
     clientIdList,
   );
-  const slugs = clientSlugs(
-    clients.map((row) => ({
-      id: row.id,
-      name: row.name ?? "client",
-      created_at: row.created_at ?? undefined,
-    })),
-  );
+  // slugs number duplicate names across every client, so rank against the whole book,
+  // not just the clients these files touch, or a link can land on a same-named client
+  const allClients =
+    clients.length === 0 ? null : await supabase.from("clients").select("id, name, created_at");
+  if (allClients?.error) throw new Error(allClients.error.message);
+  const slugs = clientSlugs(allClients?.data ?? []);
   const clientById = new Map(clients.map((row) => [row.id, row]));
   const venueById = new Map(venues.map((row) => [row.id, row]));
   const clientOf = new Map<string, string>();

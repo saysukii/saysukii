@@ -167,7 +167,9 @@ export const getClient = createServerFn({ method: "GET" })
 
     const [allInquiries, allClients] = await Promise.all([
       context.supabase.from("inquiries").select("id, client_id, received_at").eq("archived", false),
-      context.supabase.from("clients").select("id, name"),
+      // created_at must match resolveClientId, or two clients sharing a name
+      // swap slugs and the page redirects back and forth between them
+      context.supabase.from("clients").select("id, name, created_at"),
     ]);
     const names = new Map((allClients.data ?? []).map((row) => [row.id, row.name]));
     const slugs = inquirySlugs(
