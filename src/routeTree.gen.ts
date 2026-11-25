@@ -30,7 +30,7 @@ import { Route as AuthenticatedLoveNotesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedProductionsRouteImport } from './routes/_authenticated/productions'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedShelfRouteImport } from './routes/_authenticated/shelf'
-import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
 import { Route as DevFileKindRouteImport } from './routes/dev-file.$kind'
 import { Route as FileSplatRouteImport } from './routes/file.$'
 import { Route as InquireIndexRouteImport } from './routes/inquire.index'
@@ -169,9 +169,9 @@ const AuthenticatedShelfRoute = AuthenticatedShelfRouteImport.update({
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
-  id: '/callback',
-  path: '/callback',
-  getParentRoute: () => AuthRoute,
+  id: '/auth_/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DevFileKindRoute = DevFileKindRouteImport.update({
   id: '/dev-file/$kind',
@@ -345,7 +345,7 @@ const ApiIntegrationsSquareCallbackRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/booking-studies': typeof BookingStudiesRoute
   '/email-preview': typeof EmailPreviewRoute
@@ -399,7 +399,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/booking-studies': typeof BookingStudiesRoute
   '/email-preview': typeof EmailPreviewRoute
@@ -452,7 +452,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/$slug': typeof SlugRoute
-  '/auth': typeof AuthRouteWithChildren
+  '/auth': typeof AuthRoute
   '/book': typeof BookRoute
   '/booking-studies': typeof BookingStudiesRoute
   '/email-preview': typeof EmailPreviewRoute
@@ -470,7 +470,7 @@ export interface FileRoutesById {
   '/_authenticated/productions': typeof AuthenticatedProductionsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shelf': typeof AuthenticatedShelfRoute
-  '/auth/callback': typeof AuthCallbackRoute
+  '/auth_/callback': typeof AuthCallbackRoute
   '/dev-file/$kind': typeof DevFileKindRoute
   '/file/$': typeof FileSplatRoute
   '/inquire/preview': typeof InquirePreviewRoute
@@ -632,7 +632,7 @@ export interface FileRouteTypes {
     | '/_authenticated/productions'
     | '/_authenticated/settings'
     | '/_authenticated/shelf'
-    | '/auth/callback'
+    | '/auth_/callback'
     | '/dev-file/$kind'
     | '/file/$'
     | '/inquire/preview'
@@ -670,7 +670,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   SlugRoute: typeof SlugRoute
-  AuthRoute: typeof AuthRouteWithChildren
+  AuthRoute: typeof AuthRoute
   BookRoute: typeof BookRoute
   BookingStudiesRoute: typeof BookingStudiesRoute
   EmailPreviewRoute: typeof EmailPreviewRoute
@@ -680,6 +680,7 @@ export interface RootRouteChildren {
   PayStudiesRoute: typeof PayStudiesRoute
   ScheduleRoute: typeof ScheduleRoute
   SummaryStudiesRoute: typeof SummaryStudiesRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   DevFileKindRoute: typeof DevFileKindRoute
   FileSplatRoute: typeof FileSplatRoute
   InvoiceTokenRoute: typeof InvoiceTokenRoute
@@ -849,12 +850,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedShelfRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/auth/callback': {
-      id: '/auth/callback'
-      path: '/callback'
+    '/auth_/callback': {
+      id: '/auth_/callback'
+      path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof rootRouteImport
     }
     '/dev-file/$kind': {
       id: '/dev-file/$kind'
@@ -1153,16 +1154,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
-interface AuthRouteChildren {
-  AuthCallbackRoute: typeof AuthCallbackRoute
-}
-
-const AuthRouteChildren: AuthRouteChildren = {
-  AuthCallbackRoute: AuthCallbackRoute,
-}
-
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
-
 interface InquireRouteChildren {
   InquirePreviewRoute: typeof InquirePreviewRoute
   InquireIndexRoute: typeof InquireIndexRoute
@@ -1180,7 +1171,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   SlugRoute: SlugRoute,
-  AuthRoute: AuthRouteWithChildren,
+  AuthRoute: AuthRoute,
   BookRoute: BookRoute,
   BookingStudiesRoute: BookingStudiesRoute,
   EmailPreviewRoute: EmailPreviewRoute,
@@ -1190,6 +1181,7 @@ const rootRouteChildren: RootRouteChildren = {
   PayStudiesRoute: PayStudiesRoute,
   ScheduleRoute: ScheduleRoute,
   SummaryStudiesRoute: SummaryStudiesRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   DevFileKindRoute: DevFileKindRoute,
   FileSplatRoute: FileSplatRoute,
   InvoiceTokenRoute: InvoiceTokenRoute,

@@ -846,7 +846,7 @@ async function markLetterSent(
 export async function shareProduction(
   admin: Db,
   inquiryId: string,
-  sharedBy: { full_name: string | null },
+  sharedBy: { id: string; full_name: string | null },
   now = Date.now(),
 ) {
   const at = new Date(now).toISOString();
@@ -908,18 +908,13 @@ export async function shareProduction(
     // someone who hasn't joined gets their invitation: a fresh link to create their account, which
     // goes on to choosing their name and a password, then their today and its tour
     if (!joined) {
-      const { data: link, error } = await admin.auth.admin.generateLink({
-        type: "magiclink",
+      const { invitationLink } = await import("./invite-link.server");
+      const link = await invitationLink(admin, {
         email: person.email,
+        role: person.role === "admin" ? "admin" : "team",
+        invitedBy: sharedBy.id,
+        origin,
       });
-      if (error || !link.properties?.hashed_token) {
-        throw new Error(
-          `${person.email}'s invitation couldn't be made: ${error?.message ?? "no link"}`,
-        );
-      }
-      const url = new URL("/auth/callback", origin);
-      url.searchParams.set("token_hash", link.properties.hashed_token);
-      url.searchParams.set("type", "email");
       const sent = await sendStudioEmail({
         to: person.email,
         subject: "you're invited to the say sukii studio",
@@ -927,7 +922,7 @@ export async function shareProduction(
         referenceType: "production",
         referenceId: inquiryId,
         html: teamInviteHtml({
-          link: url.toString(),
+          link,
           role: person.role === "admin" ? "admin" : "team",
           invitedBy: sharedBy.full_name,
           given: person.added_name || person.full_name || null,

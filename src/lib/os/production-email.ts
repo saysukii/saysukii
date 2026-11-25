@@ -31,8 +31,10 @@ export function teamInviteHtml(input: {
             ? `${from} is sharing the keys to the online studio.`
             : `${from} added you to the say sukii studio.`
       } open the link to create your account, then we'll show you around.`,
-      // an admin's letter is just those words; the team's says the link is single-use
-      ...(input.role === "admin" && !input.projectName ? [] : ["the link works once."]),
+      // an admin's letter is just those words; the team's says how long the link is good
+      ...(input.role === "admin" && !input.projectName
+        ? []
+        : ["the link is good for two weeks, until your account is made."]),
     ].join("\n\n"),
     button: { label: "create your account", url: input.link },
     note: "not expecting this? you can let it be. nothing happens until the link is opened.",

@@ -7,8 +7,9 @@ import { Wordmark } from "@/components/portal/bits";
 import { markLoginBloom } from "@/components/portal/StudioLoader";
 import { supabase } from "@/integrations/supabase/client";
 import { afterSignIn } from "@/lib/after-sign-in";
+import { openInvitation } from "@/lib/os/invite.functions";
 
-export const Route = createFileRoute("/auth/callback")({
+export const Route = createFileRoute("/auth_/callback")({
   ssr: false,
   head: () => ({
     meta: [{ title: "Signing In — Say Sukii OS" }, { name: "robots", content: "noindex" }],
@@ -30,8 +31,33 @@ function AuthCallbackPage() {
 
       try {
         const code = query.get("code");
-        const tokenHash = query.get("token_hash") ?? hash.get("token_hash");
-        const type = (query.get("type") ?? hash.get("type")) as EmailOtpType | null;
+        const invite = query.get("invite");
+        let tokenHash = query.get("token_hash") ?? hash.get("token_hash");
+        let type = (query.get("type") ?? hash.get("type")) as EmailOtpType | null;
+
+        // an invitation: good until they've joined, it signs them in fresh each time it's opened
+        if (invite) {
+          setMessage("Opening your invitation…");
+          const opened = await openInvitation({ data: { token: invite } });
+          if (opened.state === "joined") {
+            if (cancelled) return;
+            toast("You're already in. Sign in with your email and password.");
+            await router.navigate({ to: "/auth" });
+            return;
+          }
+          if (opened.state !== "ready") {
+            if (cancelled) return;
+            toast.error(
+              opened.state === "expired"
+                ? "This invitation ran out. Ask Sukii to send it again."
+                : "This invitation link isn't good anymore. Open the newest one, or ask Sukii to send it again.",
+            );
+            await router.navigate({ to: "/auth" });
+            return;
+          }
+          tokenHash = opened.tokenHash;
+          type = "email";
+        }
 
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);

@@ -88,13 +88,13 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
     const email = data.email.toLowerCase();
     const [
       { supabaseAdmin },
-      { createPublicToken },
+      { invitationLink },
       { getRequest },
       { teamInviteHtml },
       { sendStudioEmail },
     ] = await Promise.all([
       import("@/integrations/supabase/client.server"),
-      import("./crypto.server"),
+      import("./invite-link.server"),
       import("@tanstack/react-start/server"),
       import("./production-email"),
       import("./email.server"),
@@ -110,46 +110,33 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
     if (existingMember?.full_name)
       throw new Error("That email already belongs to a studio member.");
 
-    const { hash } = createPublicToken();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { error: inviteError } = await supabaseAdmin.from("team_invites").upsert(
-      {
-        email,
-        role: data.role,
-        token_hash: hash,
-        invited_by: context.profile.id,
-        expires_at: expiresAt,
-        accepted_at: existingMember ? new Date().toISOString() : null,
-      },
-      { onConflict: "email" },
-    );
-    if (inviteError) throw new Error(inviteError.message);
-
     const request = getRequest();
     const origin = (
       process.env["APP_URL"]?.replace(/\/$/, "") ?? new URL(request.url).origin
     ).replace(/\/$/, "");
-    // a first invitation makes their account (and its profile, from the invitation); sending again
-    // just makes a fresh link, and turns a taken-back invitation back on
-    const { data: link, error: linkError } = existingMember
-      ? await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email })
-      : await supabaseAdmin.auth.admin.generateLink({
-          type: "invite",
-          email,
-          options: { data: { role: data.role } },
-        });
-    if (linkError || !link.properties?.hashed_token) {
-      throw new Error(`The invitation could not be made: ${linkError?.message ?? "no link"}`);
-    }
+    // the invitation and its link: good for two weeks, however many times it's opened, until they join
+    const link = await invitationLink(supabaseAdmin, {
+      email,
+      role: data.role,
+      invitedBy: context.profile.id,
+      origin,
+      accepted: Boolean(existingMember),
+    });
     if (existingMember) {
+      // sending again turns a taken-back invitation back on
       await supabaseAdmin
         .from("profiles")
         .update({ active: true, role: data.role })
         .eq("id", existingMember.id);
+    } else {
+      // a first invitation makes their account, quietly; the link signs them in to finish it
+      const { error: userError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        email_confirm: true,
+        user_metadata: { role: data.role },
+      });
+      if (userError) throw new Error(`The invitation could not be made: ${userError.message}`);
     }
-    const url = new URL("/auth/callback", origin);
-    url.searchParams.set("token_hash", link.properties.hashed_token);
-    url.searchParams.set("type", existingMember ? "email" : "invite");
 
     const sent = await sendStudioEmail({
       to: email,
@@ -157,7 +144,7 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
       eventType: "team_invite",
       referenceType: "team_invite",
       html: teamInviteHtml({
-        link: url.toString(),
+        link,
         role: data.role,
         invitedBy: context.profile.full_name,
         // the name sukii added them under, for "hi cara,"
