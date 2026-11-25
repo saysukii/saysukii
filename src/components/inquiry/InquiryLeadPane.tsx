@@ -291,16 +291,52 @@ function RecordHello({
   );
 }
 
+/**
+ * The event's own name, under the client's: what the job is called, so it carries over as the
+ * production's name when it's booked. Saved when you click away.
+ */
+function EventName({
+  value,
+  placeholder,
+  onSave,
+}: {
+  value: string;
+  placeholder: string;
+  onSave: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  return (
+    <label className="studio-event-name">
+      <span className="sr-only">event name</span>
+      <input
+        value={draft}
+        maxLength={120}
+        placeholder={placeholder}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          if (draft.trim() !== value.trim()) onSave(draft.trim());
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+      />
+    </label>
+  );
+}
+
 function RecordMast({
   title,
   date,
   time,
   place,
+  below,
 }: {
   title: ReactNode;
   date: string;
   time: string;
   place: string;
+  /** under the client's name: the event's own name */
+  below?: ReactNode;
 }) {
   const when = [date, time].filter(Boolean).join(" · ");
   return (
@@ -308,6 +344,7 @@ function RecordMast({
       <div>
         <RecordBack />
         <h1>{title}</h1>
+        {below}
       </div>
       {when || place ? (
         <p className="studio-hello-meta">
@@ -718,6 +755,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
 
   const saveMoment = useMutation({
     mutationFn: async (patch: {
+      event_name?: string;
       venue_text?: string;
       budget_range?: string;
       event_date?: string | null;
@@ -2004,6 +2042,14 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
               }
               time={dateTbd ? "" : time}
               place={place}
+              below={
+                <EventName
+                  key={inquiry.id}
+                  value={inquiry.event_name ?? ""}
+                  placeholder="name the event"
+                  onSave={(next) => saveMoment.mutate({ event_name: next })}
+                />
+              }
             />
 
             <div className="studio-lead-tags">

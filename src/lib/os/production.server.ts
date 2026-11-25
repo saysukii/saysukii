@@ -30,6 +30,7 @@ import {
   productionTitle,
   shiftHours,
   shiftSpan,
+  DEFAULT_DRESS_CODE,
   STUDIO_ADDRESS,
   teamCanOpen,
   type ProductionFileView,
@@ -60,7 +61,7 @@ export async function ensureProduction(db: Db, inquiryId: string): Promise<Produ
 
   const inquiry = await db
     .from("inquiries")
-    .select("id, status, client_id")
+    .select("id, status, client_id, event_name")
     .eq("id", inquiryId)
     .maybeSingle();
   if (inquiry.error) throw new Error(inquiry.error.message);
@@ -73,7 +74,8 @@ export async function ensureProduction(db: Db, inquiryId: string): Promise<Produ
     .select("name, organization")
     .eq("id", inquiry.data.client_id)
     .maybeSingle();
-  const name = defaultProjectName(client.data ?? {});
+  // the event's own name when it has one, else the client's
+  const name = inquiry.data.event_name?.trim() || defaultProjectName(client.data ?? {});
 
   // two tabs opening at once can race for the same address; the second takes the next one
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -85,7 +87,13 @@ export async function ensureProduction(db: Db, inquiryId: string): Promise<Produ
     );
     const made = await db
       .from("productions")
-      .insert({ inquiry_id: inquiryId, slug, project_name: name, studio_address: STUDIO_ADDRESS })
+      .insert({
+        inquiry_id: inquiryId,
+        slug,
+        project_name: name,
+        studio_address: STUDIO_ADDRESS,
+        dress_code: DEFAULT_DRESS_CODE,
+      })
       .select("*")
       .single();
     if (!made.error) {
@@ -282,7 +290,10 @@ export async function loadProductionView(
   const shifts = shiftRows.data ?? [];
   // only admins see what anyone is paid
   const rateRows = canPay
-    ? await admin.from("member_rates").select("profile_id, cents, per")
+    ? await admin
+        .from("production_rates")
+        .select("profile_id, cents, per")
+        .eq("inquiry_id", inquiryId)
     : { data: [] as Array<{ profile_id: string; cents: number; per: string }> };
   const rates = rateMap(rateRows.data ?? []);
   const taskIds = (tasks.data ?? []).map((task) => task.id);
@@ -492,7 +503,15 @@ export async function allProductions(admin: Db): Promise<ProductionListing[]> {
   const inquiries = booked.data ?? [];
   if (!inquiries.length) return [];
   const ids = inquiries.map((row) => row.id);
-  for (const id of ids) await ensureProduction(admin, id).catch(() => undefined);
+  // a booked job that can't open its production is said out loud, not skipped quietly
+  const failures: string[] = [];
+  for (const id of ids) {
+    await ensureProduction(admin, id).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`production for inquiry ${id} didn't open:`, message);
+      failures.push(message);
+    });
+  }
 
   const [productions, days, tasks, crew, clients, venues] = await Promise.all([
     admin.from("productions").select("*").in("inquiry_id", ids),
@@ -505,6 +524,10 @@ export async function allProductions(admin: Db): Promise<ProductionListing[]> {
       .in("id", [...new Set(inquiries.map((row) => row.client_id))]),
     admin.from("venues").select("id, name, address"),
   ]);
+  if (productions.error) throw new Error(`productions didn't load: ${productions.error.message}`);
+  if (!productions.data?.length && failures.length) {
+    throw new Error(`${inquiries.length} booked, but none opened: ${failures[0]}`);
+  }
   const venueAddress = new Map((venues.data ?? []).map((row) => [row.id, row.address]));
   const clientName = new Map((clients.data ?? []).map((row) => [row.id, row.name]));
   const venueName = new Map((venues.data ?? []).map((row) => [row.id, row.name]));
@@ -1035,7 +1058,7 @@ export async function sendHoursSummary(admin: Db, inquiryId: string, to: string 
   const [production, shifts, rates] = await Promise.all([
     admin.from("productions").select("*").eq("inquiry_id", inquiryId).maybeSingle(),
     admin.from("production_shifts").select("*").eq("inquiry_id", inquiryId),
-    admin.from("member_rates").select("profile_id, cents, per"),
+    admin.from("production_rates").select("profile_id, cents, per").eq("inquiry_id", inquiryId),
   ]);
   if (!production.data) throw new Error("that production isn't here anymore.");
   if (!shifts.data?.length) throw new Error("there aren't any shifts on the schedule yet.");

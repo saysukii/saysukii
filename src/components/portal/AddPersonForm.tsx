@@ -4,15 +4,12 @@ import type { FormEvent, ReactNode } from "react";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { AppRole } from "@/integrations/supabase/types";
 import { DEFAULT_ADMIN_ACCESS, STUDIO_AREAS } from "@/lib/os/access";
-import { rateLabel, type RatePer } from "@/lib/os/production";
 import { cn } from "@/lib/utils";
 
 export type AddPersonValues = {
   name: string;
   email: string;
   role: AppRole;
-  rate: string;
-  per: RatePer;
   /** what an admin can open; the founder sets it */
   access?: string[];
 };
@@ -26,8 +23,6 @@ type Props = AddPersonValues & {
   standing?: string;
   /** the founder decides roles and what each admin can open */
   canSetRole?: boolean;
-  /** only those who handle pay see and set rates */
-  canPay?: boolean;
   busy: boolean;
   onChange: (next: Partial<AddPersonValues>) => void;
   onSubmit: (event: FormEvent) => void;
@@ -38,20 +33,8 @@ const ROLE_CHOICES: Array<{ value: AppRole; label: string; note: string }> = [
   { value: "admin", label: "admin", note: "the parts of the studio you give them" },
 ];
 
-const PAY_CHOICES: Array<{ value: RatePer; label: string; note: string }> = [
-  { value: "hour", label: "hourly", note: "paid on their scheduled hours" },
-  { value: "production", label: "flat rate", note: "one amount for each production" },
-];
-
 const NOTHING_SENT =
   "nothing is sent yet. put them on a production; when you share it, they get their invitation with their schedule.";
-
-/** the rate as it'll read, once there's an amount */
-function rateLine(values: AddPersonValues) {
-  const dollars = Number(values.rate);
-  if (!values.rate.trim() || Number.isNaN(dollars)) return "";
-  return rateLabel({ cents: Math.round(dollars * 100), per: values.per });
-}
 
 /** soft pink pills, the same as the shift dialog's */
 function Picks<T extends string>({
@@ -150,7 +133,6 @@ export function AddPersonForm({
   emailLocked = false,
   standing,
   canSetRole = true,
-  canPay = true,
   busy,
   onChange,
   onSubmit,
@@ -158,8 +140,7 @@ export function AddPersonForm({
 }: Props) {
   const ready = Boolean(values.name.trim() && values.email.trim());
   const editing = mode === "edit";
-  // admins are crew too; the founder alone sets roles and access, and pay shows to those who handle it
-  const paid = canPay;
+  // admins are crew too; the founder alone sets roles and access
   const access = values.access ?? DEFAULT_ADMIN_ACCESS;
   return (
     <>
@@ -173,7 +154,7 @@ export function AddPersonForm({
         )}
       </DialogTitle>
       <DialogDescription className="sr-only">
-        {editing ? "their name, what they see, and how they're paid." : NOTHING_SENT}
+        {editing ? "their name, and what they see." : NOTHING_SENT}
       </DialogDescription>
       <form className="studio-task-form studio-add-split" onSubmit={onSubmit}>
         <div className="studio-shift-form">
@@ -228,40 +209,6 @@ export function AddPersonForm({
               </div>
             </div>
           ) : null}
-          {paid ? (
-            <div className="studio-shift-field" role="group" aria-label="paid">
-              <span className="studio-ask-label">paid</span>
-              <div className="studio-add-paid">
-                <div className="studio-shift-picks">
-                  {PAY_CHOICES.map((choice) => (
-                    <button
-                      key={choice.value}
-                      type="button"
-                      aria-pressed={values.per === choice.value}
-                      className={cn("studio-shift-pick", values.per === choice.value && "is-on")}
-                      onClick={() => onChange({ per: choice.value })}
-                    >
-                      {choice.label}
-                    </button>
-                  ))}
-                </div>
-                <span className="studio-add-money">
-                  <i aria-hidden="true">$</i>
-                  <input
-                    value={values.rate}
-                    inputMode="decimal"
-                    aria-label={values.per === "hour" ? "hourly rate" : "flat rate"}
-                    placeholder={values.per === "hour" ? "25" : "300"}
-                    disabled={busy}
-                    onChange={(event) =>
-                      onChange({ rate: event.target.value.replace(/[^\d.]/g, "") })
-                    }
-                  />
-                  <small aria-hidden="true">{values.per === "hour" ? "/hr" : "flat"}</small>
-                </span>
-              </div>
-            </div>
-          ) : null}
         </div>
         <aside className="studio-add-preview">
           <span className="studio-ask-label">how they'll show in the gang</span>
@@ -276,13 +223,7 @@ export function AddPersonForm({
               <small>{values.role === "admin" ? "admin" : "gang"}</small>
             </span>
           </div>
-          {editing ? (
-            paid ? (
-              <p className="studio-add-private">
-                their rate, {rateLine(values) || "not set yet"}, shows only here.
-              </p>
-            ) : null
-          ) : (
+          {editing ? null : (
             <>
               <span className="studio-ask-label">what happens next</span>
               <ol className="studio-add-next">

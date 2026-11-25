@@ -68,6 +68,7 @@ import {
   mailInline,
   studioReply,
 } from "@/components/inquiry/lead/helpers";
+import { fromRect } from "@/lib/studio-zoom";
 
 export type DraftFile = {
   id: string;
@@ -535,8 +536,11 @@ export function ThreadComposer({
       if (host && rect.height > 0) {
         const width = 280;
         setLinkAt({
-          top: rect.bottom - host.top + 6,
-          left: Math.min(Math.max(8, rect.left - host.left), Math.max(8, host.width - width - 8)),
+          top: fromRect(rect.bottom - host.top) + 6,
+          left: Math.min(
+            Math.max(8, fromRect(rect.left - host.left)),
+            Math.max(8, fromRect(host.width) - width - 8),
+          ),
         });
       } else {
         setLinkAt(null);

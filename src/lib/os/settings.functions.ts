@@ -12,14 +12,6 @@ const roleSchema = z.enum(["admin", "team"]);
 const inviteSchema = z.object({
   email: z.string().trim().email().max(320),
   role: roleSchema,
-  /** what they're paid, by the hour or flat for a production, set at invite so they're ready to schedule */
-  rate: z
-    .object({
-      cents: z.number().int().min(0).max(10_000_000),
-      per: z.enum(["hour", "production"]),
-    })
-    .nullable()
-    .optional(),
 });
 const memberSchema = z.object({ id: z.string().uuid() });
 const granolaKeySchema = z.object({ apiKey: z.string().trim().min(1).max(500) });
@@ -182,21 +174,6 @@ export const inviteTeamMember = createServerFn({ method: "POST" })
       .update({ invited_at: new Date().toISOString() })
       .eq("email", email)
       .is("full_name", null);
-    if (data.rate != null) {
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-      if (profile) {
-        await supabaseAdmin.from("member_rates").upsert({
-          profile_id: profile.id,
-          cents: data.rate.cents,
-          per: data.rate.per,
-          updated_at: new Date().toISOString(),
-        });
-      }
-    }
     return { email, role: data.role };
   });
 

@@ -575,17 +575,20 @@ export const updateInquiryMoment = createServerFn({ method: "POST" })
           .nullable()
           .optional(),
         event_date_tbd: z.boolean().optional(),
+        event_name: z.string().trim().max(120).optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const patch: {
+      event_name?: string | null;
       venue_text?: string | null;
       budget_range?: string | null;
       event_date?: string | null;
       event_date_tbd?: boolean;
     } = {};
     if (data.venue_text !== undefined) patch.venue_text = data.venue_text || null;
+    if (data.event_name !== undefined) patch.event_name = data.event_name || null;
     if (data.budget_range !== undefined) patch.budget_range = data.budget_range || null;
     if (data.event_date_tbd) {
       patch.event_date = null;
@@ -595,6 +598,17 @@ export const updateInquiryMoment = createServerFn({ method: "POST" })
       patch.event_date_tbd = false;
     }
     if (!Object.keys(patch).length) return { ok: true as const };
+    // the event's name before this, so its production can follow a rename
+    const before =
+      data.event_name !== undefined
+        ? ((
+            await context.supabase
+              .from("inquiries")
+              .select("event_name")
+              .eq("id", data.id)
+              .maybeSingle()
+          ).data?.event_name ?? null)
+        : null;
     const { data: changed, error } = await context.supabase
       .from("inquiries")
       .update(patch)
@@ -611,9 +625,47 @@ export const updateInquiryMoment = createServerFn({ method: "POST" })
         .maybeSingle();
       throw new Error(inquiryProblem(row, "change its details") ?? "this didn't save. try again.");
     }
+    // a booked job's production follows its event name, while it still has the name it was given
+    if (data.event_name) {
+      await renameProductionFor(context.supabase, data.id, data.event_name, before);
+    }
     await refreshInquirySummarySafe(context.supabase, data.id);
     return { ok: true as const };
   });
+
+/** the production takes the inquiry's new event name, unless the studio has named it since */
+async function renameProductionFor(
+  client: StudioClient,
+  inquiryId: string,
+  name: string,
+  before: string | null,
+) {
+  const { data: production } = await client
+    .from("productions")
+    .select("inquiry_id, project_name, shared_at")
+    .eq("inquiry_id", inquiryId)
+    .maybeSingle();
+  if (!production || production.project_name === name) return;
+  const { data: inquiry } = await client
+    .from("inquiries")
+    .select("client_id")
+    .eq("id", inquiryId)
+    .maybeSingle();
+  const { data: owner } = inquiry
+    ? await client
+        .from("clients")
+        .select("name, organization")
+        .eq("id", inquiry.client_id)
+        .maybeSingle()
+    : { data: null };
+  const { defaultProjectName } = await import("./production");
+  // only a name the studio hasn't changed by hand: the client's, or the event's earlier one
+  const untouched =
+    production.project_name === defaultProjectName(owner ?? {}) ||
+    (before !== null && production.project_name === before);
+  if (!untouched) return;
+  await client.from("productions").update({ project_name: name }).eq("inquiry_id", inquiryId);
+}
 
 export const syncStudioInbox = createServerFn({ method: "POST" })
   .middleware([requireAccess("inquiries")])

@@ -171,7 +171,7 @@
 
   body {
     min-width: 320px;
-    min-height: 100vh;
+    min-height: calc(100vh / var(--studio-vz, 1));
     background: #f5e6e8;
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -272,8 +272,8 @@
   --auth-button: #241b1d;
   --auth-button-ink: #fffaf8;
   position: relative;
-  height: 100svh;
-  min-height: 100svh;
+  height: calc(100svh / var(--studio-vz, 1));
+  min-height: calc(100svh / var(--studio-vz, 1));
   overflow: hidden;
   overscroll-behavior: none;
   background: var(--auth-bg);
@@ -354,8 +354,8 @@
   top: 0;
   left: 0;
   z-index: -1;
-  width: min(76vmax, 920px);
-  height: min(76vmax, 920px);
+  width: min(calc(76vmax / var(--studio-vz, 1)), 920px);
+  height: min(calc(76vmax / var(--studio-vz, 1)), 920px);
   border-radius: 50%;
   background:
     radial-gradient(circle at 43% 38%, rgba(255, 235, 241, 0.9) 0 4%, transparent 13%),
@@ -381,10 +381,10 @@
 
 .auth-scene--nocturne .auth-aura--near {
   left: auto;
-  right: -8vw;
-  bottom: -34vh;
-  width: 86vh;
-  height: 86vh;
+  right: calc(-8vw / var(--studio-vz, 1));
+  bottom: calc(-34vh / var(--studio-vz, 1));
+  width: calc(86vh / var(--studio-vz, 1));
+  height: calc(86vh / var(--studio-vz, 1));
   opacity: 0.52;
   background: radial-gradient(
     circle at 38% 36%,
@@ -412,8 +412,8 @@
   right: auto;
   bottom: auto;
   left: 0;
-  width: min(68vmax, 820px);
-  height: min(68vmax, 820px);
+  width: min(calc(68vmax / var(--studio-vz, 1)), 820px);
+  height: min(calc(68vmax / var(--studio-vz, 1)), 820px);
   border: 1px solid rgba(105, 89, 91, 0.1);
   background: radial-gradient(
     circle at 35% 34%,
@@ -460,8 +460,8 @@
 .auth-scene--login .auth-aura--near {
   top: -8%;
   left: 18%;
-  width: min(62vw, 840px);
-  height: min(42vw, 520px);
+  width: min(calc(62vw / var(--studio-vz, 1)), 840px);
+  height: min(calc(42vw / var(--studio-vz, 1)), 520px);
   border: none;
   opacity: 0.55;
   background: radial-gradient(circle at 50% 40%, #ffe8ee 0%, transparent 72%);
@@ -548,11 +548,11 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 32px clamp(28px, 5vw, 76px);
+  padding: 32px clamp(28px, calc(5vw / var(--studio-vz, 1)), 76px);
 }
 
 .auth-wordmark {
-  width: clamp(154px, 13vw, 206px);
+  width: clamp(154px, calc(13vw / var(--studio-vz, 1)), 206px);
   transition: filter 500ms ease;
 }
 
@@ -571,7 +571,7 @@
 }
 
 .auth-login-only .auth-wordmark {
-  width: clamp(124px, 10vw, 148px);
+  width: clamp(124px, calc(10vw / var(--studio-vz, 1)), 148px);
   flex: none;
 }
 
@@ -583,7 +583,7 @@
 
 .auth-concepts {
   position: absolute;
-  right: clamp(28px, 5vw, 76px);
+  right: clamp(28px, calc(5vw / var(--studio-vz, 1)), 76px);
   display: flex;
   gap: 4px;
   padding: 5px;
@@ -635,7 +635,7 @@
   justify-content: center;
   gap: 22px;
   width: min(420px, calc(100% - 48px));
-  min-height: calc(100svh - 154px);
+  min-height: calc(calc(100svh / var(--studio-vz, 1)) - 154px);
   margin: -20px auto 0;
   padding-bottom: 54px;
 }
@@ -657,7 +657,7 @@
 
 .auth-story h1 {
   max-width: 420px;
-  font-size: clamp(37px, 3.4vw, 48px);
+  font-size: clamp(37px, calc(3.4vw / var(--studio-vz, 1)), 48px);
   font-weight: 300;
   line-height: 1;
   letter-spacing: -0.045em;
@@ -674,7 +674,7 @@
   position: relative;
   width: 100%;
   overflow: hidden;
-  padding: clamp(30px, 4vw, 48px);
+  padding: clamp(30px, calc(4vw / var(--studio-vz, 1)), 48px);
   border: 1px solid var(--auth-panel-edge);
   border-radius: 36px;
   background: linear-gradient(
@@ -972,9 +972,9 @@
 
 .auth-footer {
   position: absolute;
-  right: clamp(28px, 5vw, 76px);
+  right: clamp(28px, calc(5vw / var(--studio-vz, 1)), 76px);
   bottom: 25px;
-  left: clamp(28px, 5vw, 76px);
+  left: clamp(28px, calc(5vw / var(--studio-vz, 1)), 76px);
   z-index: 7;
   display: flex;
   justify-content: space-between;
@@ -989,7 +989,7 @@
 }
 
 .auth-scene--nocturne .auth-story h1 {
-  font-size: clamp(38px, 3.5vw, 50px);
+  font-size: clamp(38px, calc(3.5vw / var(--studio-vz, 1)), 50px);
   font-style: italic;
 }
 
@@ -1015,7 +1015,7 @@
 
 .auth-scene--pearl .auth-layout {
   display: flex;
-  min-height: calc(100svh - 154px);
+  min-height: calc(calc(100svh / var(--studio-vz, 1)) - 154px);
   width: min(420px, calc(100% - 48px));
   flex-direction: column;
   justify-content: center;
@@ -1030,7 +1030,7 @@
 
 .auth-scene--pearl .auth-concepts {
   position: absolute;
-  right: clamp(28px, 5vw, 76px);
+  right: clamp(28px, calc(5vw / var(--studio-vz, 1)), 76px);
 }
 
 .auth-scene--pearl .auth-story {
@@ -1044,7 +1044,7 @@
 }
 
 .auth-scene--pearl .auth-story h1 {
-  font-size: clamp(37px, 3.4vw, 48px);
+  font-size: clamp(37px, calc(3.4vw / var(--studio-vz, 1)), 48px);
   line-height: 1;
   letter-spacing: -0.045em;
 }
@@ -1148,7 +1148,7 @@
   width: 100%;
   height: auto;
   min-height: 0;
-  max-height: calc(100svh - 8.5rem);
+  max-height: calc(calc(100svh / var(--studio-vz, 1)) - 8.5rem);
   padding: 22px 28px 22px;
   overflow: visible;
   border: 0;
@@ -1207,8 +1207,8 @@
 .inquire-scene--pearl.auth-scene--login .auth-aura--near {
   top: -14%;
   left: 28%;
-  width: min(62vw, 840px);
-  height: min(42vw, 520px);
+  width: min(calc(62vw / var(--studio-vz, 1)), 840px);
+  height: min(calc(42vw / var(--studio-vz, 1)), 520px);
   border-radius: 50%;
   opacity: 0.42;
   filter: blur(80px);
@@ -1396,7 +1396,7 @@
 }
 
 .inquire-guide--path .inquire-heading h2 {
-  font-size: clamp(16px, 2.6vw, 18px);
+  font-size: clamp(16px, calc(2.6vw / var(--studio-vz, 1)), 18px);
 }
 
 .inquire-guide--board .inquire-slate-picks .inquire-hint,
@@ -1452,7 +1452,7 @@
 .inquire-heading h2 {
   margin: 0 auto;
   max-width: min(100%, 38ch);
-  font-size: clamp(16px, 2.6vw, 18px);
+  font-size: clamp(16px, calc(2.6vw / var(--studio-vz, 1)), 18px);
   font-weight: 300;
   line-height: 1.25;
   letter-spacing: -0.02em;
@@ -1554,7 +1554,7 @@
   --auth-blush: #ff4d94;
   z-index: 80;
   width: max-content;
-  max-width: calc(100vw - 24px);
+  max-width: calc(calc(100vw / var(--studio-vz, 1)) - 24px);
   overflow: visible;
   border: 0;
   border-radius: 22px;
@@ -2363,7 +2363,7 @@
 
 .inquire-styles h1 {
   margin: 10px 0 0;
-  font-size: clamp(28px, 5vw, 34px);
+  font-size: clamp(28px, calc(5vw / var(--studio-vz, 1)), 34px);
   font-weight: 300;
   letter-spacing: -0.04em;
 }
@@ -2585,7 +2585,7 @@
 
 @media (max-width: 640px) {
   .inquire-heading h2 {
-    font-size: clamp(15px, 4.2vw, 17px);
+    font-size: clamp(15px, calc(4.2vw / var(--studio-vz, 1)), 17px);
   }
 }
 
@@ -2634,7 +2634,7 @@
   .auth-scene--nocturne .auth-story h1,
   .auth-scene--pearl .auth-story h1 {
     margin-inline: auto;
-    font-size: clamp(40px, 12vw, 60px);
+    font-size: clamp(40px, calc(12vw / var(--studio-vz, 1)), 60px);
   }
 
   .auth-kicker {
@@ -2683,7 +2683,7 @@
   }
 
   .auth-layout {
-    min-height: calc(100svh - 130px);
+    min-height: calc(calc(100svh / var(--studio-vz, 1)) - 130px);
     padding-bottom: 45px;
   }
 
@@ -2720,7 +2720,7 @@
 
 .auth-scene.auth-scene--scroll {
   height: auto;
-  min-height: 100svh;
+  min-height: calc(100svh / var(--studio-vz, 1));
   overflow: visible;
   overscroll-behavior: auto;
 }
@@ -3113,7 +3113,7 @@
   z-index: 1;
   display: flex;
   width: min(100%, 920px);
-  min-height: 100svh;
+  min-height: calc(100svh / var(--studio-vz, 1));
   flex-direction: column;
   padding: 18px 16px 24px;
 }
@@ -3213,7 +3213,7 @@
 
 .vary-index h1 {
   margin: 10px 0 0;
-  font-size: clamp(28px, 4vw, 42px);
+  font-size: clamp(28px, calc(4vw / var(--studio-vz, 1)), 42px);
   font-weight: 400;
   letter-spacing: -0.04em;
   line-height: 1.05;
@@ -3366,7 +3366,7 @@
   display: grid;
   grid-template-rows: auto 1fr auto;
   width: min(430px, 100%);
-  height: 100svh;
+  height: calc(100svh / var(--studio-vz, 1));
   margin: 0 auto;
   background: #000;
   color: #f5f5f7;
@@ -3692,14 +3692,14 @@
 /* Atelier — colored rooms */
 .rooms,
 .wall {
-  min-height: 100svh;
+  min-height: calc(100svh / var(--studio-vz, 1));
   padding: 64px 22px 28px;
 }
 
 .rooms h1,
 .wall h2 {
   margin: 8px 0 28px;
-  font-size: clamp(40px, 8vw, 84px);
+  font-size: clamp(40px, calc(8vw / var(--studio-vz, 1)), 84px);
   font-weight: 500;
   letter-spacing: -0.05em;
   line-height: 0.92;
@@ -3721,7 +3721,7 @@
 @media (min-width: 800px) {
   .rooms-grid {
     grid-template-columns: repeat(6, 1fr);
-    min-height: 52vh;
+    min-height: calc(52vh / var(--studio-vz, 1));
   }
 
   .rooms-grid button:nth-child(1),
@@ -3776,7 +3776,7 @@
 .wall-body {
   display: grid;
   gap: 18px;
-  padding: 8vh 0;
+  padding: calc(8vh / var(--studio-vz, 1)) 0;
 }
 
 .wall-line {
@@ -3838,7 +3838,7 @@
 
 /* Guided inquiry — three visual languages */
 .guide-page {
-  min-height: 100svh;
+  min-height: calc(100svh / var(--studio-vz, 1));
 }
 
 .guide-page--card {
@@ -3888,7 +3888,7 @@
 }
 
 .guide {
-  min-height: 100svh;
+  min-height: calc(100svh / var(--studio-vz, 1));
 }
 
 .guide button,
@@ -4033,7 +4033,7 @@
 .guide-done {
   display: grid;
   place-content: center;
-  min-height: 100svh;
+  min-height: calc(100svh / var(--studio-vz, 1));
   text-align: center;
   gap: 10px;
 }
@@ -4160,7 +4160,7 @@
 /* Split — chapter rail */
 .guide--split {
   display: grid;
-  min-height: 100svh;
+  min-height: calc(100svh / var(--studio-vz, 1));
 }
 
 @media (min-width: 880px) {
@@ -4219,13 +4219,13 @@
 }
 
 .guide--split .guide-board {
-  padding: 88px 8vw 48px;
+  padding: 88px calc(8vw / var(--studio-vz, 1)) 48px;
   max-width: 720px;
 }
 
 .guide--split h1 {
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
-  font-size: clamp(36px, 5vw, 52px);
+  font-size: clamp(36px, calc(5vw / var(--studio-vz, 1)), 52px);
   font-weight: 500;
 }
 
@@ -4397,7 +4397,7 @@
 
 /* Style picker */
 .guide-index {
-  min-height: 100svh;
+  min-height: calc(100svh / var(--studio-vz, 1));
   padding: 72px 24px 48px;
   background: #efece6;
   color: #1c1b19;
@@ -4414,7 +4414,7 @@
 .guide-index h1 {
   max-width: 520px;
   margin: 10px 0 0;
-  font-size: clamp(32px, 5vw, 48px);
+  font-size: clamp(32px, calc(5vw / var(--studio-vz, 1)), 48px);
   font-weight: 600;
   letter-spacing: -0.04em;
 }
@@ -4554,8 +4554,8 @@
   --studio-veil-on: rgba(255, 248, 249, 0.72);
   --studio-rail: rgba(255, 244, 246, 0.78);
   --studio-veil-line: color-mix(in srgb, var(--auth-ink) 8%, transparent);
-  height: 100svh;
-  min-height: 100svh;
+  height: calc(100svh / var(--studio-vz, 1));
+  min-height: calc(100svh / var(--studio-vz, 1));
   overflow: hidden;
   background: var(--studio-paper);
   color: var(--auth-ink);
@@ -4587,8 +4587,8 @@
 .studio-pearl-aura-near {
   top: -14%;
   left: 28%;
-  width: min(62vw, 840px);
-  height: min(42vw, 520px);
+  width: min(calc(62vw / var(--studio-vz, 1)), 840px);
+  height: min(calc(42vw / var(--studio-vz, 1)), 520px);
   border-radius: 50%;
   opacity: 0.42;
   filter: blur(80px);
@@ -5063,7 +5063,7 @@
 }
 
 [data-sonner-toaster] {
-  --width: min(360px, calc(100vw - 32px));
+  --width: min(360px, calc(calc(100vw / var(--studio-vz, 1)) - 32px));
   font-family: inherit;
 }
 
@@ -5106,7 +5106,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
-  width: min(360px, calc(100vw - 32px));
+  width: min(360px, calc(calc(100vw / var(--studio-vz, 1)) - 32px));
   padding: 18px;
   border-radius: 20px;
   background-color: #f5e6e8;
@@ -5222,7 +5222,7 @@
 
 .studio-today-top h1 {
   margin: 0;
-  font-size: clamp(22px, 3vw, 28px);
+  font-size: clamp(22px, calc(3vw / var(--studio-vz, 1)), 28px);
   font-weight: 300;
   letter-spacing: -0.03em;
 }
@@ -5311,8 +5311,8 @@
 .studio-pearl:has(.studio-desk) .studio-pearl-aura-near {
   top: -14%;
   left: 28%;
-  width: min(62vw, 840px);
-  height: min(42vw, 520px);
+  width: min(calc(62vw / var(--studio-vz, 1)), 840px);
+  height: min(calc(42vw / var(--studio-vz, 1)), 520px);
   border-radius: 50%;
   opacity: 0.42;
   filter: blur(80px);
@@ -5457,7 +5457,7 @@
 
 .studio-home-hello h1 {
   margin: 6px 0 0;
-  font-size: clamp(26px, 4vw, 34px);
+  font-size: clamp(26px, calc(4vw / var(--studio-vz, 1)), 34px);
   font-weight: 300;
   letter-spacing: -0.04em;
 }
@@ -5607,9 +5607,9 @@ button.studio-metric:hover {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: clamp(18rem, calc(100svh - 22rem), 34rem);
+  height: clamp(18rem, calc(calc(100svh / var(--studio-vz, 1)) - 22rem), 34rem);
   min-height: 18rem;
-  max-height: clamp(18rem, calc(100svh - 22rem), 34rem);
+  max-height: clamp(18rem, calc(calc(100svh / var(--studio-vz, 1)) - 22rem), 34rem);
   padding: 18px;
   border-radius: 22px;
   background: var(--studio-veil);
@@ -6119,7 +6119,7 @@ button.studio-metric:hover {
   gap: 0;
   width: calc(100% - 32px);
   max-width: 36rem;
-  max-height: min(88vh, 46rem);
+  max-height: min(calc(88vh / var(--studio-vz, 1)), 46rem);
   overflow-x: hidden;
   overflow-y: auto;
   padding: 12px 20px 16px;
@@ -7151,7 +7151,7 @@ button.studio-metric:hover {
 .studio-balance-letter {
   display: block;
   width: 100%;
-  height: min(60vh, 34rem);
+  height: min(calc(60vh / var(--studio-vz, 1)), 34rem);
   border: 0;
   border-radius: 16px;
   background: #f5e6e8;
@@ -7177,7 +7177,7 @@ button.studio-metric:hover {
 }
 
 .client-packet.is-preview .client-packet-frame {
-  height: min(62vh, 36rem);
+  height: min(calc(62vh / var(--studio-vz, 1)), 36rem);
 }
 
 .studio-invoice-preview {
@@ -7619,7 +7619,7 @@ button.studio-metric:hover {
 .studio-item-pick {
   display: grid;
   gap: 8px;
-  width: min(340px, calc(100vw - 32px));
+  width: min(340px, calc(calc(100vw / var(--studio-vz, 1)) - 32px));
   padding: 10px;
   border: 0;
   border-radius: 16px;
@@ -8106,7 +8106,7 @@ button.studio-metric:hover {
 
 .studio-panel-head h2 {
   margin: 4px 0 0;
-  font-size: clamp(16px, 2.4vw, 18px);
+  font-size: clamp(16px, calc(2.4vw / var(--studio-vz, 1)), 18px);
   font-weight: 300;
 }
 
@@ -8299,7 +8299,7 @@ button.studio-metric:hover {
 .studio-add h2,
 .studio-add summary h2 {
   margin: 4px 0 0;
-  font-size: clamp(16px, 2.4vw, 18px);
+  font-size: clamp(16px, calc(2.4vw / var(--studio-vz, 1)), 18px);
   font-weight: 300;
 }
 
@@ -8720,7 +8720,7 @@ button.studio-metric:hover {
 
 .studio-desk-hello h1 {
   margin: 6px 0 0;
-  font-size: clamp(26px, 4vw, 34px);
+  font-size: clamp(26px, calc(4vw / var(--studio-vz, 1)), 34px);
   font-weight: 300;
   letter-spacing: -0.04em;
 }
@@ -9005,7 +9005,7 @@ button.studio-metric:hover {
 
 .studio-desk .studio-lead-who h2 {
   margin: 4px 0 0;
-  font-size: clamp(20px, 3vw, 26px);
+  font-size: clamp(20px, calc(3vw / var(--studio-vz, 1)), 26px);
   font-weight: 300;
   letter-spacing: -0.03em;
 }
@@ -9196,7 +9196,7 @@ button.studio-metric:hover {
 
 .studio-lead-who h2 {
   margin: 4px 0 0;
-  font-size: clamp(22px, 3vw, 28px);
+  font-size: clamp(22px, calc(3vw / var(--studio-vz, 1)), 28px);
   font-weight: 300;
   letter-spacing: -0.03em;
 }
@@ -9366,7 +9366,7 @@ button.studio-metric:hover {
 .studio-ledger-name h1 {
   margin: 0;
   min-width: 0;
-  font-size: clamp(26px, 4vw, 34px);
+  font-size: clamp(26px, calc(4vw / var(--studio-vz, 1)), 34px);
   font-weight: 300;
   letter-spacing: -0.04em;
 }
@@ -9728,7 +9728,7 @@ button.studio-metric:hover {
 
 .studio-crm-top h1 {
   margin: 4px 0 0;
-  font-size: clamp(22px, 3vw, 28px);
+  font-size: clamp(22px, calc(3vw / var(--studio-vz, 1)), 28px);
   font-weight: 300;
   letter-spacing: -0.03em;
 }
@@ -9848,7 +9848,7 @@ button.studio-metric:hover {
   align-self: start;
   width: 100%;
   height: auto;
-  max-height: min(36rem, calc(100dvh - 11rem));
+  max-height: min(36rem, calc(calc(100dvh / var(--studio-vz, 1)) - 11rem));
   overflow: hidden;
 }
 
@@ -9941,7 +9941,7 @@ button.studio-metric:hover {
 }
 
 .studio-mail-bubble {
-  max-width: min(78vw, 34rem);
+  max-width: min(calc(78vw / var(--studio-vz, 1)), 34rem);
   padding: 10px 14px;
   border-radius: 18px 18px 18px 6px;
   background: rgba(36, 34, 31, 0.06);
@@ -10420,8 +10420,8 @@ button.studio-metric:hover {
 
 /* a long letter scrolls inside the field, so the send button stays in reach */
 .studio-composer > .studio-textarea {
-  max-height: min(40vh, 320px);
-  max-height: min(40dvh, 320px);
+  max-height: min(calc(40vh / var(--studio-vz, 1)), 320px);
+  max-height: min(calc(40dvh / var(--studio-vz, 1)), 320px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -11591,7 +11591,7 @@ textarea.studio-letter-edit {
   }
 
   .studio-kanban-lanes {
-    grid-auto-columns: minmax(300px, 78vw);
+    grid-auto-columns: minmax(300px, calc(78vw / var(--studio-vz, 1)));
   }
 }
 
@@ -11667,7 +11667,7 @@ textarea.studio-letter-edit {
 
 .studio-record-hero h2 {
   margin: 2px 0 0;
-  font-size: clamp(26px, 3vw, 34px);
+  font-size: clamp(26px, calc(3vw / var(--studio-vz, 1)), 34px);
   font-weight: 300;
   letter-spacing: -0.04em;
 }
@@ -12245,7 +12245,9 @@ textarea.studio-letter-edit {
     scrollbar-width: none;
   }
 
-  .studio-home.is-book:not(.is-record):not(.is-library) .studio-book-body > .studio-directory::-webkit-scrollbar {
+  .studio-home.is-book:not(.is-record):not(.is-library)
+    .studio-book-body
+    > .studio-directory::-webkit-scrollbar {
     display: none;
   }
 
@@ -12796,7 +12798,7 @@ textarea.studio-letter-edit {
   --packet-veil: rgba(255, 244, 246, 0.72);
   --packet-veil-on: rgba(255, 248, 249, 0.88);
   --packet-line: color-mix(in srgb, var(--packet-ink) 8%, transparent);
-  min-height: 100vh;
+  min-height: calc(100vh / var(--studio-vz, 1));
   overscroll-behavior-x: none;
   background: var(--packet-paper);
   color: var(--packet-ink);
@@ -12830,7 +12832,7 @@ textarea.studio-letter-edit {
 
 .client-packet h1 {
   margin: 0;
-  font-size: clamp(26px, 4vw, 34px);
+  font-size: clamp(26px, calc(4vw / var(--studio-vz, 1)), 34px);
   font-weight: 300;
   letter-spacing: -0.04em;
 }
@@ -13320,7 +13322,7 @@ textarea.studio-letter-edit {
 
 .client-packet-frame {
   width: 100%;
-  height: 72vh;
+  height: calc(72vh / var(--studio-vz, 1));
   border: none;
   border-radius: 16px;
   background: transparent;
@@ -13466,7 +13468,7 @@ textarea.studio-letter-edit {
 .client-packet-signed {
   border-bottom: 1px solid var(--packet-line);
   padding-bottom: 0.75rem;
-  font-size: clamp(26px, 4vw, 34px);
+  font-size: clamp(26px, calc(4vw / var(--studio-vz, 1)), 34px);
   font-weight: 300;
   letter-spacing: -0.04em;
   text-transform: none;
@@ -13483,7 +13485,8 @@ textarea.studio-letter-edit {
 }
 
 .studio-home.is-book:not(.is-record):not(.is-library) .studio-book-body:has(.studio-directory),
-.studio-home.is-book:not(.is-record):not(.is-library) .studio-book-body:has(.studio-directory-search) {
+.studio-home.is-book:not(.is-record):not(.is-library)
+  .studio-book-body:has(.studio-directory-search) {
   grid-template-rows: auto auto;
   align-content: start;
 }
@@ -13876,8 +13879,8 @@ a.studio-kicker:hover {
 }
 
 .auth-scene:has(.book-meet) {
-  height: 100svh;
-  min-height: 100svh;
+  height: calc(100svh / var(--studio-vz, 1));
+  min-height: calc(100svh / var(--studio-vz, 1));
   overflow: hidden;
   --auth-bg: #f5e6e8;
   --studio-veil: rgba(255, 244, 246, 0.56);
@@ -13906,8 +13909,8 @@ a.studio-kicker:hover {
 .auth-scene:has(.book-meet) .auth-aura--near {
   top: -14%;
   left: 28%;
-  width: min(62vw, 840px);
-  height: min(42vw, 520px);
+  width: min(calc(62vw / var(--studio-vz, 1)), 840px);
+  height: min(calc(42vw / var(--studio-vz, 1)), 520px);
   border: none;
   border-radius: 50%;
   opacity: 0.42;
@@ -15443,7 +15446,7 @@ a.studio-kicker:hover {
 
   .studio-schedule-side {
     align-self: start;
-    max-height: calc(100svh - 8rem);
+    max-height: calc(calc(100svh / var(--studio-vz, 1)) - 8rem);
     overflow: auto;
     scrollbar-width: none;
   }
@@ -15738,7 +15741,7 @@ a.studio-kicker:hover {
 @media (max-width: 800px) {
   .auth-scene:has(.book-meet) {
     height: auto;
-    min-height: 100svh;
+    min-height: calc(100svh / var(--studio-vz, 1));
     overflow: auto;
   }
 
@@ -15886,7 +15889,7 @@ a.studio-kicker:hover {
 
 .studio-today-wait {
   display: grid;
-  min-height: 68vh;
+  min-height: calc(68vh / var(--studio-vz, 1));
   place-items: center;
 }
 
@@ -16122,7 +16125,7 @@ a.studio-kicker:hover {
 
 .studio-bloom-wait {
   display: grid;
-  min-height: 68vh;
+  min-height: calc(68vh / var(--studio-vz, 1));
   place-items: center;
 }
 
@@ -16711,7 +16714,7 @@ a.studio-kicker:hover {
 .studio-lost-say h1 {
   margin: 0;
   color: #24221f;
-  font-size: clamp(26px, 4vw, 38px);
+  font-size: clamp(26px, calc(4vw / var(--studio-vz, 1)), 38px);
   font-weight: 300;
   letter-spacing: -0.025em;
   line-height: 1.08;
@@ -16764,9 +16767,6 @@ a.studio-kicker:hover {
 
 /* the book: newest or oldest first */
 
-
-
-
 /* a client wrote back and the studio hasn't yet */
 .studio-desk-replied {
   display: inline-flex;
@@ -16812,7 +16812,9 @@ a.studio-kicker:hover {
   box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
   color: rgba(36, 34, 31, 0.52);
   cursor: pointer;
-  transition: color 160ms ease, background-color 160ms ease;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
 }
 
 .studio-proposal-clear:hover {
@@ -16863,7 +16865,9 @@ a.studio-kicker:hover {
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
 }
 
 .studio-send-undo:hover {
@@ -16943,7 +16947,7 @@ a.studio-kicker:hover {
 .studio-send-preview-letter {
   display: grid;
   gap: 18px;
-  max-height: min(52vh, 460px);
+  max-height: min(calc(52vh / var(--studio-vz, 1)), 460px);
   overflow-y: auto;
   padding: 16px 16px 18px;
   color: #24221f;
@@ -17174,7 +17178,9 @@ a.studio-kicker:hover {
   border-radius: 50%;
   background: #ff4d94;
   animation: pay-breathe 1.2s ease-in-out infinite;
-  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    width 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 360ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .pay-moment-dot svg {
@@ -17770,7 +17776,6 @@ a.studio-kicker:hover {
   box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.1);
 }
 
-
 /* the pay form steps aside while the circle plays, without losing square's fields */
 .client-pay-form[hidden],
 .client-packet-card[hidden] {
@@ -17790,7 +17795,7 @@ a.studio-kicker:hover {
   display: grid;
   justify-items: center;
   gap: 4px;
-  width: min(340px, calc(100vw - 32px));
+  width: min(340px, calc(calc(100vw / var(--studio-vz, 1)) - 32px));
   padding: 22px 22px 18px;
   overflow: hidden;
   border-radius: 24px;
@@ -17932,7 +17937,7 @@ a.studio-kicker:hover {
   display: flex;
   align-items: center;
   gap: 14px;
-  width: min(620px, calc(100vw - 32px));
+  width: min(620px, calc(calc(100vw / var(--studio-vz, 1)) - 32px));
   padding: 12px 46px 12px 20px;
   overflow: hidden;
   border-radius: 999px;
@@ -17993,14 +17998,14 @@ a.studio-kicker:hover {
 
 .celebrate-bigname p {
   margin: 0;
-  font-size: clamp(48px, 10vw, 128px);
+  font-size: clamp(48px, calc(10vw / var(--studio-vz, 1)), 128px);
   letter-spacing: -0.04em;
   line-height: 1.05;
 }
 
 .celebrate-bigname span {
   color: #24221f;
-  font-size: clamp(16px, 2vw, 22px);
+  font-size: clamp(16px, calc(2vw / var(--studio-vz, 1)), 22px);
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
@@ -18118,7 +18123,7 @@ a.studio-kicker:hover {
 .sent-letter {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: calc(100vh / var(--studio-vz, 1));
   background: #f5e6e8;
   color: #24221f;
   font-family: "Nohemi", sans-serif;
@@ -18145,7 +18150,7 @@ a.studio-kicker:hover {
 .sent-letter iframe {
   width: 100%;
   height: 100%;
-  min-height: calc(100vh - 56px);
+  min-height: calc(calc(100vh / var(--studio-vz, 1)) - 56px);
   border: 0;
 }
 
@@ -18157,13 +18162,13 @@ a.studio-kicker:hover {
 /* an add-on invoice on its own page: laid out like the studio's invoice, on the client's paper */
 .client-invoice-wrap {
   max-width: 44rem;
-  padding-top: clamp(1.5rem, 6vh, 4rem);
+  padding-top: clamp(1.5rem, calc(6vh / var(--studio-vz, 1)), 4rem);
 }
 
 .client-invoice {
   display: grid;
   gap: 26px;
-  padding: clamp(22px, 5vw, 40px);
+  padding: clamp(22px, calc(5vw / var(--studio-vz, 1)), 40px);
   border-radius: 24px;
   background: var(--packet-veil-on);
   box-shadow:
@@ -18194,7 +18199,7 @@ a.studio-kicker:hover {
 }
 
 .client-invoice-head strong {
-  font-size: clamp(30px, 7vw, 40px);
+  font-size: clamp(30px, calc(7vw / var(--studio-vz, 1)), 40px);
   font-weight: 300;
   letter-spacing: -0.03em;
   line-height: 1.05;
@@ -18208,7 +18213,7 @@ a.studio-kicker:hover {
 
 .client-invoice-mark {
   flex: none;
-  width: clamp(5.5rem, 18vw, 7.5rem);
+  width: clamp(5.5rem, calc(18vw / var(--studio-vz, 1)), 7.5rem);
   margin: 0;
 }
 
@@ -18441,7 +18446,7 @@ a.studio-kicker:hover {
 .studio-discount-menu {
   display: grid;
   gap: 2px;
-  width: min(260px, 80vw);
+  width: min(260px, calc(80vw / var(--studio-vz, 1)));
   padding: 6px;
   border-radius: 14px;
   background: #fff8f9;
@@ -18826,7 +18831,7 @@ a.studio-kicker:hover {
 .studio-prod-name .studio-prod-input {
   min-height: 44px;
   padding: 6px 12px;
-  font-size: clamp(20px, 2.4vw, 26px);
+  font-size: clamp(20px, calc(2.4vw / var(--studio-vz, 1)), 26px);
   letter-spacing: -0.02em;
 }
 
@@ -18897,7 +18902,11 @@ a.studio-kicker:hover {
 }
 
 .studio-prod-steps li.is-past {
-  background: color-mix(in srgb, var(--studio-stage-booked, #fb8cac) 18%, rgba(255, 255, 255, 0.45));
+  background: color-mix(
+    in srgb,
+    var(--studio-stage-booked, #fb8cac) 18%,
+    rgba(255, 255, 255, 0.45)
+  );
   box-shadow: none;
   color: #ff4d94;
 }
@@ -19086,13 +19095,12 @@ a.studio-kicker:hover {
   margin-top: 6px;
 }
 
-
 /* floral vision */
 /* the pages sit on the shared proposal's own blush paper, the way the client saw them */
 .studio-prod-vision-pages {
   display: grid;
-  gap: clamp(14px, 3vw, 32px);
-  padding: clamp(14px, 3vw, 32px);
+  gap: clamp(14px, calc(3vw / var(--studio-vz, 1)), 32px);
+  padding: clamp(14px, calc(3vw / var(--studio-vz, 1)), 32px);
   border-radius: 16px;
   background: #f5e6e8;
 }
@@ -19562,7 +19570,7 @@ button.studio-prod-task-body:not(:disabled) {
 
 .studio-prod-hello h1 {
   margin: 0;
-  font-size: clamp(24px, 3.4vw, 34px);
+  font-size: clamp(24px, calc(3.4vw / var(--studio-vz, 1)), 34px);
   font-weight: 300;
   letter-spacing: -0.035em;
   line-height: 1.08;
@@ -19594,7 +19602,11 @@ button.studio-prod-task-body:not(:disabled) {
 
 /* pre-production picks up where booked leaves off, in the inquiries' booked pink */
 .studio-prod-status.is-pre_production {
-  background: color-mix(in srgb, var(--studio-stage-booked, #fb8cac) 18%, rgba(255, 255, 255, 0.45));
+  background: color-mix(
+    in srgb,
+    var(--studio-stage-booked, #fb8cac) 18%,
+    rgba(255, 255, 255, 0.45)
+  );
   box-shadow: none;
   color: #ff4d94;
 }
@@ -19622,7 +19634,7 @@ button.studio-prod-task-body:not(:disabled) {
 
 .studio-prod-closed {
   max-width: 520px;
-  margin: 12vh auto 0;
+  margin: calc(12vh / var(--studio-vz, 1)) auto 0;
   text-align: center;
   justify-items: center;
 }
@@ -20880,7 +20892,7 @@ a.studio-schedule-row.is-link:hover {
 
 .studio-member-todo {
   margin-top: 12px;
-  max-height: 60vh;
+  max-height: calc(60vh / var(--studio-vz, 1));
   overflow-y: auto;
 }
 
@@ -21173,7 +21185,6 @@ a.studio-schedule-row.is-link:hover {
   .studio-my-shift-what {
     grid-column: 1 / -1;
   }
-
 }
 
 /* the team's status cell: who last moved it, then the status */
@@ -21226,7 +21237,7 @@ a.studio-schedule-row.is-link:hover {
 
 /* how we flow: the gang's terms, agreed the first time in */
 .studio-flow-modal {
-  max-height: min(88vh, 760px);
+  max-height: min(calc(88vh / var(--studio-vz, 1)), 760px);
   display: flex;
   flex-direction: column;
 }
@@ -21560,9 +21571,9 @@ a.studio-schedule-row.is-link:hover {
 .studio-file-viewer {
   display: flex;
   flex-direction: column;
-  width: min(980px, calc(100vw - 24px));
+  width: min(980px, calc(calc(100vw / var(--studio-vz, 1)) - 24px));
   max-width: none;
-  height: min(92vh, 1100px);
+  height: min(calc(92vh / var(--studio-vz, 1)), 1100px);
   padding: 0;
   overflow: hidden;
   border: 0;
@@ -21925,13 +21936,138 @@ button.studio-file-open {
   background: #fcf2f4;
 }
 
-
 /* a member's week with nothing in it is only as tall as its note, when it sits under the calendar */
 @media (max-width: 1179px) {
   .studio-home-floor.is-empty {
     height: auto;
     min-height: 0;
     max-height: none;
+  }
+}
+
+/* an inquiry's event name, quietly under the client's name */
+.studio-event-name {
+  display: block;
+  margin-top: 4px;
+}
+
+.studio-event-name input {
+  width: min(100%, 32rem);
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 transparent;
+  color: #ff4d94;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 300;
+  outline: none;
+  text-transform: none;
+  transition: box-shadow 160ms ease;
+}
+
+.studio-event-name input::placeholder {
+  color: var(--auth-muted);
+  opacity: 0.7;
+}
+
+.studio-event-name input:hover {
+  box-shadow: inset 0 -1px 0 rgba(255, 77, 148, 0.25);
+}
+
+.studio-event-name input:focus {
+  box-shadow: inset 0 -1px 0 rgba(255, 77, 148, 0.6);
+}
+
+/* adding a production by hand */
+.studio-add-production .studio-shift-pick svg {
+  width: 11px;
+  height: 11px;
+  margin-left: 2px;
+}
+
+.studio-add-production-team {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* room under the title, now that there's no line beneath it */
+.studio-add-production .studio-task-composer-title.is-missing input::placeholder {
+  color: #ff4d94;
+}
+
+/* the date, with its hours to the right */
+.studio-add-production-when {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-add-production-hours {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.studio-add-production .studio-add-production-hours .inquire-date-trigger {
+  min-width: 7.5rem;
+}
+
+.studio-add-production-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--studio-veil-line, rgba(36, 34, 31, 0.1));
+  color: var(--auth-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.studio-add-production-card:hover {
+  background: var(--studio-veil-on, rgba(255, 248, 249, 0.72));
+}
+
+.studio-add-production-card b {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.studio-add-production-card small {
+  color: var(--auth-muted);
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+.studio-add-production-card.is-on {
+  background: color-mix(in srgb, var(--studio-stage-booked, #fb8cac) 16%, rgba(255, 255, 255, 0.5));
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 148, 0.32);
+}
+
+.studio-add-production-card.is-on b {
+  color: #ff4d94;
+}
+
+.studio-add-quiet-line {
+  color: var(--auth-muted);
+  font-size: 12px;
+  font-weight: 300;
+}
+
+@media (max-width: 720px) {
+  .studio-add-production-team,
+  .studio-add-production-when {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -22159,7 +22295,11 @@ button.studio-file-open {
 
 /* chosen: soft pink, never black */
 .studio-shift-pick.is-on {
-  background: color-mix(in srgb, var(--studio-stage-booked, #fb8cac) 18%, rgba(255, 255, 255, 0.45));
+  background: color-mix(
+    in srgb,
+    var(--studio-stage-booked, #fb8cac) 18%,
+    rgba(255, 255, 255, 0.45)
+  );
   box-shadow: inset 0 0 0 1px rgba(255, 77, 148, 0.28);
   color: #ff4d94;
 }
@@ -22283,7 +22423,11 @@ button.studio-file-open {
 
 /* the open day is soft pink, like a step that's done, not black */
 .studio-task-days button.is-on {
-  background: color-mix(in srgb, var(--studio-stage-booked, #fb8cac) 18%, rgba(255, 255, 255, 0.45));
+  background: color-mix(
+    in srgb,
+    var(--studio-stage-booked, #fb8cac) 18%,
+    rgba(255, 255, 255, 0.45)
+  );
   box-shadow: inset 0 0 0 1px rgba(255, 77, 148, 0.28);
   color: #ff4d94;
 }
@@ -22350,7 +22494,7 @@ button.studio-file-open {
 .studio-prod-vision-slide {
   flex: 0 0 100%;
   min-width: 0;
-  padding: clamp(14px, 3vw, 32px);
+  padding: clamp(14px, calc(3vw / var(--studio-vz, 1)), 32px);
   scroll-snap-align: start;
 }
 
@@ -22815,7 +22959,7 @@ button.studio-file-open {
 }
 
 .studio-task-modal.is-wide {
-  width: min(920px, calc(100vw - 32px));
+  width: min(920px, calc(calc(100vw / var(--studio-vz, 1)) - 32px));
   max-width: none;
 }
 
@@ -22916,12 +23060,10 @@ button.studio-file-open {
 }
 
 @media (max-width: 720px) {
-
   .studio-prod-facts-list > div {
     grid-template-columns: 1fr;
     gap: 6px;
   }
-
 
   .studio-prod-tr,
   .studio-prod-tr.is-add {
@@ -23011,8 +23153,6 @@ button.studio-file-open {
   .studio-recipe-group li .studio-prod-x {
     opacity: 1;
   }
-
-
 
   .studio-team-go {
     flex-wrap: wrap;
@@ -23244,8 +23384,8 @@ button.studio-file-open {
 /* onboarding: the same room as today, the first time in. it fills the screen on phones too, so
    everything sits in the middle, across and down, at every size */
 .studio-pearl.studio-onboard-room {
-  height: 100svh;
-  min-height: 100svh;
+  height: calc(100svh / var(--studio-vz, 1));
+  min-height: calc(100svh / var(--studio-vz, 1));
   overflow: hidden;
 }
 
@@ -23344,7 +23484,7 @@ button.studio-file-open {
 
 .studio-onboard-steps h1 {
   margin: 0;
-  font-size: clamp(26px, 4vw, 32px);
+  font-size: clamp(26px, calc(4vw / var(--studio-vz, 1)), 32px);
   font-weight: 300;
   letter-spacing: -0.04em;
 }
@@ -23537,7 +23677,7 @@ button.studio-file-open {
 }
 
 .studio-onboard-steps.is-intro-screen h1 {
-  font-size: clamp(32px, 7vw, 40px);
+  font-size: clamp(32px, calc(7vw / var(--studio-vz, 1)), 40px);
 }
 
 .studio-onboard-steps.is-intro-screen .studio-onboard-go {
@@ -23555,7 +23695,6 @@ button.studio-file-open {
     white-space: normal;
   }
 }
-
 
 /* onboarding motion: each screen rises in, part by part, and drifts up on the way out */
 .studio-onboard-scene {
@@ -23878,7 +24017,7 @@ button.studio-file-open {
   margin: 0;
   padding: 0 24px;
   color: var(--auth-ink);
-  font-size: clamp(32px, 7vw, 52px);
+  font-size: clamp(32px, calc(7vw / var(--studio-vz, 1)), 52px);
   font-weight: 300;
   letter-spacing: -0.04em;
   text-align: center;
@@ -23911,4 +24050,32 @@ button.studio-file-open {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* the studio scales up on screens wider than a 13" laptop, so it looks the same, only larger
+   (src/lib/studio-zoom.ts). viewport units above are divided by --studio-vz, since the standard
+   way of scaling (chrome) scales them a second time */
+html.studio-zoomed {
+  zoom: var(--studio-zoom, 1);
+}
+
+/* chrome: floating panels stay at the screen's own scale, so they open beside what opened them,
+   and their contents scale to match the page */
+html.studio-zoomed.is-zoom-standard [data-radix-popper-content-wrapper] {
+  zoom: calc(1 / var(--studio-zoom, 1));
+}
+
+html.studio-zoomed.is-zoom-standard [data-radix-popper-content-wrapper] > * {
+  zoom: var(--studio-zoom, 1);
+}
+
+/* full-screen glitter draws in screen pixels, where the pointer is */
+html.studio-zoomed .studio-unzoom,
+html.studio-zoomed .celebrate-glitter {
+  zoom: calc(1 / var(--studio-zoom, 1));
+}
+
+/* chrome: a long menu's room to grow comes in screen pixels; bring it to the page's own */
+html.studio-zoomed.is-zoom-standard [data-radix-popper-content-wrapper] > [role="menu"] {
+  max-height: calc(var(--radix-dropdown-menu-content-available-height) / var(--studio-zoom, 1));
 }

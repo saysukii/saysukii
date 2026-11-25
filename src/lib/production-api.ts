@@ -2,18 +2,20 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
-import type { AppRole, ProductionRow } from "@/integrations/supabase/types";
+import type { AppRole, EventType, ProductionRow } from "@/integrations/supabase/types";
 import type { MemberRate } from "@/lib/os/production";
 import { isDevPreviewEnabled } from "@/lib/dev-preview";
 import { fileContentType, studioFileKey } from "@/lib/os/inquiry-holds";
 import {
   addProductionFile,
+  createManualProduction,
   addProductionPerson,
   addProductionStem,
   getProduction,
   getProductionPage,
   listMemberNotices,
   listMyProductions,
+  listProductionClients,
   listProductions,
   readMemberNotices,
   removeProductionDay,
@@ -26,6 +28,7 @@ import {
   saveProductionDay,
   saveProductionItem,
   setProductionItemStatus,
+  setProductionRate,
   saveProductionShift,
   saveProductionTask,
   setProductionTaskDone,
@@ -40,7 +43,6 @@ import {
   cancelTeamInvite,
   updateTeamMember,
   listTeamDirectory,
-  setMemberRate,
 } from "@/lib/os/team.functions";
 import { previewProduction } from "@/lib/preview-production";
 
@@ -53,8 +55,19 @@ type ProductionPatch = Partial<
     | "vision_proposal_id"
     | "vision_pages"
     | "reflection"
+    | "has_team"
   >
 >;
+
+export type ManualProductionInput = {
+  project_name: string;
+  event_type: EventType;
+  client_id?: string;
+  new_client?: { name: string; email: string };
+  event_date: string | null;
+  hours?: string;
+  has_team: boolean;
+};
 
 type ItemInput = {
   inquiry_id: string;
@@ -121,7 +134,7 @@ export function useProductionApi() {
     addPerson: useServerFn(addProductionPerson),
     saveShift: useServerFn(saveProductionShift),
     removeShift: useServerFn(removeProductionShift),
-    setRate: useServerFn(setMemberRate),
+    setRate: useServerFn(setProductionRate),
     removePerson: useServerFn(removeProductionPerson),
     updateStem: useServerFn(updateProductionStem),
     removeStem: useServerFn(removeProductionStem),
@@ -132,6 +145,8 @@ export function useProductionApi() {
     removeFile: useServerFn(removeProductionFile),
     mine: useServerFn(listMyProductions),
     all: useServerFn(listProductions),
+    clients: useServerFn(listProductionClients),
+    createManual: useServerFn(createManualProduction),
     notices: useServerFn(listMemberNotices),
     readNotices: useServerFn(readMemberNotices),
     team: useServerFn(listTeamDirectory),
@@ -196,9 +211,10 @@ function makeApi(preview: boolean, fns: ServerFns) {
       else await fns.removeShift({ data: { id } });
       return { ok: true as const };
     },
-    setRate: async (id: string, rate: MemberRate | null) => {
-      if (preview) previewProduction.setRate(id, rate);
-      else await fns.setRate({ data: { id, rate } });
+    /** what someone is paid on this production: by the hour, or flat; null takes it off */
+    setRate: async (inquiryId: string, profileId: string, rate: MemberRate | null) => {
+      if (preview) previewProduction.setRate(inquiryId, profileId, rate);
+      else await fns.setRate({ data: { inquiry_id: inquiryId, profile_id: profileId, rate } });
       return { ok: true as const };
     },
     removePerson: async (inquiryId: string, profileId: string) => {
@@ -254,26 +270,25 @@ function makeApi(preview: boolean, fns: ServerFns) {
       if (preview) return previewProduction.setActive(id, active);
       await (active ? fns.activate({ data: { id } }) : fns.deactivate({ data: { id } }));
     },
-    invite: async (email: string, role: AppRole, rate: MemberRate | null = null) => {
+    invite: async (email: string, role: AppRole) => {
       if (preview) return previewProduction.invite(email, role);
-      await fns.invite({ data: { email, role, rate } });
+      await fns.invite({ data: { email, role } });
     },
     cancelInvite: async (id: string) => {
       if (preview) return previewProduction.cancelInvite(id);
       await fns.cancelInvite({ data: { id } });
     },
     /** add someone to the team without inviting them yet */
-    add: async (email: string, name: string, role: AppRole, rate: MemberRate | null = null) => {
-      if (preview) return previewProduction.add(email, name, role, rate);
-      return fns.add({ data: { email, name, role, rate } });
+    add: async (email: string, name: string, role: AppRole) => {
+      if (preview) return previewProduction.add(email, name, role);
+      return fns.add({ data: { email, name, role } });
     },
-    /** change someone on the team: name, email before they're invited, access, and pay */
+    /** change someone on the team: name, email before they're invited, and access */
     updateMember: async (input: {
       id: string;
       name: string;
       email?: string;
       role: AppRole;
-      rate: MemberRate | null;
       access?: string[];
     }) => {
       if (preview) return previewProduction.updateMember(input);
@@ -284,6 +299,23 @@ function makeApi(preview: boolean, fns: ServerFns) {
       if (preview) return previewProduction.setItemStatus(id, status);
       return fns.setItemStatus({ data: { id, status } });
     },
+    /** clients to link a new production to */
+    clients: () => (preview ? quiet(previewProduction.clients()) : fns.clients()),
+    /** a production added by hand: linked to a client, booked from the start */
+    createManual: (input: ManualProductionInput) =>
+      preview
+        ? quiet(previewProduction.createManual(input))
+        : fns.createManual({
+            data: {
+              project_name: input.project_name,
+              event_type: input.event_type,
+              event_date: input.event_date,
+              has_team: input.has_team,
+              ...(input.hours ? { hours: input.hours } : {}),
+              ...(input.client_id ? { client_id: input.client_id } : {}),
+              ...(input.new_client ? { new_client: input.new_client } : {}),
+            },
+          }),
     /** share a production with everyone on it at once */
     share: (inquiryId: string) =>
       preview
@@ -307,7 +339,7 @@ type ServerFns = {
   addPerson: ReturnType<typeof useServerFn<typeof addProductionPerson>>;
   saveShift: ReturnType<typeof useServerFn<typeof saveProductionShift>>;
   removeShift: ReturnType<typeof useServerFn<typeof removeProductionShift>>;
-  setRate: ReturnType<typeof useServerFn<typeof setMemberRate>>;
+  setRate: ReturnType<typeof useServerFn<typeof setProductionRate>>;
   removePerson: ReturnType<typeof useServerFn<typeof removeProductionPerson>>;
   updateStem: ReturnType<typeof useServerFn<typeof updateProductionStem>>;
   removeStem: ReturnType<typeof useServerFn<typeof removeProductionStem>>;
@@ -318,6 +350,8 @@ type ServerFns = {
   removeFile: ReturnType<typeof useServerFn<typeof removeProductionFile>>;
   mine: ReturnType<typeof useServerFn<typeof listMyProductions>>;
   all: ReturnType<typeof useServerFn<typeof listProductions>>;
+  clients: ReturnType<typeof useServerFn<typeof listProductionClients>>;
+  createManual: ReturnType<typeof useServerFn<typeof createManualProduction>>;
   notices: ReturnType<typeof useServerFn<typeof listMemberNotices>>;
   readNotices: ReturnType<typeof useServerFn<typeof readMemberNotices>>;
   team: ReturnType<typeof useServerFn<typeof listTeamDirectory>>;

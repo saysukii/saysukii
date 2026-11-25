@@ -28,6 +28,8 @@ import {
   shiftHours,
   shortDayLabel,
   taskWhen,
+  type MemberRate,
+  type RatePer,
 } from "@/lib/os/production";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +44,27 @@ type ShiftDraft = {
   ends: string;
   role: string;
   location: string;
+  /** what they're paid on this production, as typed: dollars, by the hour or flat */
+  pay?: string;
+  per?: RatePer;
 };
+
+const PAY_CHOICES: Array<{ value: RatePer; label: string }> = [
+  { value: "hour", label: "hourly" },
+  { value: "production", label: "flat rate" },
+];
+
+/** the rate as typed, or none when the amount is empty */
+function typedRate(pay: string | undefined, per: RatePer | undefined): MemberRate | null {
+  const dollars = Number(pay);
+  if (!pay?.trim() || !Number.isFinite(dollars)) return null;
+  return { cents: Math.round(dollars * 100), per: per ?? "hour" };
+}
+
+/** a rate, as the amount field shows it */
+function rateFields(rate: MemberRate | null | undefined) {
+  return { pay: rate ? String(rate.cents / 100) : "", per: rate?.per ?? ("hour" as RatePer) };
+}
 
 /** whether two shifts on the same day run over each other; one ending before it starts runs past midnight */
 function shiftsOverlap(aStarts: string, aEnds: string, bStarts: string, bEnds: string) {
@@ -299,6 +321,14 @@ export function ProductionSchedule({ view, api, onChanged }: Omit<BoardProps, "m
                 location: next.location.trim(),
               });
             }
+            // what they're paid lives on this production, set right here with their shift
+            if (view.canPay) {
+              const rate = typedRate(next.pay, next.per);
+              const before = view.rates[next.profile_id] ?? null;
+              if (rate?.cents !== before?.cents || rate?.per !== before?.per) {
+                await api.setRate(view.production.inquiry_id, next.profile_id, rate);
+              }
+            }
             return true;
           });
           if (!saved) return;
@@ -348,7 +378,7 @@ function ShiftDialog({
   const places = ["studio", venue];
   if (draft !== shownFor) {
     setShownFor(draft);
-    setForm(draft);
+    setForm(draft ? { ...draft, ...rateFields(view.rates[draft.profile_id]) } : draft);
     setPicking(false);
     setElsewhere(Boolean(draft?.location && !places.includes(draft.location)));
     setConfirmRemove(false);
@@ -368,7 +398,8 @@ function ShiftDialog({
   // the production days, and any other day picked for this shift
   const dayChoices = [...new Set([...days, ...form.days])].sort();
   const hours = form.starts && form.ends ? shiftHours(form.starts, form.ends) : 0;
-  const rate = view.rates[form.profile_id];
+  // the rate as it's typed here, for this production
+  const rate = typedRate(form.pay, form.per);
   const who = people.find((person) => person.id === form.profile_id);
   const count = form.days.length;
   const ready = Boolean(form.profile_id && count && form.starts && form.ends);
@@ -464,7 +495,13 @@ function ShiftDialog({
                   type="button"
                   aria-pressed={form.profile_id === person.id}
                   className={cn("studio-shift-pick", form.profile_id === person.id && "is-on")}
-                  onClick={() => setForm({ ...form, profile_id: person.id })}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      profile_id: person.id,
+                      ...(person.id === form.profile_id ? {} : rateFields(view.rates[person.id])),
+                    })
+                  }
                 >
                   <i aria-hidden="true">{firstName(person.name).charAt(0).toLowerCase()}</i>
                   {firstName(person.name)}
@@ -472,6 +509,47 @@ function ShiftDialog({
               ))}
             </div>
           </div>
+
+          {/* what they're paid on this production: each job sets its own */}
+          {view.canPay && form.profile_id ? (
+            <div className="studio-shift-field" role="group" aria-label="paid">
+              <span className="studio-ask-label">
+                paid
+                <small> · {whoName} on this production</small>
+              </span>
+              <div className="studio-add-paid">
+                <div className="studio-shift-picks">
+                  {PAY_CHOICES.map((choice) => (
+                    <button
+                      key={choice.value}
+                      type="button"
+                      aria-pressed={(form.per ?? "hour") === choice.value}
+                      className={cn(
+                        "studio-shift-pick",
+                        (form.per ?? "hour") === choice.value && "is-on",
+                      )}
+                      onClick={() => setForm({ ...form, per: choice.value })}
+                    >
+                      {choice.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="studio-add-money">
+                  <i aria-hidden="true">$</i>
+                  <input
+                    value={form.pay ?? ""}
+                    inputMode="decimal"
+                    aria-label={form.per === "production" ? "flat rate" : "hourly rate"}
+                    placeholder={form.per === "production" ? "300" : "25"}
+                    onChange={(event) =>
+                      setForm({ ...form, pay: event.target.value.replace(/[^\d.]/g, "") })
+                    }
+                  />
+                  <small aria-hidden="true">{form.per === "production" ? "flat" : "/hr"}</small>
+                </span>
+              </div>
+            </div>
+          ) : null}
 
           <div
             className={cn("studio-shift-field", tried && missing.days && "is-missing")}

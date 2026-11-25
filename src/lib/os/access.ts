@@ -38,6 +38,9 @@ export type AccessProfile = {
 export function hasAccess(profile: AccessProfile, area: StudioArea) {
   if (profile.role !== "admin") return false;
   if (profile.is_owner) return true;
+  // before the productions migration there's no founder or access to read: every admin keeps
+  // everything, as they had before, so no one is locked out of the studio
+  if (profile.is_owner === undefined && profile.access === undefined) return true;
   return (profile.access ?? DEFAULT_ADMIN_ACCESS).includes(area);
 }
 

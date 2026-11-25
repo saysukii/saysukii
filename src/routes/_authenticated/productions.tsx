@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { BloomWait, releaseLoginBloom } from "@/components/portal/StudioLoader";
+import { AddProduction } from "@/components/production/AddProduction";
 import {
   ProductionListRow,
   type ProductionListItem as Row,
@@ -78,11 +79,19 @@ function ProductionsPage() {
             )}
           </p>
         </div>
+        {isAdmin ? (
+          <div className="studio-home-hello-go">
+            <AddProduction />
+          </div>
+        ) : null}
       </header>
 
       {list.isPending ? <BloomWait label="opening the productions" compact /> : null}
       {list.isError ? (
-        <p className="studio-pearl-note">the productions didn't open. try again in a moment.</p>
+        <p className="studio-pearl-note">
+          the productions didn't open.{" "}
+          {list.error instanceof Error ? list.error.message : "try again in a moment."}
+        </p>
       ) : null}
 
       {!list.isPending && !rows.length ? (

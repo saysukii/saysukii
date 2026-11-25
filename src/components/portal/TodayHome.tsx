@@ -75,6 +75,7 @@ import { readBookings, studioClock, studioDay } from "@/lib/studio-bookings";
 import { cn } from "@/lib/utils";
 import { isDevPreviewEnabled } from "@/lib/dev-preview";
 import { memberToPreview } from "@/lib/preview-production";
+import { fromRect } from "@/lib/studio-zoom";
 
 const TASK_KINDS: DeskKind[] = ["inquiry", "production", "manual"];
 const glanceShimmer = "[--base-color:#ff4d94] [--base-gradient-color:#ff1493]";
@@ -559,7 +560,8 @@ export function TodayHome({
     }
     const top = Math.max(
       0,
-      target.getBoundingClientRect().top - floor.getBoundingClientRect().top + floor.scrollTop,
+      fromRect(target.getBoundingClientRect().top - floor.getBoundingClientRect().top) +
+        floor.scrollTop,
     );
     const deficit = top > 8 ? Math.max(0, top + floor.clientHeight - floor.scrollHeight + 1) : 0;
     if (pad && deficit > 0) pad.style.height = `${deficit}px`;

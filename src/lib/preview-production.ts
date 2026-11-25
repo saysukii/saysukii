@@ -12,6 +12,7 @@ import type {
   ProductionItemRow,
   ProductionRow,
   ProductionStemRow,
+  EventType,
 } from "@/integrations/supabase/types";
 import {
   getDevPreviewInquiryWorkspace,
@@ -35,6 +36,7 @@ import {
   productionTitle,
   shiftHours,
   shiftSpan,
+  DEFAULT_DRESS_CODE,
   STUDIO_ADDRESS,
   teamCanOpen,
   type ProductionFileView,
@@ -93,6 +95,8 @@ type PreviewProduction = {
   crew: string[];
   /** who works when */
   shifts: ProductionShiftRow[];
+  /** what each person is paid on this production: by the hour, or flat */
+  rates?: Record<string, MemberRate>;
   days: ProductionDayRow[];
   items: ProductionItemRow[];
   stems: ProductionStemRow[];
@@ -105,10 +109,12 @@ type PreviewState = {
   members: PreviewMember[];
   invites: PreviewInvite[];
   notices: MemberNoticeRow[];
-  /** what each person is paid, by the hour or flat for a production */
+  /** what each person was paid before rates moved onto each production; read once, to carry over */
   rates: Record<string, MemberRate>;
   /** one-time repairs already made to a kept preview */
   repairs?: string[];
+  /** productions added by hand, with the booked inquiry and client behind each */
+  manual?: Record<string, ManualRecord>;
 };
 
 const now = () => new Date().toISOString();
@@ -256,8 +262,7 @@ function seedProduction(): PreviewProduction {
       slug: "lumen-studio-live-labs",
       project_name: "Lumen Studio: Live + Labs",
       studio_address: STUDIO_ADDRESS,
-      dress_code:
-        "cozy, comfortable, whatever you like for in-studio production.\nall black for on-site production.",
+      dress_code: DEFAULT_DRESS_CODE,
       vision_proposal_id: PREVIEW_PROPOSAL_ID,
       vision_pages: [2, 3],
       vision_path: null,
@@ -475,7 +480,7 @@ function seedWrapped(): PreviewProduction {
       slug: "elena-and-marco-wedding",
       project_name: "Elena + Marco Wedding",
       studio_address: STUDIO_ADDRESS,
-      dress_code: "all black at the venue.",
+      dress_code: DEFAULT_DRESS_CODE,
       vision_proposal_id: null,
       vision_pages: [],
       vision_path: null,
@@ -589,15 +594,27 @@ function seed(): PreviewState {
   };
 }
 
+/** everyone on a production keeps the rate they had in the gang, for that production */
+function carryRates(state: PreviewState) {
+  for (const item of Object.values(state.productions)) {
+    if (item.rates) continue;
+    const people = new Set([...(item.crew ?? []), ...(item.shifts ?? []).map((s) => s.profile_id)]);
+    item.rates = Object.fromEntries(
+      [...people].flatMap((id) => (state.rates?.[id] ? [[id, state.rates[id]]] : [])),
+    );
+  }
+  return state;
+}
+
 let memory: PreviewState | null = null;
 
 function read(): PreviewState {
   if (memory) return memory;
   try {
     const kept = localStorage.getItem(STATE_KEY);
-    memory = kept ? repair(JSON.parse(kept) as PreviewState) : seed();
+    memory = carryRates(kept ? repair(JSON.parse(kept) as PreviewState) : seed());
   } catch {
-    memory = seed();
+    memory = carryRates(seed());
   }
   return memory;
 }
@@ -732,7 +749,26 @@ export function previewMembers() {
   return read().members;
 }
 
+type ManualRecord = {
+  inquiry: {
+    id: string;
+    status: "booked";
+    archived: false;
+    event_type: EventType;
+    event_name: string;
+    event_date: string | null;
+    event_date_tbd: boolean;
+    message: null;
+    venue_text: null;
+    venue_id: null;
+    client_id: string;
+  };
+  client: { id: string; name: string; email: string; organization: null; type: "individual" };
+};
+
 function inquiryFacts(inquiryId: string) {
+  const manual = read().manual?.[inquiryId];
+  if (manual) return manual;
   const workspace = getDevPreviewInquiryWorkspace(inquiryId);
   return { inquiry: workspace.inquiry, client: workspace.client };
 }
@@ -744,7 +780,8 @@ function ensure(inquiryId: string): PreviewProduction {
   const { inquiry, client } = inquiryFacts(inquiryId);
   if (inquiry.status !== "booked")
     throw new Error("a production opens once the inquiry is booked.");
-  const name = defaultProjectName(client ?? {});
+  const name =
+    ("event_name" in inquiry && inquiry.event_name?.trim()) || defaultProjectName(client ?? {});
   const slug = freeSlug(
     productionSlug(name),
     Object.values(state.productions).map((item) => item.production.slug),
@@ -755,7 +792,7 @@ function ensure(inquiryId: string): PreviewProduction {
       slug,
       project_name: name,
       studio_address: STUDIO_ADDRESS,
-      dress_code: null,
+      dress_code: DEFAULT_DRESS_CODE,
       vision_proposal_id: null,
       vision_pages: [],
       vision_path: null,
@@ -872,7 +909,7 @@ function view(inquiryId: string, viewer: { id: string; role: AppRole }): Product
           },
           "pay",
         );
-      return canPay ? { ...(state.rates ?? {}) } : {};
+      return canPay ? { ...(kept.rates ?? {}) } : {};
     })(),
     unshared: isAdmin ? [...(kept.pending ?? [])] : [],
     told: isAdmin ? [...(kept.told ?? [])] : [],
@@ -1297,9 +1334,14 @@ export const previewProduction = {
   },
   all() {
     // every booked job has a production, made the first time the list is opened
-    const booked = getDevPreviewPipeline().filter(
-      (row) => row.status === "booked" && !row.archived,
-    );
+    const booked = [
+      ...getDevPreviewPipeline().filter((row) => row.status === "booked" && !row.archived),
+      // and the ones added by hand
+      ...Object.values(read().manual ?? {}).map((record) => ({
+        ...record.inquiry,
+        client: record.client,
+      })),
+    ];
     for (const row of booked) {
       try {
         ensure(row.id);
@@ -1451,7 +1493,7 @@ export const previewProduction = {
     return { letters, invited, shared_at: now() };
   },
   /** add someone to the team without inviting them: they can be scheduled, and hear at a share */
-  add(email: string, name: string, role: AppRole, rate: MemberRate | null) {
+  add(email: string, name: string, role: AppRole) {
     const state = read();
     if (state.members.some((member) => member.email.toLowerCase() === email.toLowerCase())) {
       throw new Error("that email is already on the team.");
@@ -1469,9 +1511,100 @@ export const previewProduction = {
         standing: "added",
         invited_at: null,
       });
-      if (rate) next.rates = { ...(next.rates ?? {}), [id]: rate };
     });
     return { id };
+  },
+  /** clients to link a new production to: the sample book's, and any added here */
+  clients() {
+    const seen = new Map<
+      string,
+      { id: string; name: string; organization: string | null; email: string }
+    >();
+    for (const row of getDevPreviewPipeline()) {
+      const client = row.client;
+      if (client && !seen.has(client.id)) {
+        seen.set(client.id, {
+          id: client.id,
+          name: client.name,
+          organization: client.organization ?? null,
+          email: client.email,
+        });
+      }
+    }
+    for (const record of Object.values(read().manual ?? {})) {
+      seen.set(record.client.id, { ...record.client });
+    }
+    return { clients: [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)) };
+  },
+  /** a production added by hand, as the server makes it */
+  createManual(input: {
+    project_name: string;
+    event_type: EventType;
+    client_id?: string;
+    new_client?: { name: string; email: string };
+    event_date: string | null;
+    hours?: string;
+    has_team: boolean;
+  }) {
+    const known = this.clients().clients.find((client) => client.id === input.client_id);
+    const client = known
+      ? {
+          id: known.id,
+          name: known.name,
+          email: known.email,
+          organization: null,
+          type: "individual" as const,
+        }
+      : {
+          id: uuid(),
+          name: input.new_client?.name ?? "new client",
+          email: input.new_client?.email ?? "",
+          organization: null,
+          type: "individual" as const,
+        };
+    const inquiryId = uuid();
+    change((state) => {
+      state.manual = {
+        ...(state.manual ?? {}),
+        [inquiryId]: {
+          inquiry: {
+            id: inquiryId,
+            status: "booked",
+            archived: false,
+            event_type: input.event_type,
+            event_name: input.project_name,
+            event_date: input.event_date,
+            event_date_tbd: !input.event_date,
+            message: null,
+            venue_text: null,
+            venue_id: null,
+            client_id: client.id,
+          },
+          client,
+        },
+      };
+    });
+    const made = ensure(inquiryId);
+    if (input.event_date) {
+      mutateProduction(inquiryId, (item) => {
+        item.days = [
+          ...item.days,
+          {
+            id: uuid(),
+            inquiry_id: inquiryId,
+            day: input.event_date!,
+            hours: input.hours ?? "",
+            created_at: now(),
+          },
+        ];
+      });
+    }
+    if (!input.has_team) {
+      mutateProduction(inquiryId, (item) => {
+        item.production = { ...item.production, has_team: false };
+      });
+    }
+    return { slug: made.production.slug, inquiry_id: inquiryId };
   },
   /** agree to how we flow, as the one signed in */
   agreeToFlow(version: string) {
@@ -1511,7 +1644,6 @@ export const previewProduction = {
     name: string;
     email?: string;
     role: AppRole;
-    rate: MemberRate | null;
     access?: string[];
   }) {
     const state = read();
@@ -1528,8 +1660,6 @@ export const previewProduction = {
       throw new Error("only sukii can change someone's role.");
     }
     if (!owner && input.access) throw new Error("only sukii can change what someone can open.");
-    const canPay =
-      owner || (viewer.role === "admin" && (viewer.access ?? DEFAULT_ADMIN_ACCESS).includes("pay"));
     const email = input.email?.toLowerCase();
     if (email && email !== member.email.toLowerCase()) {
       if (member.standing !== "added") {
@@ -1551,27 +1681,27 @@ export const previewProduction = {
             }
           : item,
       );
-      // admins are crew too; only the founder has no rate, and only those who handle pay set one
-      if (!canPay || memberOwner) return;
-      next.rates = { ...(next.rates ?? {}) };
-      if (input.rate) next.rates[input.id] = input.rate;
-      else delete next.rates[input.id];
     });
     return { id: input.id };
   },
-  setRate(memberId: string, rate: MemberRate | null) {
-    change((state) => {
-      state.rates = { ...(state.rates ?? {}) };
-      if (rate == null) delete state.rates[memberId];
-      else state.rates[memberId] = rate;
+  /** what someone is paid on this production */
+  setRate(inquiryId: string, profileId: string, rate: MemberRate | null) {
+    mutateProduction(inquiryId, (item) => {
+      item.rates = { ...(item.rates ?? {}) };
+      if (rate == null) delete item.rates[profileId];
+      else item.rates[profileId] = rate;
     });
   },
   mine() {
     const viewer = previewViewer();
     const state = read();
     return {
-      // their own rate, and only theirs
-      rate: (state.rates ?? {})[viewer.id] ?? null,
+      // their own rates, and only theirs: one for each production they're on
+      rates: Object.fromEntries(
+        Object.values(state.productions).flatMap((item) =>
+          item.rates?.[viewer.id] ? [[item.production.inquiry_id, item.rates[viewer.id]!]] : [],
+        ),
+      ) as Record<string, MemberRate>,
       productions: Object.values(state.productions)
         .filter((item) => Boolean(item.production.shared_at))
         .filter(
@@ -1652,7 +1782,6 @@ export const previewProduction = {
           last_seen_at: member.last_seen_at,
           is_owner: member.id === PREVIEW_ADMIN_ID || Boolean(member.is_owner),
           access: member.access ?? [...DEFAULT_ADMIN_ACCESS],
-          rate: canPay ? (state.rates?.[member.id] ?? null) : null,
           events: this.eventsFor(member.id),
         })),
       // added and not invited, or invited and not joined
@@ -1668,14 +1797,12 @@ export const previewProduction = {
             accepted_at: null,
             created_at: member.created_at,
             invited_at: member.invited_at ?? null,
-            rate: state.rates?.[member.id] ?? null,
             on: this.scheduledOn(member.id),
           })),
         ...state.invites.map((invite) => ({
           ...invite,
           name: null as string | null,
           invited_at: invite.created_at as string | null,
-          rate: null as MemberRate | null,
           on: [] as string[],
         })),
       ],

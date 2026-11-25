@@ -52,7 +52,9 @@ export function ProductionBoard({ view, mode, api, onChanged }: BoardProps) {
     <div className={cn("studio-prod", studio ? "is-studio" : "is-team")}>
       {studio ? <StudioHeader view={view} api={api} onChanged={onChanged} /> : null}
       <EventOverview view={view} mode={mode} api={api} onChanged={onChanged} />
-      {studio ? <ProductionSchedule view={view} api={api} onChanged={onChanged} /> : null}
+      {studio && view.production.has_team !== false ? (
+        <ProductionSchedule view={view} api={api} onChanged={onChanged} />
+      ) : null}
       {studio || hasVision ? (
         <ProductionVision view={view} mode={mode} api={api} onChanged={onChanged} />
       ) : null}
@@ -128,7 +130,25 @@ function StudioHeader({ view, api, onChanged }: Omit<BoardProps, "mode">) {
             <Copy aria-hidden="true" strokeWidth={1.5} />
             <span>copy link</span>
           </button>
-          <ProductionShare view={view} api={api} onChanged={onChanged} variant="button" />
+          {view.production.has_team !== false ? (
+            <ProductionShare view={view} api={api} onChanged={onChanged} variant="button" />
+          ) : (
+            // just the studio for now; a team can join it any time
+            <button
+              type="button"
+              className="studio-prod-icon studio-share-button"
+              disabled={change.busy}
+              onClick={() =>
+                void change.run(
+                  () => api.update(inquiryId, { has_team: true }),
+                  "a team can join it now: put people on it and the schedule",
+                )
+              }
+            >
+              <Plus aria-hidden="true" strokeWidth={1.5} />
+              <span>add a team</span>
+            </button>
+          )}
         </div>
       </div>
       {/* the project's name, read as "say sukii x …"; it saves when you click away */}
@@ -165,86 +185,92 @@ function StudioHeader({ view, api, onChanged }: Omit<BoardProps, "mode">) {
         </ol>
         <p className="studio-prod-note">{phaseNext(view.schedule, view.status)}</p>
       </div>
-      <div className="studio-prod-crew">
-        <span className="studio-prod-label">on it</span>
-        {/* the same bubbles as the productions list; tap one to take that person off */}
-        <span className="studio-row-faces is-crew">
-          {onIt.map((person) => (
-            <button
-              key={person.id}
-              type="button"
-              data-name={
-                person.active ? firstName(person.name) : `${firstName(person.name)} · inactive`
-              }
-              className={cn(!person.active && "is-off", leaving === person.id && "is-picked")}
-              aria-label={`${firstName(person.name)}: take off this production`}
-              onClick={() => setLeaving((current) => (current === person.id ? null : person.id))}
-            >
-              {firstName(person.name).charAt(0).toLowerCase()}
-            </button>
-          ))}
-          <Popover open={adding} onOpenChange={setAdding}>
-            <PopoverTrigger asChild>
+      {view.production.has_team !== false ? (
+        <div className="studio-prod-crew">
+          <span className="studio-prod-label">on it</span>
+          {/* the same bubbles as the productions list; tap one to take that person off */}
+          <span className="studio-row-faces is-crew">
+            {onIt.map((person) => (
+              <button
+                key={person.id}
+                type="button"
+                data-name={
+                  person.active ? firstName(person.name) : `${firstName(person.name)} · inactive`
+                }
+                className={cn(!person.active && "is-off", leaving === person.id && "is-picked")}
+                aria-label={`${firstName(person.name)}: take off this production`}
+                onClick={() => setLeaving((current) => (current === person.id ? null : person.id))}
+              >
+                {firstName(person.name).charAt(0).toLowerCase()}
+              </button>
+            ))}
+            <Popover open={adding} onOpenChange={setAdding}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="studio-row-faces-add"
+                  aria-label="add someone to this production"
+                  data-name="add someone"
+                >
+                  <Plus aria-hidden="true" strokeWidth={1.75} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" sideOffset={6} className="studio-prod-pop">
+                {addable.length ? (
+                  addable.map((person) => (
+                    <button
+                      key={person.id}
+                      type="button"
+                      onClick={async () => {
+                        setAdding(false);
+                        await change.run(
+                          () => api.addPerson(inquiryId, person.id),
+                          `${firstName(person.name)} is on it. they'll hear when you share with the team.`,
+                        );
+                      }}
+                    >
+                      {firstName(person.name)}
+                    </button>
+                  ))
+                ) : (
+                  <p>everyone active is on it. invite or activate people in library → gang.</p>
+                )}
+              </PopoverContent>
+            </Popover>
+          </span>
+          {leavingPerson ? (
+            <span className="studio-prod-leave">
+              take {firstName(leavingPerson.name)} off
+              {taskCount(leavingPerson.id)
+                ? ` and ${taskCount(leavingPerson.id) === 1 ? "their task" : `their ${taskCount(leavingPerson.id)} tasks`}`
+                : ""}
+              ?
               <button
                 type="button"
-                className="studio-row-faces-add"
-                aria-label="add someone to this production"
-                data-name="add someone"
+                className="studio-ghost is-danger"
+                disabled={change.busy}
+                onClick={async () => {
+                  await change.run(
+                    () => api.removePerson(inquiryId, leavingPerson.id),
+                    `${firstName(leavingPerson.name)} is off this production`,
+                  );
+                  setLeaving(null);
+                }}
               >
-                <Plus aria-hidden="true" strokeWidth={1.75} />
+                take off
               </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" sideOffset={6} className="studio-prod-pop">
-              {addable.length ? (
-                addable.map((person) => (
-                  <button
-                    key={person.id}
-                    type="button"
-                    onClick={async () => {
-                      setAdding(false);
-                      await change.run(
-                        () => api.addPerson(inquiryId, person.id),
-                        `${firstName(person.name)} is on it. they'll hear when you share with the team.`,
-                      );
-                    }}
-                  >
-                    {firstName(person.name)}
-                  </button>
-                ))
-              ) : (
-                <p>everyone active is on it. invite or activate people in library → gang.</p>
-              )}
-            </PopoverContent>
-          </Popover>
-        </span>
-        {leavingPerson ? (
-          <span className="studio-prod-leave">
-            take {firstName(leavingPerson.name)} off
-            {taskCount(leavingPerson.id)
-              ? ` and ${taskCount(leavingPerson.id) === 1 ? "their task" : `their ${taskCount(leavingPerson.id)} tasks`}`
-              : ""}
-            ?
-            <button
-              type="button"
-              className="studio-ghost is-danger"
-              disabled={change.busy}
-              onClick={async () => {
-                await change.run(
-                  () => api.removePerson(inquiryId, leavingPerson.id),
-                  `${firstName(leavingPerson.name)} is off this production`,
-                );
-                setLeaving(null);
-              }}
-            >
-              take off
-            </button>
-            <button type="button" className="studio-ghost" onClick={() => setLeaving(null)}>
-              keep
-            </button>
-          </span>
-        ) : null}
-      </div>
-      <ProductionShare view={view} api={api} onChanged={onChanged} />
+              <button type="button" className="studio-ghost" onClick={() => setLeaving(null)}>
+                keep
+              </button>
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <p className="studio-share-when">just the studio · no crew or schedule</p>
+      )}
+      {view.production.has_team !== false ? (
+        <ProductionShare view={view} api={api} onChanged={onChanged} />
+      ) : null}
     </section>
   );
 }

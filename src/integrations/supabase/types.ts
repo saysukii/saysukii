@@ -158,6 +158,8 @@ export type InquiryRow = {
   source_message_id: string | null;
   summary_text: string | null;
   summary_generated_at: string | null;
+  /** the event's own name, apart from the client's, carried to its production when booked */
+  event_name?: string | null;
 };
 
 export type ProposalRow = {
@@ -530,6 +532,8 @@ export type ProductionRow = {
   hours_sent_at: string | null;
   /** when the studio last shared it with the team; until then the team can't see it */
   shared_at: string | null;
+  /** whether it has a team: a crew, a schedule, and sharing. a smaller engagement may not */
+  has_team?: boolean;
   reflection: string;
   created_at: string;
   updated_at: string;
@@ -617,6 +621,15 @@ export type ProductionShiftRow = {
   created_at: string;
 };
 
+/** what someone is paid on one production: by the hour, or one flat amount for it */
+export type ProductionRateRow = {
+  inquiry_id: string;
+  profile_id: string;
+  cents: number;
+  per: "hour" | "production";
+  updated_at: string;
+};
+
 export type MemberRateRow = {
   profile_id: string;
   /** dollars in cents, by the hour or flat for a production */
@@ -692,6 +705,7 @@ export type Database = {
       production_people: Table<ProductionPersonRow>;
       production_shifts: Table<ProductionShiftRow>;
       member_rates: Table<MemberRateRow>;
+      production_rates: Table<ProductionRateRow>;
       member_notices: Table<MemberNoticeRow>;
     };
     Views: Record<string, never>;

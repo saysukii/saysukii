@@ -49,6 +49,7 @@ export const updateProduction = createServerFn({ method: "POST" })
         vision_proposal_id: id.nullable().optional(),
         vision_pages: z.array(z.number().int().min(1).max(200)).max(40).optional(),
         reflection: z.string().max(20000).optional(),
+        has_team: z.boolean().optional(),
       })
       .parse(input),
   )
@@ -371,6 +372,46 @@ export const shareProductionWithTeam = createServerFn({ method: "POST" })
     return shareProduction(supabaseAdmin, data.inquiry_id, context.profile);
   });
 
+/**
+ * What someone is paid on this production: by the hour, or one flat amount. Rates live on each
+ * production, since a big job and a small one pay differently. Only those who handle pay set them.
+ */
+export const setProductionRate = createServerFn({ method: "POST" })
+  .middleware([requireAccess("pay")])
+  .validator((input: unknown) =>
+    z
+      .object({
+        inquiry_id: id,
+        profile_id: id,
+        rate: z
+          .object({
+            cents: z.number().int().min(0).max(10_000_000),
+            per: z.enum(["hour", "production"]),
+          })
+          .nullable(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await server();
+    const saved =
+      data.rate == null
+        ? await supabaseAdmin
+            .from("production_rates")
+            .delete()
+            .eq("inquiry_id", data.inquiry_id)
+            .eq("profile_id", data.profile_id)
+        : await supabaseAdmin.from("production_rates").upsert({
+            inquiry_id: data.inquiry_id,
+            profile_id: data.profile_id,
+            cents: data.rate.cents,
+            per: data.rate.per,
+            updated_at: new Date().toISOString(),
+          });
+    if (saved.error) throw new Error(saved.error.message);
+    return { ok: true as const };
+  });
+
 /** Take a member off the production, and off its tasks with them. */
 export const removeProductionPerson = createServerFn({ method: "POST" })
   .middleware([requireAccess("productions")])
@@ -639,18 +680,24 @@ export const listMyProductions = createServerFn({ method: "GET" })
   .middleware([requireStudioAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin, memberProductions } = await server();
-    const [productions, rate] = await Promise.all([
+    const [productions, rates] = await Promise.all([
       memberProductions(supabaseAdmin, context.profile.id),
-      // their own rate, and only theirs, so they can see what their hours come to
+      // their own rates, and only theirs, so they can see what their hours come to
       supabaseAdmin
-        .from("member_rates")
-        .select("profile_id, cents, per")
-        .eq("profile_id", context.profile.id)
-        .maybeSingle(),
+        .from("production_rates")
+        .select("inquiry_id, cents, per")
+        .eq("profile_id", context.profile.id),
     ]);
     return {
       productions,
-      rate: rate.data ? (rateMap([rate.data])[context.profile.id] ?? null) : null,
+      // by production, since each one sets its own
+      rates: rateMap(
+        (rates.data ?? []).map((row) => ({
+          profile_id: row.inquiry_id,
+          cents: row.cents,
+          per: row.per,
+        })),
+      ),
     };
   });
 
@@ -680,4 +727,110 @@ export const readMemberNotices = createServerFn({ method: "POST" })
       .is("read_at", null);
     if (error) throw new Error(error.message);
     return { ok: true as const };
+  });
+
+/** Clients to link a new production to, for the add production pop-up. */
+export const listProductionClients = createServerFn({ method: "GET" })
+  .middleware([requireAccess("productions")])
+  .handler(async () => {
+    const { supabaseAdmin } = await server();
+    const { data, error } = await supabaseAdmin
+      .from("clients")
+      .select("id, name, organization, email")
+      .eq("archived", false)
+      .order("name");
+    if (error) throw new Error(error.message);
+    return { clients: data ?? [] };
+  });
+
+/**
+ * A production added by hand, for work that never came in as an inquiry: it's linked to a client,
+ * says what kind of work it is, and is booked from the start, so it's in the book with the rest.
+ * Then it opens in edit. A smaller engagement can go without a team: no crew, schedule, or sharing.
+ */
+export const createManualProduction = createServerFn({ method: "POST" })
+  .middleware([requireAccess("productions")])
+  .validator((input: unknown) =>
+    z
+      .object({
+        project_name: text(120).min(1),
+        event_type: z.enum([
+          "wedding",
+          "brand_activation",
+          "corporate",
+          "private",
+          "photoshoot",
+          "subscription",
+          "other",
+        ]),
+        client_id: id.optional(),
+        new_client: z
+          .object({ name: text(120).min(1), email: z.string().trim().email().max(320) })
+          .optional(),
+        event_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .nullable(),
+        /** the day's hours, "10:00am – 6:00pm", made its first production day */
+        hours: z.string().trim().max(200).optional(),
+        has_team: z.boolean(),
+      })
+      .refine((value) => value.client_id || value.new_client, "pick a client, or add one.")
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin, ensureProduction } = await server();
+    let clientId = data.client_id ?? null;
+    if (!clientId && data.new_client) {
+      const email = data.new_client.email.toLowerCase();
+      const found = await supabaseAdmin
+        .from("clients")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+      if (found.data) clientId = found.data.id;
+      else {
+        const made = await supabaseAdmin
+          .from("clients")
+          .insert({ name: data.new_client.name, email, type: "individual", source: "production" })
+          .select("id")
+          .single();
+        if (made.error) throw new Error(made.error.message);
+        clientId = made.data.id;
+      }
+    }
+    const now = new Date().toISOString();
+    const inquiry = await supabaseAdmin
+      .from("inquiries")
+      .insert({
+        client_id: clientId!,
+        event_name: data.project_name,
+        event_type: data.event_type,
+        event_date: data.event_date,
+        event_date_tbd: !data.event_date,
+        status: "booked",
+        booked_at: now,
+        source: "added as a production",
+        origin: "manual",
+        detection_status: "na",
+        created_by: context.profile.id,
+      })
+      .select("id")
+      .single();
+    if (inquiry.error) throw new Error(inquiry.error.message);
+    const production = await ensureProduction(supabaseAdmin, inquiry.data.id);
+    if (data.event_date) {
+      await supabaseAdmin.from("production_days").insert({
+        inquiry_id: inquiry.data.id,
+        day: data.event_date,
+        hours: data.hours ?? "",
+      });
+    }
+    if (!data.has_team) {
+      await supabaseAdmin
+        .from("productions")
+        .update({ has_team: false })
+        .eq("inquiry_id", inquiry.data.id);
+    }
+    return { slug: production.slug, inquiry_id: inquiry.data.id };
   });

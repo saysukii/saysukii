@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { AppRole } from "@/integrations/supabase/types";
-import { productionDateRange, type MemberRate, type RatePer } from "@/lib/os/production";
+import { productionDateRange } from "@/lib/os/production";
 import { useProductionApi } from "@/lib/production-api";
 import { cn } from "@/lib/utils";
 
@@ -49,8 +49,6 @@ function TeamDirectoryPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<AppRole>("team");
-  const [rate, setRate] = useState("");
-  const [per, setPer] = useState<RatePer>("hour");
   const [busy, setBusy] = useState<string | null>(null);
   // the person open to edit: their name, email until they're invited, access, and pay
   const [editing, setEditing] = useState<{
@@ -89,18 +87,15 @@ function TeamDirectoryPage() {
     const address = email.trim();
     const given = name.trim();
     if (!address || !given) return;
-    const cents = rate.trim() ? Math.round(Number(rate) * 100) : null;
     await act(
       "invite",
-      () => api.add(address, given, role, cents == null ? null : { cents, per }),
+      () => api.add(address, given, role),
       `${given.split(/\s+/)[0]} is in the gang. put them on a production; they're invited when you share it.`,
     );
     setInviting(false);
     setName("");
     setEmail("");
     setRole("team");
-    setRate("");
-    setPer("hour");
   }
 
   const term = search.trim().toLowerCase();
@@ -124,7 +119,6 @@ function TeamDirectoryPage() {
     name: string;
     email: string;
     role: AppRole;
-    rate: MemberRate | null;
     emailLocked: boolean;
     standing: string;
     access?: string[];
@@ -137,8 +131,6 @@ function TeamDirectoryPage() {
         name: person.name,
         email: person.email,
         role: person.role,
-        rate: person.rate ? String(person.rate.cents / 100) : "",
-        per: person.rate?.per ?? "hour",
         ...(person.access ? { access: person.access } : {}),
       },
     });
@@ -148,7 +140,6 @@ function TeamDirectoryPage() {
     event.preventDefault();
     if (!editing) return;
     const { values } = editing;
-    const cents = values.rate.trim() ? Math.round(Number(values.rate) * 100) : null;
     setBusy("edit");
     try {
       await api.updateMember({
@@ -156,7 +147,6 @@ function TeamDirectoryPage() {
         name: values.name.trim(),
         ...(editing.emailLocked ? {} : { email: values.email.trim() }),
         role: values.role,
-        rate: cents == null ? null : { cents, per: values.per },
         // what an admin can open is the founder's to set
         ...(owner && values.role === "admin" && values.access ? { access: values.access } : {}),
       });
@@ -186,7 +176,6 @@ function TeamDirectoryPage() {
                 name: member.full_name ?? "",
                 email: member.email,
                 role: member.role,
-                rate: member.rate ?? null,
                 emailLocked: true,
                 standing: seen(member.last_seen_at),
                 access: member.access ?? [],
@@ -195,8 +184,10 @@ function TeamDirectoryPage() {
       >
         <span className="studio-team-who">
           <b>{member.full_name ? <PersonName name={member.full_name} /> : member.email}</b>
+          {/* the founder is just her name and email; everyone else, when they were last in */}
           <em>
-            {member.email} · {seen(member.last_seen_at)}
+            {member.email}
+            {member.is_owner ? "" : ` · ${seen(member.last_seen_at)}`}
           </em>
           {member.events.length ? (
             <span className="studio-team-events">
@@ -307,7 +298,6 @@ function TeamDirectoryPage() {
                     name: person.name ?? "",
                     email: person.email,
                     role: person.role,
-                    rate: person.rate ?? null,
                     emailLocked: false,
                     standing: "not invited yet",
                   }),
@@ -392,7 +382,6 @@ function TeamDirectoryPage() {
                     name: pending.name ?? "",
                     email: pending.email,
                     role: pending.role,
-                    rate: pending.rate ?? null,
                     emailLocked: true,
                     standing: "invited, hasn't joined yet",
                   }),
@@ -474,19 +463,14 @@ function TeamDirectoryPage() {
           </div>
           <AddPersonForm
             canSetRole={owner}
-            canPay={canPay}
             name={name}
             email={email}
             role={owner ? role : "team"}
-            rate={rate}
-            per={per}
             busy={busy === "invite"}
             onChange={(next) => {
               if (next.name !== undefined) setName(next.name);
               if (next.email !== undefined) setEmail(next.email);
               if (next.role !== undefined) setRole(next.role);
-              if (next.rate !== undefined) setRate(next.rate);
-              if (next.per !== undefined) setPer(next.per);
             }}
             onSubmit={(event) => void invite(event)}
           />
@@ -507,7 +491,6 @@ function TeamDirectoryPage() {
             <AddPersonForm
               mode="edit"
               canSetRole={owner}
-              canPay={canPay}
               emailLocked={editing.emailLocked}
               standing={editing.standing}
               {...editing.values}

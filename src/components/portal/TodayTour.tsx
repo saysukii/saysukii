@@ -8,6 +8,7 @@ import { needsFlow } from "@/lib/os/how-we-flow";
 import { finishTodayTour } from "@/lib/os/settings.functions";
 import { previewProduction } from "@/lib/preview-production";
 import { useStudioSession } from "@/lib/studio-session";
+import { fromRect, studioViewport } from "@/lib/studio-zoom";
 
 /**
  * The first time a member comes in, after they've agreed to how we flow, a short tour of their
@@ -90,7 +91,12 @@ export function TodayTour({ ready }: { ready: boolean }) {
     const el = document.querySelector<HTMLElement>(`[data-tour="${current.target}"]`);
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setBox({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+    setBox({
+      top: fromRect(rect.top),
+      left: fromRect(rect.left),
+      width: fromRect(rect.width),
+      height: fromRect(rect.height),
+    });
   }, [current]);
 
   // each step brings its part of the page into view, then follows it as the page moves
@@ -98,7 +104,7 @@ export function TodayTour({ ready }: { ready: boolean }) {
     if (!current) return;
     const el = document.querySelector<HTMLElement>(`[data-tour="${current.target}"]`);
     if (!el) return;
-    const tall = el.getBoundingClientRect().height > window.innerHeight * 0.6;
+    const tall = fromRect(el.getBoundingClientRect().height) > studioViewport().height * 0.6;
     el.scrollIntoView({ block: tall ? "start" : "center", behavior: "smooth" });
     measure();
     const settle = window.setInterval(measure, 60);
@@ -145,15 +151,16 @@ export function TodayTour({ ready }: { ready: boolean }) {
   const pad = 8;
   const gap = 14;
   const edge = 16;
-  const width = Math.min(340, window.innerWidth - edge * 2);
-  let top = window.innerHeight - cardHeight - edge;
-  let left = (window.innerWidth - width) / 2;
+  const screen = studioViewport();
+  const width = Math.min(340, screen.width - edge * 2);
+  let top = screen.height - cardHeight - edge;
+  let left = (screen.width - width) / 2;
   if (box) {
     const below = box.top + box.height + pad + gap;
     const above = box.top - pad - gap - cardHeight;
-    if (below + cardHeight <= window.innerHeight - edge) top = below;
+    if (below + cardHeight <= screen.height - edge) top = below;
     else if (above >= edge) top = above;
-    left = Math.min(Math.max(box.left, edge), window.innerWidth - width - edge);
+    left = Math.min(Math.max(box.left, edge), screen.width - width - edge);
   }
   const last = step === steps.length - 1;
 

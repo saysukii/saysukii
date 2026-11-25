@@ -64,12 +64,13 @@ export function flowWords(body: string) {
   });
 }
 
-/** whether someone still has to agree: the founder never does, everyone else once per version */
+/** whether someone still has to agree: the gang does, once per version; admins never see it */
 export function needsFlow(profile: {
   role: string;
   is_owner?: boolean | null | undefined;
   flow_version?: string | null | undefined;
 }) {
-  if (profile.role === "admin" && profile.is_owner) return false;
+  // how we flow is the gang's: admins, and the founder, never see it
+  if (profile.role !== "team") return false;
   return profile.flow_version !== FLOW_VERSION;
 }

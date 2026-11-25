@@ -47,18 +47,19 @@ export function MemberSchedule() {
     [productions],
   );
   const coming = shifts.filter(({ shift }) => shift.day >= today);
-  // their rate, and every production's hours and pay together
-  const rate = mine.data?.rate ?? null;
+  // their rate on each production, and every production's hours and pay together
+  const rates = mine.data?.rates ?? {};
+  const rated = productions.filter((production) => rates[production.inquiry_id]);
   const totalHours = shifts.reduce(
     (sum, { shift }) => sum + shiftHours(shift.starts, shift.ends),
     0,
   );
-  const totalPay = rate
-    ? productions.reduce(
+  const totalPay = rated.length
+    ? rated.reduce(
         (sum, production) =>
           sum +
           (ratePay(
-            rate,
+            rates[production.inquiry_id],
             (production.shifts ?? []).reduce(
               (hours, shift) => hours + shiftHours(shift.starts, shift.ends),
               0,
@@ -107,7 +108,7 @@ export function MemberSchedule() {
                 ? "no shifts coming up. when the studio shares new ones, they show here."
                 : "nothing yet. when the studio shares a production with you, your shifts show here."}
             {/* what all their hours come to */}
-            {rate && totalPay != null && totalHours ? (
+            {totalPay != null && totalHours ? (
               <> that's {formatMoneyExact(totalPay)} in all.</>
             ) : null}
           </p>
@@ -128,6 +129,7 @@ export function MemberSchedule() {
             (sum, shift) => sum + shiftHours(shift.starts, shift.ends),
             0,
           );
+          const rate = rates[production.inquiry_id];
           return (
             <section key={production.inquiry_id} className="studio-module studio-my-event">
               <div className="studio-my-event-head">

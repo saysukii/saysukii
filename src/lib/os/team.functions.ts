@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import { cleanAccess, hasAccess } from "@/lib/os/access";
-import { rateMap, type MemberRate } from "@/lib/os/production";
 
 /**
  * The gang: everyone with an account, active or not, everyone invited who hasn't joined
@@ -16,7 +15,7 @@ export const listTeamDirectory = createServerFn({ method: "GET" })
       import("@/integrations/supabase/client.server"),
       import("./production.server"),
     ]);
-    const [members, invites, rates] = await Promise.all([
+    const [members, invites] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select(
@@ -28,10 +27,8 @@ export const listTeamDirectory = createServerFn({ method: "GET" })
         .select("id, email, role, expires_at, accepted_at, created_at")
         .is("accepted_at", null)
         .order("created_at", { ascending: false }),
-      supabaseAdmin.from("member_rates").select("profile_id, cents, per"),
     ]);
-    const rateOf = rateMap(rates.data ?? []);
-    // what people are paid shows only to those who handle pay
+    // what people are paid is set on each production now, not here
     const canPay = hasAccess(context.profile, "pay");
     if (members.error) throw new Error(members.error.message);
     if (invites.error) throw new Error(invites.error.message);
@@ -62,7 +59,6 @@ export const listTeamDirectory = createServerFn({ method: "GET" })
         .filter((member) => !joining.includes(member))
         .map(async (member) => ({
           ...member,
-          rate: canPay ? (rateOf[member.id] ?? null) : null,
           events: (await memberProductions(supabaseAdmin, member.id)).map((production) => ({
             project_name: production.project_name,
             path: production.path,
@@ -86,7 +82,6 @@ export const listTeamDirectory = createServerFn({ method: "GET" })
           accepted_at: null,
           created_at: member.created_at,
           invited_at: member.invited_at ?? null,
-          rate: canPay ? (rateOf[member.id] ?? null) : null,
           on: onOf(member.id),
         })),
         ...(invites.data ?? [])
@@ -95,7 +90,6 @@ export const listTeamDirectory = createServerFn({ method: "GET" })
             ...invite,
             name: null as string | null,
             invited_at: invite.created_at as string | null,
-            rate: null as MemberRate | null,
             on: [] as string[],
           })),
       ],
@@ -115,13 +109,6 @@ export const addTeamMember = createServerFn({ method: "POST" })
         email: z.string().trim().email().max(320),
         name: z.string().trim().min(1).max(120),
         role: z.enum(["admin", "team"]),
-        rate: z
-          .object({
-            cents: z.number().int().min(0).max(10_000_000),
-            per: z.enum(["hour", "production"]),
-          })
-          .nullable()
-          .optional(),
       })
       .parse(input),
   )
@@ -167,14 +154,6 @@ export const addTeamMember = createServerFn({ method: "POST" })
       .update({ added_name: data.name, invited_at: null, active: true })
       .eq("id", made.user.id);
     if (profileError) throw new Error(profileError.message);
-    if (data.rate) {
-      await supabaseAdmin.from("member_rates").upsert({
-        profile_id: made.user.id,
-        cents: data.rate.cents,
-        per: data.rate.per,
-        updated_at: new Date().toISOString(),
-      });
-    }
     return { id: made.user.id };
   });
 
@@ -232,41 +211,7 @@ export const cancelTeamInvite = createServerFn({ method: "POST" })
   });
 
 /**
- * What a member is paid, by the hour or flat for a production, for the schedule and the payroll
- * email. Admins only.
- */
-export const setMemberRate = createServerFn({ method: "POST" })
-  .middleware([requireAccess("pay")])
-  .validator((input: unknown) =>
-    z
-      .object({
-        id: z.string().uuid(),
-        rate: z
-          .object({
-            cents: z.number().int().min(0).max(10_000_000),
-            per: z.enum(["hour", "production"]),
-          })
-          .nullable(),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const result =
-      data.rate == null
-        ? await supabaseAdmin.from("member_rates").delete().eq("profile_id", data.id)
-        : await supabaseAdmin.from("member_rates").upsert({
-            profile_id: data.id,
-            cents: data.rate.cents,
-            per: data.rate.per,
-            updated_at: new Date().toISOString(),
-          });
-    if (result.error) throw new Error(result.error.message);
-    return { id: data.id };
-  });
-
-/**
- * Change someone on the team: their name, what they can see, and how they're paid. Their email
+ * Change someone on the team: their name, and what they can see. Their email
  * can change only while they're added and not invited yet, since an invitation went to the old one.
  */
 export const updateTeamMember = createServerFn({ method: "POST" })
@@ -278,12 +223,6 @@ export const updateTeamMember = createServerFn({ method: "POST" })
         name: z.string().trim().min(1).max(120),
         email: z.string().trim().email().max(320).optional(),
         role: z.enum(["admin", "team"]),
-        rate: z
-          .object({
-            cents: z.number().int().min(0).max(10_000_000),
-            per: z.enum(["hour", "production"]),
-          })
-          .nullable(),
         access: z.array(z.string()).max(20).optional(),
       })
       .parse(input),
@@ -344,19 +283,5 @@ export const updateTeamMember = createServerFn({ method: "POST" })
     }
     const { error } = await supabaseAdmin.from("profiles").update(patch).eq("id", member.id);
     if (error) throw new Error(error.message);
-
-    // admins are crew too; only the founder has no rate, and only those who handle pay set one
-    if (!hasAccess(context.profile, "pay") || member.is_owner) return { id: member.id };
-    const rate = data.rate;
-    const saved =
-      rate == null
-        ? await supabaseAdmin.from("member_rates").delete().eq("profile_id", member.id)
-        : await supabaseAdmin.from("member_rates").upsert({
-            profile_id: member.id,
-            cents: rate.cents,
-            per: rate.per,
-            updated_at: new Date().toISOString(),
-          });
-    if (saved.error) throw new Error(saved.error.message);
     return { id: member.id };
   });

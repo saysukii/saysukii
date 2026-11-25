@@ -499,6 +499,10 @@ export type ProductionView = {
   viewer: { id: string; role: AppRole };
 };
 
+/** what every production starts with for dress code, until the studio writes its own */
+export const DEFAULT_DRESS_CODE =
+  "in studio: cozy, comfortable, whatever you'd like\non site: all black";
+
 export const STUDIO_ADDRESS =
   "Zero Empty Spaces, 800 Silks Run, Suite 1307, Hallandale Beach, FL 33009";
 
@@ -712,7 +716,7 @@ export type ShiftLike = {
 export type RatePer = "hour" | "production";
 export type MemberRate = { cents: number; per: RatePer };
 
-/** rows from member_rates, as the schedule reads them */
+/** rows from production_rates, keyed by person, as the schedule reads them */
 export function rateMap(rows: Array<{ profile_id: string; cents: number; per: string }>) {
   return Object.fromEntries(
     rows.map((row) => [

@@ -203,7 +203,7 @@ export function GlitterCursorTrail() {
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none fixed inset-0 z-[9999] [will-change:transform]"
+      className="studio-unzoom pointer-events-none fixed inset-0 z-[9999] [will-change:transform]"
       aria-hidden
     />
   );

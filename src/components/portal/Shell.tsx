@@ -59,6 +59,7 @@ import {
   STUDIO_NOTICE_EVENT,
   type StudioNotice,
 } from "@/lib/studio-notices";
+import { useStudioZoom } from "@/lib/studio-zoom";
 
 type NavItem = {
   to: string;
@@ -150,6 +151,8 @@ function bookedWhen(startsAt: string) {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
+  // laid out for a 13" laptop, scaled up to match on anything wider
+  useStudioZoom();
   const [open, setOpen] = useState(false);
   const mainRef = usePageRise();
   const { user, profile, devPreview } = useStudioSession();
