@@ -21,6 +21,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as PayMockRouteImport } from './routes/pay-mock'
 import { Route as PayStudiesRouteImport } from './routes/pay-studies'
 import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as SummaryStudiesRouteImport } from './routes/summary-studies'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
@@ -119,6 +120,11 @@ const PayStudiesRoute = PayStudiesRouteImport.update({
 const ScheduleRoute = ScheduleRouteImport.update({
   id: '/schedule',
   path: '/schedule',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SummaryStudiesRoute = SummaryStudiesRouteImport.update({
+  id: '/summary-studies',
+  path: '/summary-studies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedCalendarRoute = AuthenticatedCalendarRouteImport.update({
@@ -348,6 +354,7 @@ export interface FileRoutesByFullPath {
   '/pay-mock': typeof PayMockRoute
   '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
+  '/summary-studies': typeof SummaryStudiesRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/library': typeof AuthenticatedLibraryRoute
@@ -400,6 +407,7 @@ export interface FileRoutesByTo {
   '/pay-mock': typeof PayMockRoute
   '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
+  '/summary-studies': typeof SummaryStudiesRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/library': typeof AuthenticatedLibraryRoute
@@ -453,6 +461,7 @@ export interface FileRoutesById {
   '/pay-mock': typeof PayMockRoute
   '/pay-studies': typeof PayStudiesRoute
   '/schedule': typeof ScheduleRoute
+  '/summary-studies': typeof SummaryStudiesRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/library': typeof AuthenticatedLibraryRoute
@@ -508,6 +517,7 @@ export interface FileRouteTypes {
     | '/pay-mock'
     | '/pay-studies'
     | '/schedule'
+    | '/summary-studies'
     | '/calendar'
     | '/dashboard'
     | '/library'
@@ -560,6 +570,7 @@ export interface FileRouteTypes {
     | '/pay-mock'
     | '/pay-studies'
     | '/schedule'
+    | '/summary-studies'
     | '/calendar'
     | '/dashboard'
     | '/library'
@@ -612,6 +623,7 @@ export interface FileRouteTypes {
     | '/pay-mock'
     | '/pay-studies'
     | '/schedule'
+    | '/summary-studies'
     | '/_authenticated/calendar'
     | '/_authenticated/dashboard'
     | '/_authenticated/library'
@@ -667,6 +679,7 @@ export interface RootRouteChildren {
   PayMockRoute: typeof PayMockRoute
   PayStudiesRoute: typeof PayStudiesRoute
   ScheduleRoute: typeof ScheduleRoute
+  SummaryStudiesRoute: typeof SummaryStudiesRoute
   DevFileKindRoute: typeof DevFileKindRoute
   FileSplatRoute: typeof FileSplatRoute
   InvoiceTokenRoute: typeof InvoiceTokenRoute
@@ -771,6 +784,13 @@ declare module '@tanstack/react-router' {
       path: '/schedule'
       fullPath: '/schedule'
       preLoaderRoute: typeof ScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/summary-studies': {
+      id: '/summary-studies'
+      path: '/summary-studies'
+      fullPath: '/summary-studies'
+      preLoaderRoute: typeof SummaryStudiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/calendar': {
@@ -1169,6 +1189,7 @@ const rootRouteChildren: RootRouteChildren = {
   PayMockRoute: PayMockRoute,
   PayStudiesRoute: PayStudiesRoute,
   ScheduleRoute: ScheduleRoute,
+  SummaryStudiesRoute: SummaryStudiesRoute,
   DevFileKindRoute: DevFileKindRoute,
   FileSplatRoute: FileSplatRoute,
   InvoiceTokenRoute: InvoiceTokenRoute,

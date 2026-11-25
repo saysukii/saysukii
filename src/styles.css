@@ -23019,6 +23019,228 @@ button.studio-file-open {
   }
 }
 
+/* the local summary studies page */
+.summary-studies-wrap {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.summary-studies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+
+.summary-study header {
+  min-height: 92px;
+  margin-bottom: 10px;
+}
+
+.summary-study-name {
+  margin: 0 0 4px;
+  color: #24221f;
+  font-size: 15px;
+}
+
+.summary-study-name span {
+  color: #ff4d94;
+}
+
+.summary-study-idea {
+  margin: 0;
+  color: rgba(36, 34, 31, 0.55);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.summary-study-panel {
+  display: grid;
+  gap: 6px;
+  padding: 20px 18px;
+  border-radius: 24px;
+  background: rgba(255, 249, 250, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.06);
+}
+
+.summary-study-who {
+  margin: 0;
+  color: #24221f;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.summary-study-when {
+  margin: 0 0 10px;
+  color: #ff4d94;
+  font-size: 13px;
+}
+
+.summary-study-label,
+.summary-section-title {
+  margin: 0;
+  color: rgba(36, 34, 31, 0.52);
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+}
+
+.summary-section-title.is-pink {
+  color: #ff4d94;
+}
+
+.summary-study-box,
+.summary-study-plain {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, #fff 46%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.08);
+  color: #24221f;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.5;
+}
+
+.summary-study-plain {
+  white-space: pre-wrap;
+}
+
+.summary-sections {
+  display: grid;
+  gap: 14px;
+}
+
+.summary-sections > div {
+  display: grid;
+  gap: 6px;
+}
+
+.summary-points,
+.summary-details,
+.summary-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary-points > li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.summary-points > li::before {
+  position: absolute;
+  top: 0.62em;
+  left: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #ff4d94;
+  content: "";
+  opacity: 0.6;
+}
+
+.summary-points.is-compact {
+  gap: 4px;
+}
+
+.summary-details {
+  gap: 2px;
+  margin-top: 3px;
+  color: rgba(36, 34, 31, 0.55);
+  font-size: 12.5px;
+}
+
+.summary-owner {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 77, 148, 0.1);
+  color: #d81b6a;
+  font-size: 11px;
+  line-height: 18px;
+  vertical-align: 1px;
+}
+
+.summary-steps > li {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.summary-steps i {
+  width: 13px;
+  height: 13px;
+  margin-top: 3px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 148, 0.55);
+}
+
+.summary-steps p {
+  margin: 0;
+}
+
+.summary-steps small {
+  display: block;
+  margin-top: 2px;
+  color: rgba(36, 34, 31, 0.55);
+  font-size: 12.5px;
+}
+
+.summary-people {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(36, 34, 31, 0.08);
+}
+
+.summary-people > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.summary-more {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #ff4d94;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.summary-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.summary-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, #fff 58%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(36, 34, 31, 0.07);
+  color: #24221f;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.5;
+}
+
+.summary-card.is-steps {
+  background: rgba(255, 77, 148, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 77, 148, 0.18);
+}
+
 /* onboarding: the same room as today, the first time in. it fills the screen on phones too, so
    everything sits in the middle, across and down, at every size */
 .studio-pearl.studio-onboard-room {

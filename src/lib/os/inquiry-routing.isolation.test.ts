@@ -316,6 +316,40 @@ describe("classify + route engine", () => {
     assert.equal(state.labels.length, 0);
   });
 
+  it("names a new client from the From line, not a mailbox like info@", async () => {
+    const { state, store } = createMemoryRoutingStore({
+      inbound: [
+        inbound("ashley", {
+          from_addr: "info@ashleyoutrageous.com",
+          from_name: "Ashley Outrageous",
+          subject: "flowers for our launch",
+          body: "We'd love florals for a brand launch next spring.",
+        }),
+      ],
+    });
+    let shown = "";
+    await routeUnprocessedInbound({
+      store,
+      now: () => NOW,
+      classify: async ({ message }) => {
+        shown = formatRoutingUserMessage(message, []);
+        return {
+          action: "candidate",
+          matched_inquiry_id: null,
+          is_true_inquiry: true,
+          confidence: 0.8,
+          reason: "a brand launch",
+          extraction: { name: null, email: "info@ashleyoutrageous.com" },
+        };
+      },
+    });
+    assert.match(shown, /"from_name": "Ashley Outrageous"/);
+    assert.equal(
+      state.clients.find((row) => row.email === "info@ashleyoutrageous.com")?.name,
+      "Ashley Outrageous",
+    );
+  });
+
   it("files a reply on the open thread ahead of older inbox noise, even if the model would ignore it", async () => {
     const { state, store } = createMemoryRoutingStore({
       inbound: [

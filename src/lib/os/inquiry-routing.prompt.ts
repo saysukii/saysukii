@@ -113,7 +113,7 @@ export const INQUIRY_ROUTING_OUTPUT = `OUTPUT — JSON only, no markdown, no pre
   "confidence": 0.0,
   "reason": "<one or two sentences, concrete>",
   "extraction": {
-    "name": "<string or null>",
+    "name": "<who wrote: the name they sign with, else inbound.from_name; never a mailbox word like info or hello; or null>",
     "email": "<string or null>",
     "event_type": "wedding" | "brand_activation" | "corporate" | "private" | "photoshoot" | "subscription" | "other" | null,
     "event_date": "<YYYY-MM-DD or null>",
@@ -135,6 +135,8 @@ export function inquiryRoutingSystemPrompt() {
 
 export type RoutingPromptMessage = {
   from_addr: string | null;
+  /** the name on the From line, like "Ashley Outrageous" in "Ashley Outrageous <info@…>" */
+  from_name?: string | null;
   to_addr: string | null;
   subject: string | null;
   body: string | null;
@@ -171,6 +173,7 @@ export function formatRoutingUserMessage(
     {
       inbound: {
         from: message.from_addr,
+        from_name: message.from_name ?? null,
         to: message.to_addr,
         subject: message.subject,
         received_at: message.received_at,

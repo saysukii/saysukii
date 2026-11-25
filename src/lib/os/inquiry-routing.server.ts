@@ -335,8 +335,14 @@ function clientTypeFromEvent(eventType: EventType): ClientType {
   return "individual";
 }
 
-function fallbackName(email: string, extracted: string | null) {
+/**
+ * The name a new client gets: what was read from the letter, then the name on the From line,
+ * and only then the address itself. "Ashley Outrageous <info@…>" is Ashley Outrageous, not "info".
+ */
+function fallbackName(email: string, extracted: string | null, fromName?: string | null) {
   if (extracted && extracted.length >= 2) return extracted.slice(0, 160);
+  const named = fromName?.trim() ?? "";
+  if (named.length >= 2 && !named.includes("@")) return named.slice(0, 160);
   const local =
     email
       .split("@")[0]
@@ -423,7 +429,7 @@ export function createMemoryRoutingStore(seed: Partial<MemoryRoutingState> = {})
         const now = message.received_at;
         client = {
           id: randomUUID(),
-          name: fallbackName(email, decision.extraction.name),
+          name: fallbackName(email, decision.extraction.name, message.from_name),
           email,
           phone: null,
           organization: null,
@@ -944,7 +950,7 @@ export function heuristicRoutingRaw(input: {
   const email = normalizeSenderEmail(input.message.from_addr);
   const text = `${input.message.subject ?? ""}\n${input.message.body ?? ""}`;
   const ask = inboundAsk(input.message.subject, input.message.body);
-  const name = senderName(input.message.from_addr);
+  const name = input.message.from_name || senderName(input.message.from_addr);
   if (routingNoise(email, text)) {
     return {
       action: "ignored",
@@ -1397,7 +1403,7 @@ async function createCandidateSupabase(input: {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const email = normalizeSenderEmail(input.decision.extraction.email ?? input.message.from_addr);
     if (!email) throw new Error("candidate requires a sender email");
-    const name = fallbackName(email, input.decision.extraction.name);
+    const name = fallbackName(email, input.decision.extraction.name, input.message.from_name);
     const eventType = input.decision.extraction.event_type ?? "other";
 
     const { data: existingClient, error: findError } = await supabaseAdmin

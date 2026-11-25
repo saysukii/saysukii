@@ -20,22 +20,22 @@ export type SaySukiiEmail = {
   origin?: string;
 };
 
-export type EmailKind = "weddings" | "events" | "deliveries" | "flowers";
+export type EmailKind = "weddings" | "events" | "deliveries" | "subscriptions";
 
 // the same pinks as the footer words, one for each kind of work, each soft enough to carry dark text
 const KIND_PINK: Record<EmailKind, string> = {
   weddings: "#FF5C89",
   events: "#FB8CAC",
   deliveries: "#F4B3C0",
-  flowers: "#FDA8BF",
+  subscriptions: "#FDA8BF",
 };
 
-/** wedding, events + activations (and styling), deliveries, and concierge + subscription flowers */
+/** wedding, events + activations (and styling), deliveries, and subscriptions */
 export function emailKind(eventType: string | null | undefined): EmailKind | undefined {
   if (!eventType) return undefined;
   if (eventType === "wedding") return "weddings";
   if (eventType === "other") return "deliveries";
-  if (eventType === "subscription") return "flowers";
+  if (eventType === "subscription") return "subscriptions";
   return "events";
 }
 
