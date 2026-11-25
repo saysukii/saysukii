@@ -4,6 +4,8 @@ type SendInput = {
   to: string | string[];
   subject: string;
   html: string;
+  /** files to carry, like the hours as a spreadsheet */
+  attachments?: Array<{ name: string; type: string; data: Uint8Array }>;
   referenceType?: string;
   referenceId?: string;
   eventType: string;
@@ -41,7 +43,13 @@ export async function sendStudioEmail(input: SendInput) {
   try {
     let sent = true;
     for (const to of recipients) {
-      const result = await sendClientLetter({ to, subject: input.subject, html: input.html, text });
+      const result = await sendClientLetter({
+        to,
+        subject: input.subject,
+        html: input.html,
+        text,
+        ...(input.attachments ? { attachments: input.attachments } : {}),
+      });
       sent &&= result.sent;
     }
     if (!sent) {

@@ -404,8 +404,12 @@ export function formatStepAnswer(step: InquiryStep, values: InquiryFormValues) {
   if (step.kind === "date") return formatInquiryDate(values) || "";
   if (step.field === "venue_text" && values.venue_tbd) return "TBD";
   if (step.kind === "multi") {
+    const who = values.referral_name?.trim();
     return (values.sources ?? [])
-      .map((value) => step.options.find((option) => option.value === value)?.label ?? value)
+      .map((value) => {
+        const label = step.options.find((option) => option.value === value)?.label ?? value;
+        return value === "referral" && who ? `${label} (${who})` : label;
+      })
       .join(", ");
   }
   if (step.kind === "choice") {

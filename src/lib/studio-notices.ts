@@ -6,6 +6,8 @@ export type StudioNotice = {
   read: boolean;
   toasted: boolean;
   href?: string;
+  /** a member's own notice, for them alone; the studio's notices have none */
+  forId?: string;
 };
 
 export function changeRequestedLine(contactName: string | null | undefined) {
@@ -71,6 +73,8 @@ export function pushNotice(input: {
   href?: string;
   /** already shown some other way, like the booking's glitter, so it doesn't toast again */
   toasted?: boolean;
+  /** a member's own notice, shown only when they're the one signed in */
+  forId?: string;
 }) {
   const current = read();
   // one already here, or one cleared from the bell, isn't shown again
@@ -83,6 +87,7 @@ export function pushNotice(input: {
     read: false,
     toasted: input.toasted ?? false,
     ...(input.href ? { href: input.href } : {}),
+    ...(input.forId ? { forId: input.forId } : {}),
   };
   write([notice, ...current]);
   return notice;

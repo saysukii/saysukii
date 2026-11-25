@@ -77,7 +77,7 @@ export function renderSaySukiiEmail(input: SaySukiiEmail) {
     .replaceAll("{{eyebrow_color}}", input.eyebrowColor ?? "#FF4D94")
     .replaceAll("{{eyebrow}}", escapeEmail(input.eyebrow))
     .replaceAll("{{headline}}", escapeEmail(input.headline))
-    .replaceAll("{{body}}", escapeEmail(input.body).replaceAll("\n", "<br>"))
+    .replaceAll("{{body}}", emailBody(input.body))
     .replaceAll("{{detail_block}}", detail)
     .replaceAll("{{button_block}}", button)
     .replaceAll("{{note_block}}", note)
@@ -87,6 +87,13 @@ export function renderSaySukiiEmail(input: SaySukiiEmail) {
         ? `<tr><td align="center" style="padding-bottom:12px;"><span style="display:inline-block;padding:4px 12px;border-radius:999px;background-color:${KIND_PINK[input.kind]};color:${input.kind === "weddings" ? "#FFFFFF" : "#24221F"};font-size:11px;letter-spacing:0.08em;">${input.kind}</span></td></tr>`
         : "",
     );
+}
+
+/** the body's words, safe for email: line breaks kept, and {i}…{/i} set in italics */
+function emailBody(body: string) {
+  return escapeEmail(body)
+    .replaceAll("\n", "<br>")
+    .replace(/\{i\}([\s\S]+?)\{\/i\}/g, '<em style="font-style:italic;">$1</em>');
 }
 
 function factsTable(facts: EmailFact[]) {

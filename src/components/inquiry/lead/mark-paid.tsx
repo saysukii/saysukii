@@ -11,6 +11,7 @@ import {
 import { formatMoneyExact } from "@/lib/money";
 import { MANUAL_METHODS, type ManualMethod } from "@/lib/payment-methods";
 import { dollarsToCents, formatDollarInput } from "@/lib/proposal-link";
+import { InquiryDatePicker } from "@/components/inquiry/InquiryDatePicker";
 import { cn } from "@/lib/utils";
 
 export type MarkedPayment = {
@@ -117,16 +118,17 @@ export function MarkPaidDialog({
               ))}
             </div>
           </div>
-          <label className="studio-ask-field">
+          <div className="studio-ask-field studio-when-picker is-date">
             <span className="studio-ask-label">paid on</span>
-            <input
-              className="studio-textarea"
-              type="date"
-              value={paidOn}
-              max={today()}
-              onChange={(event) => setPaidOn(event.target.value)}
+            <InquiryDatePicker
+              value={paidOn || null}
+              withTime={false}
+              allowPast
+              compact
+              placeholder="the day it came in"
+              onChange={(next) => setPaidOn(next && next <= today() ? next : today())}
             />
-          </label>
+          </div>
           <label className="studio-ask-field">
             <span className="studio-ask-label">note</span>
             <input

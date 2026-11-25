@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 
 import { ScheduleDesk } from "@/components/portal/ScheduleDesk";
+import { MemberSchedule } from "@/components/production/MemberSchedule";
 import { getDevPreviewAppointments, getDevPreviewPipeline } from "@/lib/dev-preview";
 import {
   listAppointments,
@@ -24,6 +25,12 @@ export const Route = createFileRoute("/_authenticated/calendar")({
 });
 
 function SchedulePage() {
+  const { profile } = Route.useRouteContext();
+  // a member's schedule is their own shifts; the studio's is its calendar
+  return profile.role === "admin" ? <StudioSchedule /> : <MemberSchedule />;
+}
+
+function StudioSchedule() {
   const { profile } = Route.useRouteContext();
   const devPreview = useDevPreview();
   const isAdmin = profile.role === "admin";

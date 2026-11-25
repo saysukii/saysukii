@@ -2,6 +2,7 @@ import { ChevronDown, X } from "lucide-react";
 import { useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ConfirmRemove } from "@/components/studio/ConfirmRemove";
 import { savedDiscountText, type DiscountMode } from "@/lib/discount";
 import { formatMoneyExact } from "@/lib/money";
 import { useStudioDiscounts } from "@/lib/os/use-studio-discounts";
@@ -82,14 +83,20 @@ export function DiscountField({
                         : formatMoneyExact(Math.round(discount.value * 100))}
                     </small>
                   </button>
-                  <button
-                    type="button"
-                    className="studio-discount-forget"
-                    aria-label={`remove ${discount.name}`}
-                    onClick={() => letGo(discount.id)}
+                  <ConfirmRemove
+                    question={`forget ${discount.name}?`}
+                    detail="it comes off the saved discounts. proposals that used it keep it."
+                    action="forget"
+                    onConfirm={() => letGo(discount.id)}
                   >
-                    <X aria-hidden="true" />
-                  </button>
+                    <button
+                      type="button"
+                      className="studio-discount-forget"
+                      aria-label={`remove ${discount.name}`}
+                    >
+                      <X aria-hidden="true" />
+                    </button>
+                  </ConfirmRemove>
                 </div>
               ))}
             </PopoverContent>

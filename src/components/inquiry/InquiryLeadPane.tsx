@@ -1429,6 +1429,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
   const offerOpen = showStack && focus === "proposal";
   const invoiceOpen = showStack && focus === "invoice";
   const filesOpen = showStack && focus === "files";
+  const stackTabs: Focus[] = ["conversation", "proposal", "invoice", "files", "note"];
   const replyFacts = {
     eventDate: inquiry.event_date,
     dateTbd: inquiry.event_date_tbd,
@@ -2360,7 +2361,7 @@ export function InquiryLeadPane({ id, surface = "full" }: { id: string; surface?
 
       {showStack ? (
         <div className="studio-tabs" role="tablist" aria-label="job sections">
-          {(["conversation", "proposal", "invoice", "files", "note"] as const).map((item) => (
+          {stackTabs.map((item) => (
             <button
               key={item}
               type="button"

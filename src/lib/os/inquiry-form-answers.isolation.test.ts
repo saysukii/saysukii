@@ -55,3 +55,15 @@ describe("inquiry form answers", () => {
     );
   });
 });
+
+describe("how they found the studio", () => {
+  it("names who referred them", async () => {
+    const { sourceLine } = await import("@/lib/os/inquiry-schema");
+    assert.equal(
+      sourceLine(["instagram", "referral"], " Maya Santos "),
+      "instagram, referral (Maya Santos)",
+    );
+    assert.equal(sourceLine(["referral"], ""), "referral");
+    assert.equal(sourceLine(["instagram"], "Maya"), "instagram");
+  });
+});

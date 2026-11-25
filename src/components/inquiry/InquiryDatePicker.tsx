@@ -160,15 +160,26 @@ export function InquiryTimePicker({
   times = INQUIRE_EVENT_TIMES,
   disabled = false,
   placeholder = "time",
+  compact = false,
   onChange,
 }: {
   value: string;
   times?: readonly string[];
   disabled?: boolean;
   placeholder?: string;
+  /** a calendar-sized list that scrolls, for a long run of times */
+  compact?: boolean;
   onChange: (time: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // a long list opens at the time already chosen, or at the start of a working day
+  const showChosen = (grid: HTMLDivElement | null) => {
+    if (!grid || !compact) return;
+    const target =
+      grid.querySelector<HTMLElement>('[aria-selected="true"]') ??
+      grid.querySelector<HTMLElement>('[data-time="9:00 am"]');
+    if (target) grid.scrollTop = target.offsetTop - grid.clientHeight / 2 + target.clientHeight / 2;
+  };
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -186,15 +197,19 @@ export function InquiryTimePicker({
         align="start"
         sideOffset={8}
         collisionPadding={12}
-        className="inquire-time-popover z-[80] w-auto border-0 p-0 shadow-none"
+        className={cn(
+          "inquire-time-popover z-[80] w-auto border-0 p-0 shadow-none",
+          compact && "is-compact",
+        )}
       >
-        <div className="inquire-times-grid" role="listbox" aria-label="time">
+        <div className="inquire-times-grid" role="listbox" aria-label="time" ref={showChosen}>
           {times.map((slot) => (
             <button
               key={slot}
               type="button"
               role="option"
               aria-selected={value === slot}
+              data-time={slot}
               className={cn(value === slot && "is-on")}
               onClick={() => {
                 onChange(slot);

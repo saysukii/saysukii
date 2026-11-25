@@ -42,6 +42,8 @@ export const DEV_PREVIEW_PROFILE: ProfileRow = {
   full_name: "Sukii",
   email: "info@saysukii.com",
   role: "admin",
+  // the founder: everything is open to her
+  is_owner: true,
   active: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),

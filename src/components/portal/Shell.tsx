@@ -1,11 +1,23 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useRouter, useRouteContext, useRouterState } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Bell, ChevronDown, Menu, X } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { useProductionApi } from "@/lib/production-api";
+import { useStudioSession } from "@/lib/studio-session";
+import { areaForPath, hasAccess, type StudioArea } from "@/lib/os/access";
+import { PRODUCTION_CHANGED } from "@/lib/os/production";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -22,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Wordmark } from "./bits";
 import { celebrateBooking } from "@/components/portal/BookingCelebration";
+import { HowWeFlowGate } from "@/components/portal/HowWeFlow";
 import { BloomPass, loginBloomArmed } from "@/components/portal/StudioLoader";
 import { markPerson, PersonName } from "@/components/studio/PersonName";
 import { firstName } from "@/lib/os/connect-letter";
@@ -32,7 +45,7 @@ import { loveNoteNotice } from "@/lib/love-note-view";
 import { listFreshLoveNotes } from "@/lib/os/love-notes.functions";
 import { listFreshPayments } from "@/lib/os/proposals.functions";
 import { listRecentIssues } from "@/lib/os/settings.functions";
-import { getDevPreviewSettings } from "@/lib/dev-preview";
+import { getDevPreviewSettings, isDevPreviewEnabled } from "@/lib/dev-preview";
 import { formatDateNumeric, formatMoneyExact } from "@/lib/money";
 import { PREVIEW_ARRIVALS_KEY } from "@/lib/preview-arrivals";
 import { fentyDemoProposal, onPreviewProposalsChange } from "@/lib/preview-proposals";
@@ -50,16 +63,22 @@ import {
 type NavItem = {
   to: string;
   label: string;
+  /** the area it opens, for keeping an admin to what sukii has given them */
+  area?: StudioArea;
 };
 
 const ADMIN_NAV: NavItem[] = [
   { to: "/dashboard", label: "today" },
-  { to: "/pipeline", label: "inquiries" },
-  { to: "/calendar", label: "schedule" },
-  { to: "/library", label: "library" },
+  { to: "/pipeline", label: "inquiries", area: "inquiries" },
+  { to: "/productions", label: "productions", area: "productions" },
+  { to: "/calendar", label: "schedule", area: "schedule" },
+  { to: "/library", label: "library", area: "library" },
 ];
 
-const TEAM_NAV = ADMIN_NAV.filter(({ label }) => label === "today");
+// a member has their today, the productions they're on, and their own schedule
+const TEAM_NAV = ADMIN_NAV.filter(
+  ({ label }) => label === "today" || label === "productions" || label === "schedule",
+);
 
 function PrimaryNav({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -67,10 +86,12 @@ function PrimaryNav({ items, onNavigate }: { items: NavItem[]; onNavigate?: () =
     <nav aria-label="Primary" className="studio-pearl-nav">
       {items.map(({ to, label }) => {
         const onLibrary =
-          to === "/library" &&
-          (pathname === "/library" ||
-            pathname.startsWith("/directories") ||
-            pathname.startsWith("/files"));
+          (to === "/library" &&
+            (pathname === "/library" ||
+              pathname.startsWith("/directories") ||
+              pathname.startsWith("/files"))) ||
+          // a single production lives in the productions room
+          (to === "/productions" && pathname.startsWith("/production/"));
         return (
           <Link
             key={to}
@@ -131,10 +152,30 @@ function bookedWhen(startsAt: string) {
 export function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const mainRef = usePageRise();
-  const notices = useStudioNotices();
-  const noticeModal = useNoticeModal(notices);
+  const { user, profile, devPreview } = useStudioSession();
+  const allNotices = useStudioNotices();
+  // a member sees only their own notices, about the productions they're on; the studio sees its own
+  const notices = useMemo(
+    () =>
+      profile.role === "admin"
+        ? allNotices.filter((notice) => !notice.forId && !notice.id.startsWith("member-"))
+        : allNotices.filter(
+            (notice) =>
+              notice.forId === profile.id ||
+              // from before notices knew who they were for: a member's own came from the server
+              (!notice.forId && notice.id.startsWith("member-")),
+          ),
+    [allNotices, profile.id, profile.role],
+  );
+  const productionApi = useProductionApi();
+  // once a member has opened the bell, their notices are read everywhere they sign in
+  const noticeModal = useNoticeModal(notices, (ids) => {
+    const fromServer = ids
+      .filter((id) => id.startsWith("member-"))
+      .map((id) => id.slice("member-".length));
+    if (fromServer.length) void productionApi.readNotices(fromServer).catch(() => undefined);
+  });
   const router = useRouter();
-  const { user, profile, devPreview } = useRouteContext({ from: "/_authenticated" });
   const arrivals = useServerFn(listFreshArrivals);
   const bookings = useServerFn(listFreshBookings);
   const payments = useServerFn(listFreshPayments);
@@ -157,14 +198,49 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [devPreview, queryClient]);
 
   useEffect(() => {
-    if (!devPreview) return;
+    if (!devPreview || profile.role !== "admin") return;
     pushNotice({
       id: "inquiry-arrived-camila",
       title: "Camila wrote in",
       body: "a new wedding inquiry is in the book.",
       href: "/pipeline/camilareyes",
     });
-  }, [devPreview]);
+  }, [devPreview, profile.role]);
+
+  // a member's bell: the tasks the studio assigned them, until they've seen them
+  useEffect(() => {
+    if (profile.role === "admin") return;
+    let stop = false;
+    async function look() {
+      try {
+        const { notices: waiting } = await productionApi.notices();
+        if (stop) return;
+        for (const notice of [...waiting].reverse()) {
+          if (notice.read_at) continue;
+          pushNotice({
+            id: `member-${notice.id}`,
+            forId: profile.id,
+            title: notice.title,
+            body: notice.body,
+            ...(notice.href ? { href: notice.href } : {}),
+          });
+        }
+      } catch {
+        // the bell catches up on the next look
+      }
+    }
+    void look();
+    const timer = window.setInterval(() => void look(), 60_000);
+    const onReturn = () => {
+      if (document.visibilityState === "visible") void look();
+    };
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [profile.id, profile.role, productionApi]);
 
   useEffect(() => {
     if (profile.role !== "admin") return;
@@ -300,9 +376,9 @@ export function Shell({ children }: { children: ReactNode }) {
     };
   }, [devPreview, meetingSummaries, profile.role]);
 
-  // locally, paying the fenty demo is a new booking too
+  // locally, paying the fenty demo is a new booking too (for the studio, never a member)
   useEffect(() => {
-    if (!devPreview) return;
+    if (!devPreview || profile.role !== "admin") return;
     const check = () => {
       const demo = fentyDemoProposal();
       if (!demo.paid || !demo.paidAt) return;
@@ -325,7 +401,7 @@ export function Shell({ children }: { children: ReactNode }) {
     // on opening the app (paid in this tab) and whenever another tab pays it
     check();
     return onPreviewProposalsChange(check);
-  }, [devPreview, router]);
+  }, [devPreview, profile.role, router]);
 
   useEffect(() => {
     if (profile.role !== "admin") return;
@@ -374,7 +450,13 @@ export function Shell({ children }: { children: ReactNode }) {
 
   const email = user?.email ?? "";
   const isAdmin = profile.role === "admin";
-  const navItems = isAdmin ? ADMIN_NAV : TEAM_NAV;
+  const currentPath = useRouterState({ select: (state) => state.location.pathname });
+  // the founder sees everything; another admin, what she's given them
+  const navItems = isAdmin
+    ? ADMIN_NAV.filter((item) => !item.area || hasAccess(profile, item.area))
+    : TEAM_NAV;
+  const area = areaForPath(currentPath);
+  const closedToMe = isAdmin && area !== null && !hasAccess(profile, area);
   const givenName = profile.full_name?.trim() || "";
   const displayName = givenName || email;
   const initial = (displayName || email || "s").charAt(0).toLowerCase();
@@ -452,15 +534,36 @@ export function Shell({ children }: { children: ReactNode }) {
               email={email}
               initial={initial}
               isAdmin={isAdmin}
+              founder={Boolean(profile.is_owner)}
               onSignOut={signOut}
             />
           </div>
         </aside>
 
         <main ref={mainRef} className="studio-pearl-main">
-          {children}
+          {/* local only: seeing the studio as a member, and the way back */}
+          {import.meta.env.DEV && !isAdmin && isDevPreviewEnabled() ? (
+            <p className="studio-preview-as">
+              you're seeing what {profile.full_name?.split(" ")[0] ?? "a member"} sees · local only
+              <a href="/dashboard?as=admin">back to the studio</a>
+            </p>
+          ) : null}
+          {closedToMe ? (
+            <div className="studio-home studio-prod-closed">
+              <p className="studio-kicker">not open to you</p>
+              <h1>this part of the studio isn't yours</h1>
+              <p>ask sukii if you need it. she decides what each admin can open.</p>
+              <Link to="/dashboard" className="studio-today-go is-pearl">
+                back to today
+              </Link>
+            </div>
+          ) : (
+            children
+          )}
         </main>
       </div>
+      {/* the first time in, and whenever it changes: how we flow, agreed before anything else */}
+      <HowWeFlowGate />
       <NoticeModal
         open={noticeModal.open}
         notices={noticeModal.notices}
@@ -520,7 +623,7 @@ function useStudioNotices() {
   return notices;
 }
 
-function useNoticeModal(notices: StudioNotice[]) {
+function useNoticeModal(notices: StudioNotice[], onRead?: (ids: string[]) => void) {
   const [open, setOpen] = useState(false);
   const surfaced = useRef(new Set<string>());
   const opened = useRef(false);
@@ -535,12 +638,15 @@ function useNoticeModal(notices: StudioNotice[]) {
       surfaced.current.add(notice.id);
       if (!notice.toasted) {
         const href = notice.href;
+        // a production's changes: a quiet "view them", not a button
+        const changed = notice.title === PRODUCTION_CHANGED;
         toast(noticeTitle(notice.title), {
           description: notice.body,
+          ...(changed ? { classNames: { actionButton: "studio-toast-quiet" } } : {}),
           ...(href
             ? {
                 action: {
-                  label: "open",
+                  label: changed ? "view them" : "open",
                   onClick: () => {
                     if (href === "/settings") {
                       void router.navigate({ to: "/settings" });
@@ -556,6 +662,10 @@ function useNoticeModal(notices: StudioNotice[]) {
                     }
                     const slug = href.split("/").filter(Boolean).pop();
                     if (!slug) return;
+                    if (href.startsWith("/production/")) {
+                      void router.navigate({ to: "/production/$slug", params: { slug } });
+                      return;
+                    }
                     void router.navigate({ to: "/pipeline/$id", params: { id: slug } });
                   },
                 },
@@ -576,7 +686,10 @@ function useNoticeModal(notices: StudioNotice[]) {
   function onOpenChange(next: boolean) {
     setOpen(next);
     if (next) opened.current = true;
-    if (!next && opened.current && unread) markNoticesRead();
+    if (!next && opened.current && unread) {
+      onRead?.(notices.filter((notice) => !notice.read).map((notice) => notice.id));
+      markNoticesRead();
+    }
   }
 
   function clear(id: string) {
@@ -704,6 +817,7 @@ function AccountMenu({
   email,
   initial,
   isAdmin,
+  founder = false,
   onSignOut,
   compact = false,
 }: {
@@ -712,6 +826,7 @@ function AccountMenu({
   email: string;
   initial: string;
   isAdmin: boolean;
+  founder?: boolean;
   onSignOut: () => void;
   compact?: boolean;
 }) {
@@ -723,7 +838,9 @@ function AccountMenu({
         {!compact ? (
           <span className="min-w-0 flex-1">
             <b className="truncate">{who}</b>
-            <span className="studio-pearl-role">{isAdmin ? "administrator" : "team member"}</span>
+            <span className="studio-pearl-role">
+              {founder ? "founder" : isAdmin ? "admin" : "gang"}
+            </span>
           </span>
         ) : null}
         <ChevronDown className="size-3.5 shrink-0 opacity-45" />

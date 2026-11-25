@@ -73,6 +73,8 @@ import { useDevPreview } from "@/lib/use-dev-preview";
 import { formatDateNumeric } from "@/lib/money";
 import { readBookings, studioClock, studioDay } from "@/lib/studio-bookings";
 import { cn } from "@/lib/utils";
+import { isDevPreviewEnabled } from "@/lib/dev-preview";
+import { memberToPreview } from "@/lib/preview-production";
 
 const TASK_KINDS: DeskKind[] = ["inquiry", "production", "manual"];
 const glanceShimmer = "[--base-color:#ff4d94] [--base-gradient-color:#ff1493]";
@@ -133,7 +135,7 @@ function shiftDay(day: string, delta: number) {
   return stamp(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function MonthBoard({
+export function MonthBoard({
   marks,
   selected,
   onSelect,
@@ -308,6 +310,10 @@ export function TodayHome({
   onCreateTask: (values: DeskTaskDraft) => Promise<TaskRow>;
 }) {
   const [adding, setAdding] = useState(false);
+  // locally: an active member on a shared production, to see the studio as
+  const [previewMember] = useState(() =>
+    import.meta.env.DEV && isDevPreviewEnabled() ? memberToPreview() : null,
+  );
   const [leadsOpen, setLeadsOpen] = useState(false);
   const [todayOpen, setTodayOpen] = useState(false);
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -607,6 +613,15 @@ export function TodayHome({
           <Link to="/pipeline" className="studio-today-go is-pearl">
             open the book
           </Link>
+          {/* local only, for now: the studio as a member on a shared production sees it */}
+          {previewMember ? (
+            <a
+              href={`/dashboard?as=${previewMember.id}`}
+              className="studio-today-go is-pearl is-local"
+            >
+              see {previewMember.full_name.split(" ")[0]}'s today · local
+            </a>
+          ) : null}
         </div>
       </header>
 
@@ -1285,6 +1300,16 @@ export function AddInquiry({
               );
             })}
           </div>
+          {step.kind === "multi" && (values.sources ?? []).includes("referral") ? (
+            <input
+              value={values.referral_name ?? ""}
+              maxLength={120}
+              autoComplete="off"
+              placeholder="who referred them?"
+              aria-label="who referred them"
+              onChange={(event) => setField("referral_name", event.target.value)}
+            />
+          ) : null}
           {step.kind === "choice" && step.otherField && values[step.field] === "other" ? (
             <input
               value={String(values[step.otherField] ?? "")}

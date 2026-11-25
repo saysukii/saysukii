@@ -432,8 +432,8 @@ function readSituation(
             ? "lock in the date with them"
             : f.balance
               ? "the date is held, the balance reminders go out on their own"
-              : "the date is held, production lives in the project now",
-        nextMoveNote: "this is a project now.",
+              : "the date is held. plan it with the team in productions",
+        nextMoveNote: "this is a production now.",
       };
     }
     return {
@@ -442,8 +442,8 @@ function readSituation(
       nextMoveTitle:
         f.event.tbd || !f.event.date
           ? "lock in the date with them"
-          : "the date is held, production lives in the project now",
-      nextMoveNote: "this is a project now.",
+          : "the date is held. plan it with the team in productions",
+      nextMoveNote: "this is a production now.",
     };
   }
 

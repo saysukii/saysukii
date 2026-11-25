@@ -16,7 +16,7 @@ The public site is how people find the flowers. **The studio is how the work get
 **Founder:** Sukii
 **Built by:** [TAĪSTU](https://taistu.com)
 
-**Admins** see the whole studio: Today, Inquiries, Schedule, Library, and Settings. **Team members** see Today for now; the rooms they work in arrive with the next phase (see [What's next](#whats-next)).
+**Sukii, the founder,** sees the whole studio: Today, Inquiries, Productions, Schedule, Library, and Settings. **Other admins** are crew too, and open only the areas she gives them in Library → Gang (inquiries, productions, schedule, library, the gang, pay, settings); the gang, pay, settings, productions, and inquiries are also checked on the server. An admin without inquiries gets a crew Today: their productions, calendar, and week. **Team members** see Today, Productions, and their Schedule: only the productions they're on, and only their own notices.
 
 ---
 
@@ -60,7 +60,7 @@ Opening an inquiry shows:
 - **The moment:** the date, or "tbd", and the place, with a place search that suggests real addresses.
 - **Client details** and the client's **form answers**.
 
-Then five tabs:
+Then five tabs, and a sixth once the job is booked:
 
 | Tab               | What it does                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -70,13 +70,19 @@ Then five tabs:
 | **Files**         | Drop in references, layouts, and photos for this job. Open them or remove them.                                                                                                                                                                                                                                                                                                                                                    |
 | **Internal note** | Notes only the studio sees.                                                                                                                                                                                                                                                                                                                                                                                                        |
 
+### Productions (`/production/<name>`)
+
+A booked job's production at its own address, titled "Say Sukii x <project>" so it reads well when it's texted or emailed. Members sign in to open it, and only the productions they're on. It shows the event, the vision, the order, the recipe, the files, and every task, and each member can check off their own. Every booked job gets one, listed under **Productions** in the sidebar; the inquiry itself stays the studio's. Admins plan it in **edit**: the project's name, the venue and studio, each production day's hours, the dress code, the mood + feel pages, the floral order (brought in from the proposal's line items), the stem recipe, tasks, logistics files, and the **schedule**, a roster of who works which day with each person's hours and pay at their rate, by the hour or flat for the production (set in the team directory). A shift can go on several days at once, and removing a production day takes its shifts with it. Once the last shift ends, the studio's admins get the hours by email on their own, with a spreadsheet ready for Google Sheets. The schedule stays in edit; the team sees who's on each production day as bubbles beside its date, and their own shifts on their Today. The team only ever receives the chosen mood + feel pages, copied into their own pdf, never the priced proposal or the client's details. A production moves along on its own with its production days: **pre-production** until the first day starts, **production** through the last day's hours, then **post-production** for 48 hours for wrap-up (cleaning buckets, resetting the studio). After that it's **wrapped**: the team can't open it anymore, and it folds away at the bottom of the productions list.
+
+**Edit first, share last.** Nothing reaches the team while the studio edits: no emails as shifts and tasks are saved, and the team can't see the production. People can be added to the team in Library → Team without being invited, so they can be scheduled first. When the production is ready, **share with the team** sends everyone with something new one email with their whole schedule there (shifts, hours, and tasks), and a notice on their bell. Anyone not invited yet gets it as their invitation, with a link to join. After that, changes wait for **share updates**, and only the people whose schedule changed hear about it. A member's **Today** lists their events, soonest first, and their open tasks.
+
 ### Schedule (`/calendar`)
 
 The month, with every booked call, the studio's Google Calendar events, and the dates held for booked jobs. Opening a call shows a brief from that client's inquiry. With Granola connected, the meeting notes land on the call. **Settings** on this page set the hours clients can book, the length of a call, and how you meet. **Copy link** gives you the booking page to share.
 
 ### Library (`/library`)
 
-The studio's book of people and places, and its files.
+The studio's book of people and places, and its files. **Team** is where people are invited, and where an admin turns a freelancer's account on for an event and off after. Someone inactive can't sign in.
 
 | Book        | What it holds                                                                                                                  |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -94,13 +100,13 @@ The **files** shelf holds the studio's own papers alongside each client's files.
 
 ### Settings (`/settings`)
 
-| Section         | What it's for                                                                                                     |
-| --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Account**     | Your name and password.                                                                                           |
+| Section         | What it's for                                                                                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Account**     | Your name and password.                                                                                                                                                     |
 | **Connections** | **Google** (Calendar, Gmail, and Drive in one sign-in), **Square** (the item catalog, invoices, and deposits), and **Granola** (paste the workspace key for meeting notes). |
-| **People**      | Invite someone into the studio, as an admin or a team member.                                                     |
-| **Forms**       | Edit the questions on the public inquiry form, path by path.                                                      |
-| **Health**      | Anything that didn't go through, like a letter that didn't send or a payment link that failed.                    |
+| **People**      | Invite someone into the studio, as an admin or a team member.                                                                                                               |
+| **Forms**       | Edit the questions on the public inquiry form, path by path.                                                                                                                |
+| **Health**      | Anything that didn't go through, like a letter that didn't send or a payment link that failed.                                                                              |
 
 ---
 
@@ -145,9 +151,7 @@ A forgotten password resets from the same sign-in page.
 
 The next phase moves past the booked date, into the making of the work and the people who make it.
 
-**Production space.** Today a paid deposit opens a project behind the scenes and puts it on the calendar, but it has no room of its own. The next room is where a booked job is built: the arrangements and their recipes, stem counts by variety and color, the shopping list and orders to vendors from the Library, the timeline and load-in using the venue's notes, and the job's files in one place. None of that exists yet: arrangements, recipes, stems, and orders will be designed and built with this room.
-
-**Team coordination.** Team members can sign in today, but they only see Today. The next phase gives them the rooms they work in: who is on which job, call times for prep and install days, tasks handed to a person, and the production sheet each of them needs on the day.
+**Production, deeper.** Productions now hold the order, the recipe, tasks, and files. Still to come: a week view of the tasks, shifts with call times for prep and install days, and stem counts that become orders to vendors from the Library.
 
 ---
 
@@ -230,7 +234,7 @@ In Google Cloud, add those callbacks and enable Gmail send, Gmail read, Calendar
 
 Site URL is `https://inside.saysukii.com`. Allow redirects to `/auth/callback`, `/onboarding`, and `/onboarding?reset=1`.
 
-**Every five minutes.** The `studio_cron` migration has Supabase call two routes on the app: `/api/cron/scheduled-letters` sends letters whose time has come, and `/api/cron/gmail-inbound` files a client's reply onto the inquiry. The `meeting_summary_sync` migration adds `/api/cron/meeting-summaries`, which brings in Granola's summary for each call on the Google calendar that started in the last twelve hours. It needs an API key from the Granola account that records the calls, made with the **Personal notes** scope, saved in **Settings**. A workspace key only sees notes shared with the whole workspace, so it misses new calls. It reads the app's address and the cron secret from Vault, so add both once in the SQL editor, using the same `CRON_SECRET` that's on Vercel:
+**Every five minutes.** The `studio_cron` migration has Supabase call two routes on the app: `/api/cron/scheduled-letters` sends letters whose time has come, and `/api/cron/gmail-inbound` files a client's reply onto the inquiry. The `productions` migration adds `/api/cron/production-notices`, which emails the studio the hours of each production whose last shift has ended. Letters to the team go only when the studio shares a production. The `meeting_summary_sync` migration adds `/api/cron/meeting-summaries`, which brings in Granola's summary for each call on the Google calendar that started in the last twelve hours. It needs an API key from the Granola account that records the calls, made with the **Personal notes** scope, saved in **Settings**. A workspace key only sees notes shared with the whole workspace, so it misses new calls. It reads the app's address and the cron secret from Vault, so add both once in the SQL editor, using the same `CRON_SECRET` that's on Vercel:
 
 ```sql
 select vault.create_secret('https://inside.saysukii.com', 'studio_app_url');

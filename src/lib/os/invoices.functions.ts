@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import type { Json } from "@/integrations/supabase/types";
 import { fillTemplate } from "@/lib/email-templates";
 import { signatureName } from "@/lib/os/mail-signature";
@@ -21,7 +21,7 @@ const item = z.object({
  * in the app, and the client gets Sukii's letter from gmail with a button to it.
  */
 export const sendInquiryInvoice = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({
@@ -138,7 +138,7 @@ export const sendInquiryInvoice = createServerFn({ method: "POST" })
  * a check. It's kept on the invoice like a card payment, and the receipt (when asked for) names how.
  */
 export const recordInvoicePayment = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({
@@ -185,7 +185,7 @@ export const recordInvoicePayment = createServerFn({ method: "POST" })
  * with a payment on it isn't canceled here, since that money would need a refund first.
  */
 export const cancelInquiryInvoice = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ invoice_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase

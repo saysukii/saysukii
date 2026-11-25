@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import type { SavedDiscount } from "@/lib/discount";
 
 /** The studio's named discounts, to pick again for any client. Empty until the migration runs. */
 export const listStudioDiscounts = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .handler(async ({ context }): Promise<SavedDiscount[]> => {
     const { data, error } = await context.supabase
       .from("studio_discounts")
@@ -18,7 +18,7 @@ export const listStudioDiscounts = createServerFn({ method: "GET" })
 
 /** Keeps a named discount; using a name again updates it. */
 export const saveStudioDiscount = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({
@@ -52,7 +52,7 @@ export const saveStudioDiscount = createServerFn({ method: "POST" })
   });
 
 export const removeStudioDiscount = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().min(1) }).parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("studio_discounts").delete().eq("id", data.id);

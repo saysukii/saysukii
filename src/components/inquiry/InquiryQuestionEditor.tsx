@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, GripVertical, Trash2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
+import { ConfirmRemove } from "@/components/studio/ConfirmRemove";
 import { INTEREST_OPTIONS } from "@/lib/os/inquiry-schema";
 import {
   decodeInquiryDrafts,
@@ -259,18 +260,20 @@ export function InquiryQuestionEditor() {
                     >
                       <ChevronDown size={16} />
                     </button>
-                    <button
-                      type="button"
-                      aria-label="Delete question"
-                      onClick={() =>
+                    <ConfirmRemove
+                      question="take this question off the form?"
+                      action="take it off"
+                      onConfirm={() =>
                         updatePath({
                           order: draft.order.filter((id) => id !== step.id),
                           copy: draft.copy,
                         })
                       }
                     >
-                      <Trash2 size={15} />
-                    </button>
+                      <button type="button" aria-label="Delete question">
+                        <Trash2 size={15} />
+                      </button>
+                    </ConfirmRemove>
                   </div>
                 </article>
               </li>

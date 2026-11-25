@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, DirectoryContact } from "@/integrations/supabase/types";
 import { appFileLink } from "@/lib/app-file-link";
 import { capitalizeName } from "@/lib/name-case";
@@ -84,7 +84,7 @@ function optional(value: string | null | undefined) {
 }
 
 export const listClients = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) =>
     z
       .object({ include_archived: z.boolean().optional().default(false) })
@@ -112,7 +112,7 @@ async function resolveClientId(client: SupabaseClient<Database>, key: string) {
 }
 
 export const getClient = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => z.object({ id: z.string().trim().min(1).max(160) }).parse(input))
   .handler(async ({ data, context }) => {
     const clientId = await resolveClientId(context.supabase, data.id);
@@ -192,7 +192,7 @@ export const getClient = createServerFn({ method: "GET" })
   });
 
 export const saveClient = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => clientInput.parse(input))
   .handler(async ({ data, context }) => {
     const payload = {
@@ -213,7 +213,7 @@ export const saveClient = createServerFn({ method: "POST" })
   });
 
 export const setClientAddress = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) =>
     z.object({ id: z.string().uuid(), address: z.string().trim().max(500) }).parse(input),
   )
@@ -272,7 +272,7 @@ const importVendorInput = z
   .max(500);
 
 export const importClients = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => importClientInput.parse(input))
   .handler(async ({ data, context }) => {
     const emails = data.map((row) => row.email.toLowerCase());
@@ -306,7 +306,7 @@ export const importClients = createServerFn({ method: "POST" })
   });
 
 export const archiveClient = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => archiveInput.parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
@@ -318,7 +318,7 @@ export const archiveClient = createServerFn({ method: "POST" })
   });
 
 export const listDirectories = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .handler(async ({ context }) => {
     const [venues, vendors] = await Promise.all([
       context.supabase.from("venues").select("*").eq("archived", false).order("name"),
@@ -330,7 +330,7 @@ export const listDirectories = createServerFn({ method: "GET" })
   });
 
 export const saveVenue = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => venueInput.parse(input))
   .handler(async ({ data, context }) => {
     const payload = {
@@ -354,7 +354,7 @@ export const saveVenue = createServerFn({ method: "POST" })
   });
 
 export const archiveVenue = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => archiveInput.parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
@@ -366,7 +366,7 @@ export const archiveVenue = createServerFn({ method: "POST" })
   });
 
 export const saveVendor = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => vendorInput.parse(input))
   .handler(async ({ data, context }) => {
     const payload = {
@@ -388,7 +388,7 @@ export const saveVendor = createServerFn({ method: "POST" })
   });
 
 export const archiveVendor = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => archiveInput.parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
@@ -400,7 +400,7 @@ export const archiveVendor = createServerFn({ method: "POST" })
   });
 
 export const importVenues = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => importVenueInput.parse(input))
   .handler(async ({ data, context }) => {
     const { data: existing, error: lookupError } = await context.supabase
@@ -434,7 +434,7 @@ export const importVenues = createServerFn({ method: "POST" })
   });
 
 export const importVendors = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "library")])
   .validator((input: unknown) => importVendorInput.parse(input))
   .handler(async ({ data, context }) => {
     const { data: existing, error: lookupError } = await context.supabase

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess, requireStudioAuth } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, EventType, InquiryStatus } from "@/integrations/supabase/types";
 import { appFileLink, FILE_LINK_SECONDS } from "@/lib/app-file-link";
 import { capitalizeName } from "@/lib/name-case";
@@ -333,7 +333,7 @@ export const submitPublicInquiry = createServerFn({ method: "POST" })
   });
 
 export const listFreshArrivals = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .handler(async ({ context }) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const inquiryResult = await context.supabase
@@ -361,7 +361,7 @@ export const listFreshArrivals = createServerFn({ method: "GET" })
   });
 
 export const createAdminInquiry = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => adminInquiryInput.parse(input))
   .handler(async ({ data, context }) => {
     const inquiry = await createInquiryWithClient(context.supabase, data, context.profile.id);
@@ -369,7 +369,7 @@ export const createAdminInquiry = createServerFn({ method: "POST" })
   });
 
 export const listInquiryPipeline = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries", "schedule")])
   .handler(async ({ context }) => {
     const rows = await listInquiriesWithClients(context.supabase, DESK_DETECTION_STATUSES, {
       withClosed: true,
@@ -410,7 +410,7 @@ async function awaitingStudioReply(client: StudioClient, inquiryIds: string[]) {
 }
 
 export const getInquiryDashboard = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .handler(async ({ context }) => {
     const [inquiries, projectsResult, clientsResult, tasks, appointmentsResult] = await Promise.all(
       [
@@ -498,7 +498,7 @@ export const getInquiryDashboard = createServerFn({ method: "GET" })
   });
 
 export const setInquiryStatus = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({
@@ -562,7 +562,7 @@ export const setInquiryStatus = createServerFn({ method: "POST" })
   });
 
 export const updateInquiryMoment = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({
@@ -616,7 +616,7 @@ export const updateInquiryMoment = createServerFn({ method: "POST" })
   });
 
 export const syncStudioInbox = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .handler(async () => {
     try {
       const { runGmailInboundSync } = await import("@/lib/os/gmail-inbound.server");
@@ -761,7 +761,7 @@ async function resolveInquiryId(client: StudioClient, key: string) {
 }
 
 export const getInquiryWorkspace = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().trim().min(1).max(160) }).parse(input))
   .handler(async ({ data, context }) => {
     const inquiryId = await resolveInquiryId(context.supabase, data.id);
@@ -1030,7 +1030,7 @@ export const getInquiryWorkspace = createServerFn({ method: "GET" })
   });
 
 export const reviewDetectedInquiry = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({
@@ -1100,7 +1100,7 @@ export const reviewDetectedInquiry = createServerFn({ method: "POST" })
   });
 
 export const addInquiryMessage = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({
@@ -1195,7 +1195,7 @@ export const addInquiryMessage = createServerFn({ method: "POST" })
   });
 
 export const cancelScheduledLetter = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: removed, error } = await context.supabase
@@ -1230,7 +1230,7 @@ export const freshInquiryFileLink = createServerFn({ method: "POST" })
   });
 
 export const removeInquiryFile = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: file, error } = await context.supabase
@@ -1288,7 +1288,7 @@ export const updateInquiryNote = createServerFn({ method: "POST" })
   });
 
 export const deleteInquiryNote = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const note = await studioNote(data.id);
@@ -1299,7 +1299,7 @@ export const deleteInquiryNote = createServerFn({ method: "POST" })
   });
 
 export const attachInquiryFile = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({

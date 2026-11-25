@@ -52,7 +52,73 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
       paidAt: "2026-11-02T18:00:00.000Z",
     };
     const origin = data.origin.replace(/\/$/, "");
+    const { teamInviteHtml, hoursSummaryHtml } = await import("@/lib/os/production-email");
+    const { hoursCsv, hoursSummary } = await import("@/lib/os/production");
+    // a sample production a week out: two people's shifts, one hourly and one flat
+    const shift = (
+      profile_id: string,
+      day: string,
+      starts: string,
+      ends: string,
+      role: string,
+      location: string,
+    ) => ({ profile_id, day, starts, ends, role, location });
+    const shifts = [
+      shift("cara", "2026-11-30", "10:00", "18:00", "production", "studio"),
+      shift("cara", "2026-12-01", "09:00", "13:00", "production", "studio"),
+      shift("cara", "2026-12-03", "10:00", "22:00", "lead", "studio"),
+      shift("cara", "2026-12-04", "07:00", "13:00", "install", "venue"),
+      shift("nina", "2026-11-30", "14:00", "22:00", "production hands", "studio"),
+      shift("nina", "2026-12-04", "07:00", "13:00", "install", "venue"),
+      shift("nina", "2026-12-04", "18:00", "23:00", "breakdown", "venue"),
+    ];
+    const summary = hoursSummary(
+      shifts,
+      new Map([
+        ["cara", "Cara Ortiz"],
+        ["nina", "Nina Park"],
+      ]),
+      { cara: { cents: 2800, per: "hour" }, nina: { cents: 40000, per: "production" } },
+    );
+    const productionUrl = `${origin}/production/lumen-studio-live-labs`;
     return [
+      {
+        caption:
+          "to the team — invited to the studio: sent when sukii first shares a production they're on",
+        html: teamInviteHtml({
+          link: `${origin}/onboarding?walk=1`,
+          role: "team",
+          invitedBy: "Sukii",
+          given: "Maya Lopez",
+          projectName: "Lumen Studio: Live + Labs",
+          origin,
+        }),
+      },
+      {
+        caption: "to the team — an admin invited from the gang",
+        html: teamInviteHtml({
+          link: `${origin}/onboarding?walk=1`,
+          role: "admin",
+          invitedBy: "Sukii",
+          given: "Cara Ortiz",
+          origin,
+        }),
+      },
+      {
+        caption:
+          "to the studio — the hours for a production, at each person's rate (the spreadsheet is attached for google sheets)",
+        html: hoursSummaryHtml({
+          projectName: "Lumen Studio: Live + Labs",
+          range: "11/30 – 12/4",
+          url: productionUrl,
+          summary,
+          origin,
+        }),
+        sheet: {
+          name: "lumen-studio-live-labs-hours.csv",
+          csv: hoursCsv("Lumen Studio: Live + Labs", summary),
+        },
+      },
       {
         caption: "to the studio — someone finishes the inquiry form",
         html: inquiryReceivedHtml(
@@ -70,7 +136,7 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
         [
           ["events", "Nia Okafor", "brand_activation", "Soho House, Miami Beach"],
           ["deliveries", "Jordan Pierre", "other", "Little Haiti, Miami"],
-          ["flowers", "Ana Ruiz", "subscription", "Coconut Grove, Miami"],
+          ["subscriptions", "Ana Ruiz", "subscription", "Coconut Grove, Miami"],
         ] as const
       ).map(([kind, clientName, eventType, venue]) => ({
         caption: `to the studio — someone writes in about ${kind}`,
@@ -183,6 +249,118 @@ const loadEmailPreviews = createServerFn({ method: "GET" })
     ];
   });
 
+/** read a csv the way a spreadsheet does: commas between cells, quotes around ones with commas */
+function readCsv(csv: string) {
+  return csv.split("\n").map((line) => {
+    const cells: string[] = [];
+    let cell = "";
+    let quoted = false;
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index]!;
+      if (quoted && char === '"' && line[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = !quoted;
+      } else if (char === "," && !quoted) {
+        cells.push(cell);
+        cell = "";
+      } else {
+        cell += char;
+      }
+    }
+    cells.push(cell);
+    return cells;
+  });
+}
+
+/** the attached spreadsheet, the way it opens in google sheets, and the file itself to download */
+function SheetPreview({ name, csv }: { name: string; csv: string }) {
+  const [head = [], ...rows] = readCsv(csv);
+  const numeric = (value: string) => /^\d+(\.\d+)?$/.test(value);
+  const letter = (index: number) => String.fromCharCode(65 + index);
+  const cell = {
+    padding: "5px 10px",
+    border: "1px solid #e2e3e3",
+    whiteSpace: "nowrap" as const,
+    fontSize: 12,
+    color: "#1f1f1f",
+  };
+  const gutter = {
+    ...cell,
+    background: "#f8f9fa",
+    color: "#5f6368",
+    fontSize: 11,
+    textAlign: "center" as const,
+  };
+  return (
+    <figure style={{ maxWidth: 1040, margin: "0 auto", padding: "8px 24px 40px" }}>
+      <figcaption
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          padding: "0 0 10px",
+          color: "rgba(36, 34, 31, 0.55)",
+          fontSize: 13,
+        }}
+      >
+        <span>the attached spreadsheet, as it opens in google sheets</span>
+        <a
+          href={`data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`}
+          download={name}
+          style={{ color: "#ff4d94" }}
+        >
+          download {name}
+        </a>
+      </figcaption>
+      <div
+        style={{
+          overflowX: "auto",
+          background: "#fff",
+          borderRadius: 8,
+          boxShadow: "0 10px 30px rgba(36, 34, 31, 0.08)",
+          fontFamily: "Arial, Helvetica, sans-serif",
+        }}
+      >
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <thead>
+            <tr>
+              <th style={{ ...gutter, width: 36 }} />
+              {head.map((_, index) => (
+                <th key={index} style={gutter}>
+                  {letter(index)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={gutter}>1</td>
+              {head.map((value) => (
+                <td key={value} style={{ ...cell, fontWeight: 700 }}>
+                  {value}
+                </td>
+              ))}
+            </tr>
+            {rows.map((row, at) => (
+              <tr key={at}>
+                <td style={gutter}>{at + 2}</td>
+                {row.map((value, index) => (
+                  <td key={index} style={{ ...cell, textAlign: numeric(value) ? "right" : "left" }}>
+                    {value}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </figure>
+  );
+}
+
 function LetterFrame({ title, html }: { title: string; html: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(720);
@@ -285,7 +463,9 @@ function DeviceMock({
 
 function EmailPreviewPage() {
   const load = useServerFn(loadEmailPreviews);
-  const [letters, setLetters] = useState<Array<{ caption: string; html: string }>>([]);
+  const [letters, setLetters] = useState<
+    Array<{ caption: string; html: string; sheet?: { name: string; csv: string } }>
+  >([]);
   const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
   const focus = params.get("letter");
   const mockup = params.get("mockup") === "1";
@@ -307,11 +487,15 @@ function EmailPreviewPage() {
     );
   }
 
-  // client letters first, then the studio's own notes, each under its own heading
+  // client letters first, then the team's, then the studio's own notes, each under its heading
   const groups = [
     {
       title: "to clients",
       letters: shown.filter((item) => item.caption.startsWith("to the client")),
+    },
+    {
+      title: "to the team",
+      letters: shown.filter((item) => item.caption.startsWith("to the team")),
     },
     {
       title: "to the studio",
@@ -338,11 +522,13 @@ function EmailPreviewPage() {
             {group.title} · {group.letters.length}
           </h2>
           {group.letters.map((item) => (
-            <LetterFrame
-              key={item.caption}
-              title={item.caption.replace(/^to (the client|the studio) — /, "")}
-              html={item.html}
-            />
+            <div key={item.caption}>
+              <LetterFrame
+                title={item.caption.replace(/^to (the client|the team|the studio) — /, "")}
+                html={item.html}
+              />
+              {item.sheet ? <SheetPreview {...item.sheet} /> : null}
+            </div>
           ))}
         </section>
       ))}

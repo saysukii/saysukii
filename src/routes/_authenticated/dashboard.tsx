@@ -6,11 +6,13 @@ import { toast } from "sonner";
 
 import { releaseLoginBloom } from "@/components/portal/StudioLoader";
 import { TodayHome, type DeskTaskDraft } from "@/components/portal/TodayHome";
+import { MemberToday } from "@/components/production/MemberToday";
 import type { InquiryFormValues } from "@/lib/os/inquiry-form";
 import { createAdminInquiry, getInquiryDashboard } from "@/lib/os/inquiries.functions";
 import { listStudioCalendarEvents } from "@/lib/os/bookings.functions";
 import { completeTask, createManualTask } from "@/lib/os/tasks.functions";
 import { getDevPreviewDashboard } from "@/lib/dev-preview";
+import { hasAccess } from "@/lib/os/access";
 import { useDevPreview } from "@/lib/use-dev-preview";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -28,6 +30,17 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
+  const { profile } = Route.useRouteContext();
+  // the studio's today is its inquiries; anyone without them, crew or admin, gets their own day:
+  // the productions they're on, their calendar, and their week
+  return hasAccess(profile, "inquiries") ? (
+    <AdminToday />
+  ) : (
+    <MemberToday name={profile.full_name} />
+  );
+}
+
+function AdminToday() {
   const { profile } = Route.useRouteContext();
   const devPreview = useDevPreview();
   const router = useRouter();

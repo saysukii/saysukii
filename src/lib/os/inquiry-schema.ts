@@ -88,6 +88,7 @@ export const EMPTY_INQUIRY_DRAFT: InquiryFormValues = {
   arrangement_size: "",
   recipient: "",
   sources: [],
+  referral_name: "",
   space: "",
   space_other: "",
   cadence: "",
@@ -111,6 +112,14 @@ export function mapInquiryClientType(values: InquiryFormValues): ClientType {
   if (values.event_setting === "corporate") return "corporate";
   if (values.interest === "set_design") return "brand";
   return "individual";
+}
+
+/** "instagram, referral (Maya Santos)": the ways they found the studio, with who referred them */
+export function sourceLine(sources: string[], referralName?: string) {
+  const who = referralName?.trim();
+  return sources
+    .map((source) => (source === "referral" && who ? `referral (${who})` : source))
+    .join(", ");
 }
 
 export function toInquirySubmitValues(values: InquiryFormValues): InquiryFormValues {
@@ -157,7 +166,9 @@ export function toInquirySubmitValues(values: InquiryFormValues): InquiryFormVal
       values.interest === "deliveries"
         ? values.arrangement_size || values.budget_range
         : values.budget_range,
-    source: values.sources?.length ? values.sources.join(", ") : values.source,
+    source: values.sources?.length
+      ? sourceLine(values.sources, values.referral_name)
+      : values.source,
     message: withDatesNote(
       details,
       values.event_date_tbd || values.interest !== "events" ? [] : dates,

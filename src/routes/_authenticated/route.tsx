@@ -7,9 +7,11 @@ export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
     if (isDevPreviewEnabled()) {
+      // locally, "?as=cara" shows the studio as a sample member sees it
+      const { applyPreviewAs, previewSession } = await import("@/lib/preview-production");
+      applyPreviewAs((location.search as Record<string, unknown>)["as"]);
       return {
-        user: DEV_PREVIEW_USER,
-        profile: DEV_PREVIEW_PROFILE,
+        ...previewSession({ user: DEV_PREVIEW_USER, profile: DEV_PREVIEW_PROFILE }),
         devPreview: true as const,
       };
     }

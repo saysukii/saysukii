@@ -43,6 +43,19 @@ type Table<Row extends Record<string, unknown>> = {
 export type ProfileRow = {
   id: string;
   full_name: string | null;
+  /** the name the studio added them under, until they choose their own */
+  added_name?: string | null;
+  /** when their invitation went; empty while they're added but not invited yet */
+  invited_at?: string | null;
+  /** the founder: sees everything, and decides what each other admin can open */
+  is_owner?: boolean;
+  /** what an admin can open, set by the founder */
+  access?: string[];
+  /** the version of how we flow they agreed to, and when */
+  flow_version?: string | null;
+  flow_agreed_at?: string | null;
+  /** when they finished or skipped the tour of today; it never shows again after */
+  tour_seen_at?: string | null;
   email: string;
   role: AppRole;
   active: boolean;
@@ -334,7 +347,7 @@ export type ProjectRow = {
 
 export type FileRow = {
   id: string;
-  owner_type: "client" | "proposal" | "project" | "venue" | "inquiry" | "studio";
+  owner_type: "client" | "proposal" | "project" | "venue" | "inquiry" | "studio" | "production";
   owner_id: string;
   file_path: string;
   file_type: string | null;
@@ -501,6 +514,129 @@ export type TaskRow = {
   status: TaskStatus;
 };
 
+export type ProductionStatus = "pre_production" | "production" | "post_production" | "wrapped";
+
+export type ProductionRow = {
+  inquiry_id: string;
+  slug: string;
+  project_name: string;
+  studio_address: string | null;
+  dress_code: string | null;
+  vision_proposal_id: string | null;
+  vision_pages: number[];
+  vision_path: string | null;
+  vision_stamp: string | null;
+  /** when the hours went to the studio, after the last shift */
+  hours_sent_at: string | null;
+  /** when the studio last shared it with the team; until then the team can't see it */
+  shared_at: string | null;
+  reflection: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProductionDayRow = {
+  id: string;
+  inquiry_id: string;
+  day: string;
+  hours: string;
+  created_at: string;
+};
+
+export type ProductionItemStatus = "todo" | "in_progress" | "done";
+
+export type ProductionItemRow = {
+  id: string;
+  inquiry_id: string;
+  kind: string;
+  name: string;
+  quantity: number;
+  status: ProductionItemStatus;
+  /** who last moved its status along, and when */
+  status_by?: string | null;
+  status_at?: string | null;
+  sort: number;
+  created_at: string;
+};
+
+export type ProductionStemRow = {
+  id: string;
+  inquiry_id: string;
+  name: string;
+  color: string;
+  quantity: number | null;
+  /** the piece of the order this stem is for: the grand entrance, the reception arrangements */
+  item_id: string | null;
+  done: boolean;
+  sort: number;
+  created_at: string;
+};
+
+export type ProductionTaskRow = {
+  id: string;
+  inquiry_id: string;
+  title: string;
+  starts_at: string | null;
+  category: string;
+  location: string;
+  status: "open" | "done";
+  done_at: string | null;
+  done_by: string | null;
+  sort: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProductionPersonRow = {
+  inquiry_id: string;
+  profile_id: string;
+  added_at: string;
+  notified_at: string | null;
+  changed_at: string | null;
+};
+
+export type ProductionTaskPersonRow = {
+  task_id: string;
+  profile_id: string;
+  assigned_at: string;
+  notified_at: string | null;
+};
+
+export type ProductionShiftRow = {
+  id: string;
+  inquiry_id: string;
+  profile_id: string;
+  day: string;
+  /** "10:00", the studio's own clock */
+  starts: string;
+  /** "18:00"; before starts, it ends the next day */
+  ends: string;
+  role: string;
+  location: string;
+  notified_at: string | null;
+  created_at: string;
+};
+
+export type MemberRateRow = {
+  profile_id: string;
+  /** dollars in cents, by the hour or flat for a production */
+  cents: number;
+  per: "hour" | "production";
+  updated_at: string;
+};
+
+export type MemberNoticeRow = {
+  id: string;
+  profile_id: string;
+  kind: "tasks_assigned" | "added_to_production";
+  inquiry_id: string | null;
+  title: string;
+  body: string;
+  href: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
 export type WebhookEventRow = {
   id: string;
   provider: string;
@@ -547,6 +683,16 @@ export type Database = {
       integration_events: Table<IntegrationEventRow>;
       webhook_events: Table<WebhookEventRow>;
       tasks: Table<TaskRow>;
+      productions: Table<ProductionRow>;
+      production_days: Table<ProductionDayRow>;
+      production_items: Table<ProductionItemRow>;
+      production_stems: Table<ProductionStemRow>;
+      production_tasks: Table<ProductionTaskRow>;
+      production_task_people: Table<ProductionTaskPersonRow>;
+      production_people: Table<ProductionPersonRow>;
+      production_shifts: Table<ProductionShiftRow>;
+      member_rates: Table<MemberRateRow>;
+      member_notices: Table<MemberNoticeRow>;
     };
     Views: Record<string, never>;
     Functions: {

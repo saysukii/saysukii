@@ -323,6 +323,22 @@ function GuideField({
             );
           })}
         </div>
+        {step.kind === "multi" && (values.sources ?? []).includes("referral") ? (
+          <label className="auth-field inquire-other">
+            <span className="sr-only">Who referred you?</span>
+            <div className="auth-input">
+              <input
+                value={values.referral_name ?? ""}
+                placeholder="Who referred you?"
+                maxLength={120}
+                autoComplete="off"
+                disabled={disabled}
+                autoFocus
+                onChange={(event) => onChange("referral_name", event.target.value)}
+              />
+            </div>
+          </label>
+        ) : null}
         {step.kind === "choice" && step.otherField && selected === "other" ? (
           <label className="auth-field inquire-other">
             <span className="sr-only">Other</span>

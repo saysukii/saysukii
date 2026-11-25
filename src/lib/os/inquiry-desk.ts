@@ -337,7 +337,7 @@ export function nextMove(status: InquiryStatus) {
     case "booked":
       return {
         title: "the date is held",
-        note: "this is a project now. production will live in its own space.",
+        note: "this is a production now. plan it with the team in productions.",
         action: "see the work",
         focus: "proposal" as const,
       };

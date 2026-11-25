@@ -11,6 +11,7 @@ import { shareNote } from "@/lib/os/inquiry-desk";
 import { cn } from "@/lib/utils";
 import { MailFile, MailSignature, MailBody } from "@/components/inquiry/lead/composer";
 import { MailHtml } from "@/components/inquiry/lead/mail-html";
+import { ConfirmRemove } from "@/components/studio/ConfirmRemove";
 import {
   PORTAL_FILES,
   withoutSignoff,
@@ -345,13 +346,16 @@ export function MailFace({
                       ? `sends ${mailStamp(mail.at)}`
                       : "sending…"}
                   {onCancel && messages[index]?.id ? (
-                    <button
-                      type="button"
-                      className="studio-ghost"
-                      onClick={() => onCancel(messages[index]!.id)}
+                    <ConfirmRemove
+                      question={mail.failed ? "remove this letter?" : "cancel this letter?"}
+                      detail={mail.failed ? undefined : "it won't send. its words aren't kept."}
+                      action={mail.failed ? "remove" : "cancel it"}
+                      onConfirm={() => onCancel(messages[index]!.id)}
                     >
-                      {mail.failed ? "remove" : "cancel"}
-                    </button>
+                      <button type="button" className="studio-ghost">
+                        {mail.failed ? "remove" : "cancel"}
+                      </button>
+                    </ConfirmRemove>
                   ) : null}
                 </p>
               ) : null}

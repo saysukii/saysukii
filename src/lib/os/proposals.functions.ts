@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import { BOOK_DETECTION_STATUSES } from "@/lib/os/inquiry-detection";
 import type {
   ClientRow,
@@ -77,7 +77,7 @@ const proposalInput = z.object({
 });
 
 export const listProposals = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("proposals")
@@ -89,7 +89,7 @@ export const listProposals = createServerFn({ method: "GET" })
   });
 
 export const getProposal = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: proposal, error } = await context.supabase
@@ -105,7 +105,7 @@ export const getProposal = createServerFn({ method: "GET" })
   });
 
 export const saveProposal = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => proposalInput.parse(input))
   .handler(async ({ data, context }) => {
     const subtotal = data.line_items.reduce(
@@ -235,7 +235,7 @@ async function storedSize(path: string) {
 }
 
 export const importProposalPdf = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => importInput.parse(input))
   .handler(async ({ data, context }) => {
     const inquiryResult = await context.supabase
@@ -450,13 +450,13 @@ export const importProposalPdf = createServerFn({ method: "POST" })
   });
 
 export const sendProposal = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => shareBundle(await loadProposalBundleById(data.id)));
 
 /** Copying the link counts as sending it, so the client can approve or ask for changes. */
 export const shareProposal = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ inquiry_id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const { data: row, error } = await supabaseAdmin
@@ -519,7 +519,7 @@ async function shareBundle(bundle: ProposalBundle) {
  * the client's name is free for the next one. An approved proposal stays.
  */
 export const clearProposal = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ inquiry_id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
     const { data: row, error } = await supabaseAdmin
@@ -580,7 +580,7 @@ export const findProposalSlug = createServerFn({ method: "GET" })
 
 /** Payments in the last day, for the studio's bell: who paid and whether it booked the project. */
 export const listFreshPayments = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .handler(async ({ context }) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await context.supabase
@@ -641,7 +641,7 @@ export const getSquarePayConfig = createServerFn({ method: "GET" }).handler(asyn
  * summary follows, and the receipt (when asked for) names how it was paid.
  */
 export const recordProposalPayment = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({
@@ -1680,7 +1680,7 @@ async function balanceLetter(
 
 /** The studio sends the balance invoice by hand: first a look at the letter, then the send. */
 export const sendBalanceInvoice = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) =>
     z
       .object({

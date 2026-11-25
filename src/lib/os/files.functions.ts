@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import type { Database, FileRow } from "@/integrations/supabase/types";
 import { appFileLink } from "@/lib/app-file-link";
 import { invoiceTitle } from "@/lib/invoice-title";
@@ -63,7 +63,7 @@ function idsFor(
  * proposals, signed agreements, and invoices kept with the documents, each listed once.
  */
 export const listStudioFiles = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("library", "inquiries")])
   .handler(async ({ context }): Promise<StudioFile[]> => {
     const { data, error } = await context.supabase
       .from("files")
@@ -219,7 +219,7 @@ const libraryFileInput = z.object({
 });
 
 export const addLibraryFile = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("library", "inquiries")])
   .validator((input: unknown) => libraryFileInput.parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from("files").insert({

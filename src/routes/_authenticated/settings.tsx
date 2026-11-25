@@ -58,7 +58,6 @@ const sections = [
   { id: "account", label: "account", blurb: "your name and password." },
   { id: "signature", label: "signature", blurb: "how you sign the agreements." },
   { id: "connections", label: "connections", blurb: "google, square, and granola." },
-  { id: "people", label: "people", blurb: "invite someone into the studio." },
   { id: "forms", label: "forms", blurb: "the questions a client answers." },
   { id: "health", label: "health", blurb: "sends and payment links that did not go through." },
 ] as const;
@@ -156,8 +155,6 @@ function SettingsPage() {
   const isAdmin = profile.role === "admin";
   const queryClient = useQueryClient();
   const fetchSettings = useServerFn(listAdminSettings);
-  const sendInvite = useServerFn(inviteTeamMember);
-  const deactivate = useServerFn(deactivateTeamMember);
   const connectSquare = useServerFn(beginSquareOAuth);
   const connectGoogle = useServerFn(beginGoogleOAuth);
   const fetchGmail = useServerFn(getGmailStatus);
@@ -166,8 +163,6 @@ function SettingsPage() {
   const disconnectGranolaFn = useServerFn(disconnectGranola);
   const [granolaKey, setGranolaKey] = useState("");
   const [replacingGranola, setReplacingGranola] = useState(false);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "team">("team");
   const [accountName, setAccountName] = useState(profile.full_name ?? "");
   const [resetting, setResetting] = useState(false);
   const [formTab, setFormTab] = useState<InquiryEditorTab>("shared");
@@ -246,38 +241,6 @@ function SettingsPage() {
   }, [integration, status]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["os", "admin-settings"] });
-
-  const invite = useMutation({
-    mutationFn: (values: { email: string; role: "admin" | "team" }) => {
-      if (devPreview) {
-        toast.message("Preview mode — invite not sent");
-        return Promise.resolve({ email: values.email });
-      }
-      return sendInvite({ data: values });
-    },
-    onSuccess: (result) => {
-      toast.success(`Invitation sent to ${result.email}`);
-      setEmail("");
-      setRole("team");
-      void refresh();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const removeMember = useMutation({
-    mutationFn: (id: string) => {
-      if (devPreview) {
-        toast.message("Preview mode — member not deactivated");
-        return Promise.resolve({ id });
-      }
-      return deactivate({ data: { id } });
-    },
-    onSuccess: () => {
-      toast.success("Studio access deactivated");
-      void refresh();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
 
   const squareOAuth = useMutation({
     mutationFn: () => {
@@ -405,11 +368,6 @@ function SettingsPage() {
     }
   }
 
-  function submitInvite(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    invite.mutate({ email, role });
-  }
-
   function showForm(next: InquiryEditorTab) {
     const stored = storeTab(drafts, formTab, formQuestions);
     setDrafts(stored);
@@ -442,8 +400,6 @@ function SettingsPage() {
   };
   const granolaConnected = granola.status === "connected";
   const showGranolaKey = !granolaConnected || replacingGranola;
-  const members = data?.members ?? [];
-  const pendingInvites = data?.invites ?? [];
   const failedEvents = data?.failedEvents ?? [];
 
   const accountBlock = (
@@ -650,85 +606,6 @@ function SettingsPage() {
     </section>
   );
 
-  const accessBlock = (
-    <section className="studio-panel">
-      <div className="studio-panel-head">
-        <div>
-          <p className="studio-kicker">the studio</p>
-          <h2>invite someone in</h2>
-          <p>
-            an invitation emails a link that lasts 7 days. they set a password and join this studio.
-            team can work the book. an admin can also change settings and invite others.
-          </p>
-        </div>
-      </div>
-      <form className="studio-stack" style={{ marginTop: 16 }} onSubmit={submitInvite}>
-        <label className="studio-field">
-          <span>email</span>
-          <input
-            required
-            type="email"
-            className="studio-input"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="name@saysukii.com"
-          />
-        </label>
-        <label className="studio-field">
-          <span>role</span>
-          <select
-            className="studio-select"
-            value={role}
-            onChange={(event) => setRole(event.target.value as "admin" | "team")}
-          >
-            <option value="team">team — works the book</option>
-            <option value="admin">admin — settings and invites too</option>
-          </select>
-        </label>
-        <button type="submit" className="studio-today-go" disabled={invite.isPending || !email}>
-          {invite.isPending ? "sending…" : "send invitation"}
-        </button>
-      </form>
-      {pendingInvites.length ? (
-        <div style={{ marginTop: 18 }}>
-          <p className="studio-kicker">pending</p>
-          {pendingInvites.map((item) => (
-            <div key={item.id} className="studio-member">
-              <span>{item.email}</span>
-              <StudioChip>{item.role}</StudioChip>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      <div style={{ marginTop: 18 }}>
-        {members.map((member) => (
-          <div key={member.id} className="studio-member">
-            <div>
-              <b>{member.full_name ? <PersonName name={member.full_name} /> : member.email}</b>
-              <p>{member.email}</p>
-              <p>last seen {formatSeen(member.last_seen_at)}</p>
-            </div>
-            <div className="studio-views">
-              <StudioChip tone={member.active ? "soft" : "due"}>
-                {member.active ? member.role : "inactive"}
-              </StudioChip>
-              {member.active && member.id !== profile.id ? (
-                <button
-                  type="button"
-                  className="studio-ghost"
-                  disabled={removeMember.isPending}
-                  onClick={() => removeMember.mutate(member.id)}
-                >
-                  deactivate
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-
   const formsBlock = (
     <section className="studio-panel">
       <div className="studio-form-tabs" role="tablist" aria-label="forms">
@@ -888,7 +765,6 @@ function SettingsPage() {
     if (id === "forms") return formsBlock;
     if (isPending) return null;
     if (id === "connections") return connectionsBlock;
-    if (id === "people") return accessBlock;
     return healthBlock;
   }
 
@@ -898,7 +774,7 @@ function SettingsPage() {
         <div>
           <p className="studio-kicker">studio</p>
           <h1>settings</h1>
-          <p>{isAdmin ? "your account, connections, and who can come in." : "your account."}</p>
+          <p>{isAdmin ? "your account, connections, and forms." : "your account."}</p>
         </div>
       </header>
 

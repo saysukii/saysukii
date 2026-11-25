@@ -78,12 +78,16 @@ type Fleck = {
  * Glitter on a canvas over the whole screen: a burst from a point, a rain from the top, or a stream
  * falling from a ribbon. Each fleck twinkles as it drifts, then it all clears away.
  */
-function glitter(options: {
+export function glitter(options: {
   from?: { x: number; y: number };
   count?: number;
   speed?: [number, number];
   rain?: boolean;
   stream?: { x: number; y: number; spread: number };
+  /** a burst shot one way, like a cannon: the angle (0 is right, up is -pi/2) and how wide */
+  aim?: { angle: number; spread: number };
+  /** bigger sparkles, for a grander moment */
+  size?: number;
   ms: number;
 }) {
   const canvas = document.createElement("canvas");
@@ -119,7 +123,7 @@ function glitter(options: {
     vy,
     life,
     maxLife: life,
-    size: 1.6 + Math.random() * 3,
+    size: (1.6 + Math.random() * 3) * (options.size ?? 1),
     color: GLITTER[Math.floor(Math.random() * GLITTER.length)]!,
     glow: Math.random() < 0.5,
     spin: (Math.random() - 0.5) * 0.2,
@@ -129,7 +133,9 @@ function glitter(options: {
   if (options.from) {
     const [low, high] = options.speed ?? [3, 9];
     for (let index = 0; index < (options.count ?? 120); index += 1) {
-      const angle = Math.random() * Math.PI * 2;
+      const angle = options.aim
+        ? options.aim.angle + (Math.random() - 0.5) * options.aim.spread
+        : Math.random() * Math.PI * 2;
       const speed = low + Math.random() * (high - low);
       flecks.push(
         fleck(

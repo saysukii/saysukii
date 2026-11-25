@@ -22,10 +22,11 @@ import { fileContentType } from "@/lib/os/inquiry-holds";
 import { clientSlugs } from "@/lib/os/inquiry-desk";
 import { mergePreviewClients } from "@/lib/preview-clients";
 import { useDevPreview } from "@/lib/use-dev-preview";
+import { hasAccess } from "@/lib/os/access";
 import { cn } from "@/lib/utils";
 
 type DirectoryLink = {
-  to: "/directories/clients" | "/directories/vendors" | "/directories/venues";
+  to: "/directories/clients" | "/directories/vendors" | "/directories/venues" | "/directories/team";
   name: string;
   blurb: string;
   count: number | undefined;
@@ -202,6 +203,17 @@ function LibraryPage() {
       blurb: "rooms, gardens, and load-in notes.",
       count: books.data?.venues.length,
     },
+    // the gang is for the admins sukii gives it to
+    ...(hasAccess(profile, "gang")
+      ? [
+          {
+            to: "/directories/team" as const,
+            name: "gang",
+            blurb: "everyone on the crew, and who's active.",
+            count: undefined,
+          },
+        ]
+      : []),
   ];
 
   const studioDrop = view === "all" || view === "studio";

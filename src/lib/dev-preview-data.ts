@@ -51,6 +51,8 @@ export const PREVIEW_IDS = {
   inquiryReviewJules: "20000000-0000-4000-8000-000000000030",
   inquiryArrived: "20000000-0000-4000-8000-000000000029",
   inquiryFenty: FENTY_DEMO_INQUIRY,
+  inquiryProduction: "20000000-0000-4000-8000-000000000041",
+  inquiryWrapped: "20000000-0000-4000-8000-000000000042",
   proposalDraft: "40000000-0000-4000-8000-000000000041",
   proposalSent: "40000000-0000-4000-8000-000000000042",
   proposalAccepted: "40000000-0000-4000-8000-000000000043",
@@ -536,6 +538,28 @@ const inquiries: InquiryRow[] = [
   inquiry("20000000-0000-4000-8000-000000000025", PREVIEW_IDS.clientHarbor, "booked", {
     status: "booked",
     received_at: iso(-20),
+  }),
+  // a wedding that's come and gone, its production wrapped
+  inquiry(PREVIEW_IDS.inquiryWrapped, PREVIEW_IDS.clientElena, "booked", {
+    event_type: "wedding",
+    event_date: dateOnly(-12),
+    venue_text: "Vizcaya Museum & Gardens, 3251 S Miami Ave, Miami, FL",
+    guest_count: 160,
+    budget_range: "$20,000+",
+    source: "instagram",
+    message: "Garden ceremony at dusk, a long table under the loggia.",
+    received_at: iso(-120),
+  }),
+  // a booked brand activation with its production underway, for the production tab
+  inquiry(PREVIEW_IDS.inquiryProduction, PREVIEW_IDS.clientLumen, "booked", {
+    event_type: "brand_activation",
+    event_date: dateOnly(10),
+    venue_text: "Pérez Art Museum Miami, 1103 Biscayne Blvd, Miami, FL",
+    guest_count: 300,
+    budget_range: "$20,000+",
+    source: "Website",
+    message: `Dates: ${dateOnly(10)}, ${dateOnly(11)}\nA live launch with two stages and a grand entrance.`,
+    received_at: iso(-40),
   }),
   inquiry("20000000-0000-4000-8000-000000000026", PREVIEW_IDS.clientLumen, "closed", {
     status: "closed",

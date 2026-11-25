@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import { appFileLink } from "@/lib/app-file-link";
 import { loveNoteFileName, type LoveNote } from "@/lib/love-note-view";
 
@@ -10,7 +10,7 @@ const LINK_SECONDS = 60 * 30;
 
 /** The notes that have fully arrived, newest first. A recording still uploading isn't shown. */
 export const listLoveNotes = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("library", "inquiries")])
   .handler(async ({ context }): Promise<LoveNote[]> => {
     const { data, error } = await context.supabase
       .from("love_notes")
@@ -61,7 +61,7 @@ export const listLoveNotes = createServerFn({ method: "GET" })
 
 /** What's come in lately, for the bell. */
 export const listFreshLoveNotes = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("library", "inquiries")])
   .handler(async ({ context }) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await context.supabase
@@ -81,7 +81,7 @@ export const listFreshLoveNotes = createServerFn({ method: "GET" })
 
 /** Deletes a note for good, with its recording. */
 export const deleteLoveNote = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("library", "inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase

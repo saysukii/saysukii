@@ -55,6 +55,7 @@ import { useEmailTemplates, useSaveEmailTemplate } from "@/lib/os/use-email-temp
 import { scheduleMeetingUrl } from "@/lib/studio-bookings";
 import type { InquiryMessageRow } from "@/integrations/supabase/types";
 import { proposalCards } from "@/lib/proposal-link";
+import { WhenPicker } from "@/components/production/fields";
 import { cn } from "@/lib/utils";
 import {
   previewLine,
@@ -810,14 +811,10 @@ export function ThreadComposer({
                   name={clientName || "this letter"}
                   body={draft || "write the letter, then choose when it sends."}
                 />
-                <label className="studio-ask-field">
+                <div className="studio-ask-field">
                   <span className="studio-ask-label">send at</span>
-                  <input
-                    type="datetime-local"
-                    value={sendAt}
-                    onChange={(event) => setSendAt(event.target.value)}
-                  />
-                </label>
+                  <WhenPicker value={sendAt} allowPast={false} onChange={setSendAt} />
+                </div>
                 <div className="studio-ask-foot">
                   <button
                     type="button"

@@ -31,6 +31,8 @@ export type InquiryFormValues = {
   arrangement_size?: string;
   recipient?: string;
   sources?: string[];
+  /** who sent them, when "referral" is one of the ways they found the studio */
+  referral_name?: string;
   space?: string;
   space_other?: string;
   cadence?: string;

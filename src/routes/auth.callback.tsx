@@ -51,7 +51,7 @@ function AuthCallbackPage() {
 
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("id")
+          .select("id, full_name")
           .eq("id", userData.user.id)
           .eq("active", true)
           .maybeSingle();
@@ -67,6 +67,11 @@ function AuthCallbackPage() {
         // a password reset goes on to choosing the new password
         if (type === "recovery") {
           await router.navigate({ to: "/onboarding", search: { reset: true } });
+          return;
+        }
+        // someone new from an invitation chooses their name and a password first
+        if (!profile.full_name) {
+          await router.navigate({ to: "/onboarding" });
           return;
         }
         setMessage("Opening the studio…");

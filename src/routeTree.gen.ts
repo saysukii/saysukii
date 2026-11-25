@@ -26,6 +26,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
 import { Route as AuthenticatedLoadingRouteImport } from './routes/_authenticated/loading'
 import { Route as AuthenticatedLoveNotesRouteImport } from './routes/_authenticated/love-notes'
+import { Route as AuthenticatedProductionsRouteImport } from './routes/_authenticated/productions'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedShelfRouteImport } from './routes/_authenticated/shelf'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
@@ -35,9 +36,11 @@ import { Route as InquireIndexRouteImport } from './routes/inquire.index'
 import { Route as InquirePreviewRouteImport } from './routes/inquire.preview'
 import { Route as InvoiceTokenRouteImport } from './routes/invoice.$token'
 import { Route as LetterIdRouteImport } from './routes/letter.$id'
+import { Route as ProductionSlugRouteImport } from './routes/production.$slug'
 import { Route as ProposalTokenRouteImport } from './routes/proposal.$token'
 import { Route as AuthenticatedClientsIdRouteImport } from './routes/_authenticated/clients.$id'
 import { Route as AuthenticatedDirectoriesClientsRouteImport } from './routes/_authenticated/directories.clients'
+import { Route as AuthenticatedDirectoriesTeamRouteImport } from './routes/_authenticated/directories.team'
 import { Route as AuthenticatedDirectoriesVendorsRouteImport } from './routes/_authenticated/directories.vendors'
 import { Route as AuthenticatedDirectoriesVenuesRouteImport } from './routes/_authenticated/directories.venues'
 import { Route as AuthenticatedPipelineIndexRouteImport } from './routes/_authenticated/pipeline.index'
@@ -46,6 +49,7 @@ import { Route as ApiCronBalanceRemindersRouteImport } from './routes/api/cron/b
 import { Route as ApiCronGmailInboundRouteImport } from './routes/api/cron/gmail-inbound'
 import { Route as ApiCronGmailRouteRouteImport } from './routes/api/cron/gmail-route'
 import { Route as ApiCronMeetingSummariesRouteImport } from './routes/api/cron/meeting-summaries'
+import { Route as ApiCronProductionNoticesRouteImport } from './routes/api/cron/production-notices'
 import { Route as ApiCronScheduledLettersRouteImport } from './routes/api/cron/scheduled-letters'
 import { Route as ApiLoveNotesIndexRouteImport } from './routes/api/love-notes/index'
 import { Route as ApiLoveNotesFinishRouteImport } from './routes/api/love-notes/finish'
@@ -142,6 +146,12 @@ const AuthenticatedLoveNotesRoute = AuthenticatedLoveNotesRouteImport.update({
   path: '/love-notes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProductionsRoute =
+  AuthenticatedProductionsRouteImport.update({
+    id: '/productions',
+    path: '/productions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -187,6 +197,11 @@ const LetterIdRoute = LetterIdRouteImport.update({
   path: '/letter/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductionSlugRoute = ProductionSlugRouteImport.update({
+  id: '/production/$slug',
+  path: '/production/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProposalTokenRoute = ProposalTokenRouteImport.update({
   id: '/proposal/$token',
   path: '/proposal/$token',
@@ -201,6 +216,12 @@ const AuthenticatedDirectoriesClientsRoute =
   AuthenticatedDirectoriesClientsRouteImport.update({
     id: '/directories/clients',
     path: '/directories/clients',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedDirectoriesTeamRoute =
+  AuthenticatedDirectoriesTeamRouteImport.update({
+    id: '/directories/team',
+    path: '/directories/team',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDirectoriesVendorsRoute =
@@ -246,6 +267,12 @@ const ApiCronMeetingSummariesRoute = ApiCronMeetingSummariesRouteImport.update({
   path: '/api/cron/meeting-summaries',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronProductionNoticesRoute =
+  ApiCronProductionNoticesRouteImport.update({
+    id: '/api/cron/production-notices',
+    path: '/api/cron/production-notices',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCronScheduledLettersRoute = ApiCronScheduledLettersRouteImport.update({
   id: '/api/cron/scheduled-letters',
   path: '/api/cron/scheduled-letters',
@@ -326,6 +353,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof AuthenticatedLibraryRoute
   '/loading': typeof AuthenticatedLoadingRoute
   '/love-notes': typeof AuthenticatedLoveNotesRoute
+  '/productions': typeof AuthenticatedProductionsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -334,10 +362,12 @@ export interface FileRoutesByFullPath {
   '/inquire/preview': typeof InquirePreviewRoute
   '/invoice/$token': typeof InvoiceTokenRoute
   '/letter/$id': typeof LetterIdRoute
+  '/production/$slug': typeof ProductionSlugRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire/': typeof InquireIndexRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
   '/directories/clients': typeof AuthenticatedDirectoriesClientsRoute
+  '/directories/team': typeof AuthenticatedDirectoriesTeamRoute
   '/directories/vendors': typeof AuthenticatedDirectoriesVendorsRouteWithChildren
   '/directories/venues': typeof AuthenticatedDirectoriesVenuesRouteWithChildren
   '/pipeline/$id': typeof AuthenticatedPipelineIdRoute
@@ -345,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/meeting-summaries': typeof ApiCronMeetingSummariesRoute
+  '/api/cron/production-notices': typeof ApiCronProductionNoticesRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
@@ -374,6 +405,7 @@ export interface FileRoutesByTo {
   '/library': typeof AuthenticatedLibraryRoute
   '/loading': typeof AuthenticatedLoadingRoute
   '/love-notes': typeof AuthenticatedLoveNotesRoute
+  '/productions': typeof AuthenticatedProductionsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -382,15 +414,18 @@ export interface FileRoutesByTo {
   '/inquire/preview': typeof InquirePreviewRoute
   '/invoice/$token': typeof InvoiceTokenRoute
   '/letter/$id': typeof LetterIdRoute
+  '/production/$slug': typeof ProductionSlugRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire': typeof InquireIndexRoute
   '/clients/$id': typeof AuthenticatedClientsIdRoute
   '/directories/clients': typeof AuthenticatedDirectoriesClientsRoute
+  '/directories/team': typeof AuthenticatedDirectoriesTeamRoute
   '/pipeline/$id': typeof AuthenticatedPipelineIdRoute
   '/api/cron/balance-reminders': typeof ApiCronBalanceRemindersRoute
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/meeting-summaries': typeof ApiCronMeetingSummariesRoute
+  '/api/cron/production-notices': typeof ApiCronProductionNoticesRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
@@ -423,6 +458,7 @@ export interface FileRoutesById {
   '/_authenticated/library': typeof AuthenticatedLibraryRoute
   '/_authenticated/loading': typeof AuthenticatedLoadingRoute
   '/_authenticated/love-notes': typeof AuthenticatedLoveNotesRoute
+  '/_authenticated/productions': typeof AuthenticatedProductionsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shelf': typeof AuthenticatedShelfRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -431,10 +467,12 @@ export interface FileRoutesById {
   '/inquire/preview': typeof InquirePreviewRoute
   '/invoice/$token': typeof InvoiceTokenRoute
   '/letter/$id': typeof LetterIdRoute
+  '/production/$slug': typeof ProductionSlugRoute
   '/proposal/$token': typeof ProposalTokenRoute
   '/inquire/': typeof InquireIndexRoute
   '/_authenticated/clients/$id': typeof AuthenticatedClientsIdRoute
   '/_authenticated/directories/clients': typeof AuthenticatedDirectoriesClientsRoute
+  '/_authenticated/directories/team': typeof AuthenticatedDirectoriesTeamRoute
   '/_authenticated/directories/vendors': typeof AuthenticatedDirectoriesVendorsRouteWithChildren
   '/_authenticated/directories/venues': typeof AuthenticatedDirectoriesVenuesRouteWithChildren
   '/_authenticated/pipeline/$id': typeof AuthenticatedPipelineIdRoute
@@ -442,6 +480,7 @@ export interface FileRoutesById {
   '/api/cron/gmail-inbound': typeof ApiCronGmailInboundRoute
   '/api/cron/gmail-route': typeof ApiCronGmailRouteRoute
   '/api/cron/meeting-summaries': typeof ApiCronMeetingSummariesRoute
+  '/api/cron/production-notices': typeof ApiCronProductionNoticesRoute
   '/api/cron/scheduled-letters': typeof ApiCronScheduledLettersRoute
   '/api/love-notes/finish': typeof ApiLoveNotesFinishRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
@@ -474,6 +513,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/loading'
     | '/love-notes'
+    | '/productions'
     | '/settings'
     | '/shelf'
     | '/auth/callback'
@@ -482,10 +522,12 @@ export interface FileRouteTypes {
     | '/inquire/preview'
     | '/invoice/$token'
     | '/letter/$id'
+    | '/production/$slug'
     | '/proposal/$token'
     | '/inquire/'
     | '/clients/$id'
     | '/directories/clients'
+    | '/directories/team'
     | '/directories/vendors'
     | '/directories/venues'
     | '/pipeline/$id'
@@ -493,6 +535,7 @@ export interface FileRouteTypes {
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/meeting-summaries'
+    | '/api/cron/production-notices'
     | '/api/cron/scheduled-letters'
     | '/api/love-notes/finish'
     | '/api/square/webhook'
@@ -522,6 +565,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/loading'
     | '/love-notes'
+    | '/productions'
     | '/settings'
     | '/shelf'
     | '/auth/callback'
@@ -530,15 +574,18 @@ export interface FileRouteTypes {
     | '/inquire/preview'
     | '/invoice/$token'
     | '/letter/$id'
+    | '/production/$slug'
     | '/proposal/$token'
     | '/inquire'
     | '/clients/$id'
     | '/directories/clients'
+    | '/directories/team'
     | '/pipeline/$id'
     | '/api/cron/balance-reminders'
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/meeting-summaries'
+    | '/api/cron/production-notices'
     | '/api/cron/scheduled-letters'
     | '/api/love-notes/finish'
     | '/api/square/webhook'
@@ -570,6 +617,7 @@ export interface FileRouteTypes {
     | '/_authenticated/library'
     | '/_authenticated/loading'
     | '/_authenticated/love-notes'
+    | '/_authenticated/productions'
     | '/_authenticated/settings'
     | '/_authenticated/shelf'
     | '/auth/callback'
@@ -578,10 +626,12 @@ export interface FileRouteTypes {
     | '/inquire/preview'
     | '/invoice/$token'
     | '/letter/$id'
+    | '/production/$slug'
     | '/proposal/$token'
     | '/inquire/'
     | '/_authenticated/clients/$id'
     | '/_authenticated/directories/clients'
+    | '/_authenticated/directories/team'
     | '/_authenticated/directories/vendors'
     | '/_authenticated/directories/venues'
     | '/_authenticated/pipeline/$id'
@@ -589,6 +639,7 @@ export interface FileRouteTypes {
     | '/api/cron/gmail-inbound'
     | '/api/cron/gmail-route'
     | '/api/cron/meeting-summaries'
+    | '/api/cron/production-notices'
     | '/api/cron/scheduled-letters'
     | '/api/love-notes/finish'
     | '/api/square/webhook'
@@ -620,11 +671,13 @@ export interface RootRouteChildren {
   FileSplatRoute: typeof FileSplatRoute
   InvoiceTokenRoute: typeof InvoiceTokenRoute
   LetterIdRoute: typeof LetterIdRoute
+  ProductionSlugRoute: typeof ProductionSlugRoute
   ProposalTokenRoute: typeof ProposalTokenRoute
   ApiCronBalanceRemindersRoute: typeof ApiCronBalanceRemindersRoute
   ApiCronGmailInboundRoute: typeof ApiCronGmailInboundRoute
   ApiCronGmailRouteRoute: typeof ApiCronGmailRouteRoute
   ApiCronMeetingSummariesRoute: typeof ApiCronMeetingSummariesRoute
+  ApiCronProductionNoticesRoute: typeof ApiCronProductionNoticesRoute
   ApiCronScheduledLettersRoute: typeof ApiCronScheduledLettersRoute
   ApiLoveNotesFinishRoute: typeof ApiLoveNotesFinishRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
@@ -755,6 +808,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLoveNotesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/productions': {
+      id: '/_authenticated/productions'
+      path: '/productions'
+      fullPath: '/productions'
+      preLoaderRoute: typeof AuthenticatedProductionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -818,6 +878,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LetterIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/production/$slug': {
+      id: '/production/$slug'
+      path: '/production/$slug'
+      fullPath: '/production/$slug'
+      preLoaderRoute: typeof ProductionSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/proposal/$token': {
       id: '/proposal/$token'
       path: '/proposal/$token'
@@ -837,6 +904,13 @@ declare module '@tanstack/react-router' {
       path: '/directories/clients'
       fullPath: '/directories/clients'
       preLoaderRoute: typeof AuthenticatedDirectoriesClientsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/directories/team': {
+      id: '/_authenticated/directories/team'
+      path: '/directories/team'
+      fullPath: '/directories/team'
+      preLoaderRoute: typeof AuthenticatedDirectoriesTeamRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/directories/vendors': {
@@ -893,6 +967,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cron/meeting-summaries'
       fullPath: '/api/cron/meeting-summaries'
       preLoaderRoute: typeof ApiCronMeetingSummariesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/production-notices': {
+      id: '/api/cron/production-notices'
+      path: '/api/cron/production-notices'
+      fullPath: '/api/cron/production-notices'
+      preLoaderRoute: typeof ApiCronProductionNoticesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cron/scheduled-letters': {
@@ -1017,10 +1098,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLibraryRoute: typeof AuthenticatedLibraryRoute
   AuthenticatedLoadingRoute: typeof AuthenticatedLoadingRoute
   AuthenticatedLoveNotesRoute: typeof AuthenticatedLoveNotesRoute
+  AuthenticatedProductionsRoute: typeof AuthenticatedProductionsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShelfRoute: typeof AuthenticatedShelfRoute
   AuthenticatedClientsIdRoute: typeof AuthenticatedClientsIdRoute
   AuthenticatedDirectoriesClientsRoute: typeof AuthenticatedDirectoriesClientsRoute
+  AuthenticatedDirectoriesTeamRoute: typeof AuthenticatedDirectoriesTeamRoute
   AuthenticatedDirectoriesVendorsRoute: typeof AuthenticatedDirectoriesVendorsRouteWithChildren
   AuthenticatedDirectoriesVenuesRoute: typeof AuthenticatedDirectoriesVenuesRouteWithChildren
   AuthenticatedPipelineIdRoute: typeof AuthenticatedPipelineIdRoute
@@ -1033,10 +1116,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLibraryRoute: AuthenticatedLibraryRoute,
   AuthenticatedLoadingRoute: AuthenticatedLoadingRoute,
   AuthenticatedLoveNotesRoute: AuthenticatedLoveNotesRoute,
+  AuthenticatedProductionsRoute: AuthenticatedProductionsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShelfRoute: AuthenticatedShelfRoute,
   AuthenticatedClientsIdRoute: AuthenticatedClientsIdRoute,
   AuthenticatedDirectoriesClientsRoute: AuthenticatedDirectoriesClientsRoute,
+  AuthenticatedDirectoriesTeamRoute: AuthenticatedDirectoriesTeamRoute,
   AuthenticatedDirectoriesVendorsRoute:
     AuthenticatedDirectoriesVendorsRouteWithChildren,
   AuthenticatedDirectoriesVenuesRoute:
@@ -1088,11 +1173,13 @@ const rootRouteChildren: RootRouteChildren = {
   FileSplatRoute: FileSplatRoute,
   InvoiceTokenRoute: InvoiceTokenRoute,
   LetterIdRoute: LetterIdRoute,
+  ProductionSlugRoute: ProductionSlugRoute,
   ProposalTokenRoute: ProposalTokenRoute,
   ApiCronBalanceRemindersRoute: ApiCronBalanceRemindersRoute,
   ApiCronGmailInboundRoute: ApiCronGmailInboundRoute,
   ApiCronGmailRouteRoute: ApiCronGmailRouteRoute,
   ApiCronMeetingSummariesRoute: ApiCronMeetingSummariesRoute,
+  ApiCronProductionNoticesRoute: ApiCronProductionNoticesRoute,
   ApiCronScheduledLettersRoute: ApiCronScheduledLettersRoute,
   ApiLoveNotesFinishRoute: ApiLoveNotesFinishRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,

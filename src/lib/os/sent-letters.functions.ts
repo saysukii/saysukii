@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import { SENT_LETTER_EVENTS } from "@/lib/sent-letters";
 
 /** One email the app sent a client on its own, exactly as it went out. */
 export const getSentLetter = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("inquiries")])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase

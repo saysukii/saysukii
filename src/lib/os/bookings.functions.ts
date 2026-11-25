@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireAdmin } from "@/integrations/supabase/studio-auth-middleware";
+import { requireAccess } from "@/integrations/supabase/studio-auth-middleware";
 import { capitalizeName } from "@/lib/name-case";
 
 const bookingInput = z.object({
@@ -106,7 +106,7 @@ export const bookAppointment = createServerFn({ method: "POST" })
 
 /** Calls booked in the last day, for the studio's bell. */
 export const listFreshBookings = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("schedule", "inquiries")])
   .handler(async ({ context }) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await context.supabase
@@ -126,7 +126,7 @@ export const listStudioCalendarEvents = createServerFn({ method: "GET" }).handle
 });
 
 export const listAppointments = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("schedule", "inquiries")])
   .handler(async ({ context }) => {
     const { data, error } = await context.supabase
       .from("appointments")
@@ -180,12 +180,12 @@ async function readGranolaConnected() {
 }
 
 export const getGranolaStatus = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("schedule", "inquiries")])
   .handler(async () => readGranolaConnected());
 
 /** Each meeting's granola summary from the last two months, by its calendar event. */
 export const listMeetingSummaries = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("schedule", "inquiries")])
   .handler(async ({ context }) => {
     const since = new Date(Date.now() - 62 * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await context.supabase
@@ -203,7 +203,7 @@ export const listMeetingSummaries = createServerFn({ method: "GET" })
 
 /** Summaries that came in over the last day, for the studio's notices. */
 export const listFreshMeetingSummaries = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("schedule", "inquiries")])
   .handler(async ({ context }) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await context.supabase
@@ -219,7 +219,7 @@ export const listFreshMeetingSummaries = createServerFn({ method: "GET" })
 
 /** Looks in granola for one meeting's summary right away, rather than waiting for the next sync. */
 export const checkMeetingSummary = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
+  .middleware([requireAccess("schedule", "inquiries")])
   .validator((input: unknown) => z.object({ eventId: z.string().min(1).max(300) }).parse(input))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
