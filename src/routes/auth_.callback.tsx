@@ -20,6 +20,10 @@ export const Route = createFileRoute("/auth_/callback")({
 function AuthCallbackPage() {
   const router = useRouter();
   const [message, setMessage] = useState("Confirming your studio link…");
+  // read once, on the way in: an invitation shows no sign-in card while it opens
+  const [opening] = useState(
+    () => typeof window !== "undefined" && new URL(window.location.href).searchParams.has("invite"),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +41,6 @@ function AuthCallbackPage() {
 
         // an invitation: good until they've joined, it signs them in fresh each time it's opened
         if (invite) {
-          setMessage("Opening your invitation…");
           const opened = await openInvitation({ data: { token: invite } });
           if (opened.state === "joined") {
             if (cancelled) return;
@@ -115,6 +118,9 @@ function AuthCallbackPage() {
       cancelled = true;
     };
   }, [router]);
+
+  // an invitation goes straight on to the welcome: just the room it opens in, nothing to read
+  if (opening) return <div className="studio-pearl" aria-busy="true" />;
 
   return (
     <div className="auth-scene auth-scene--pearl auth-scene--login">

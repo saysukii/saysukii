@@ -4600,10 +4600,8 @@
   z-index: 1;
   display: flex;
   width: 100%;
-  max-width: 100rem;
   height: 100%;
   min-height: 0;
-  margin: 0 auto;
   gap: 18px;
   padding: 18px 18px 18px;
 }
@@ -23409,6 +23407,8 @@ button.studio-file-open {
   width: min(420px, 100%);
   justify-items: center;
   gap: 22px;
+  /* from the welcome, centered, up to where the questions sit */
+  transition: transform 640ms cubic-bezier(0.22, 0.8, 0.24, 1);
 }
 
 .studio-onboard-mark {
@@ -23765,7 +23765,7 @@ button.studio-file-open {
 /* the whole page: the room arrives, breathes while you're in it, moves as you go, and lifts
    away when you enter the studio */
 .studio-onboard-scene.is-first {
-  --lead: 620ms;
+  --lead: 180ms;
 }
 
 .studio-onboard-room {
@@ -23921,7 +23921,7 @@ button.studio-file-open {
   mask-size: 260% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
-  animation: onboard-mark-write 1500ms cubic-bezier(0.45, 0.05, 0.25, 1) 260ms both;
+  animation: onboard-mark-write 1500ms cubic-bezier(0.45, 0.05, 0.25, 1) 60ms both;
 }
 
 @keyframes onboard-mark-write {
@@ -24078,4 +24078,59 @@ html.studio-zoomed .celebrate-glitter {
 /* chrome: a long menu's room to grow comes in screen pixels; bring it to the page's own */
 html.studio-zoomed.is-zoom-standard [data-radix-popper-content-wrapper] > [role="menu"] {
   max-height: calc(var(--radix-dropdown-menu-content-available-height) / var(--studio-zoom, 1));
+}
+
+/* on a phone or a tablet held tall, a production on today stacks: where it stands, its name across
+   the full width, when and where, then how far along. more than one still swipes side to side. */
+@media (max-width: 1099px) {
+  .studio-member-today .studio-member-productions .studio-member-event {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "status go"
+      "main main"
+      "progress progress";
+    align-items: start;
+    row-gap: 10px;
+    padding: 16px 18px;
+  }
+
+  .studio-member-today .studio-member-productions .studio-member-event > span:first-child {
+    grid-area: main;
+  }
+
+  .studio-member-today .studio-member-productions .studio-productions-facts {
+    display: contents;
+  }
+
+  .studio-member-today .studio-member-productions .studio-prod-status {
+    grid-area: status;
+    justify-self: start;
+  }
+
+  .studio-member-today .studio-member-productions .studio-productions-facts svg {
+    grid-area: go;
+    align-self: center;
+    width: 18px;
+    height: 18px;
+  }
+
+  .studio-member-today .studio-member-productions .studio-row-progress {
+    grid-area: progress;
+    margin-top: 4px;
+  }
+
+  .studio-member-today .studio-member-productions .studio-member-event b {
+    display: block;
+    font-size: 19px;
+    line-height: 1.25;
+  }
+
+  .studio-member-today .studio-member-productions .studio-member-event em {
+    display: block;
+    margin-top: 6px;
+  }
+
+  .studio-member-today .studio-member-events.is-swipe > * {
+    flex-basis: 84%;
+  }
 }

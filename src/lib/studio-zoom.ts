@@ -1,9 +1,11 @@
 import { useLayoutEffect } from "react";
 
 /**
- * The studio is laid out for a 13" laptop, about 1280 wide. On anything wider it scales up to
- * match, so a 15" or a desktop shows the same page, just larger, instead of a smaller page with
- * more room around it.
+ * The studio is laid out for a 13" macbook air, 1470 wide, and every screen gets that same feel:
+ * - wider (a 15", a desktop): it scales up gently to match, edge to edge
+ * - a tablet held wide: the 13" page, shrunk to fit
+ * - phones and tablets held tall: their own layout, a touch smaller, so it reads as light as the
+ *   13" does
  *
  * Browsers scale a page in one of two ways, and the studio works out which one it's in:
  * - like browser zoom (Safari): everything, positions included, scales together
@@ -14,15 +16,26 @@ import { useLayoutEffect } from "react";
  */
 
 /** the width the studio is laid out for */
-export const STUDIO_BASE_WIDTH = 1280;
+export const STUDIO_BASE_WIDTH = 1470;
 /** past this the studio stops growing, so a big monitor doesn't get a poster */
-export const STUDIO_MAX_ZOOM = 1.5;
+export const STUDIO_MAX_ZOOM = 1.3;
+/** below this the studio switches to its phone and tablet layout (styles.css, max-width: 1099px) */
+export const STUDIO_HANDHELD_WIDTH = 1100;
+/** phones and tablets held tall show their layout at this size */
+export const STUDIO_HANDHELD_ZOOM = 0.86;
 
-/** how much to scale for a window this wide: 1 up to the base width, then in step with it */
-export function studioZoomFor(width: number) {
-  if (!Number.isFinite(width) || width <= STUDIO_BASE_WIDTH) return 1;
-  // a little rounding keeps text and lines crisp
-  return Math.min(STUDIO_MAX_ZOOM, Math.round((width / STUDIO_BASE_WIDTH) * 1000) / 1000);
+// a little rounding keeps text and lines crisp
+const round = (zoom: number) => Math.round(zoom * 1000) / 1000;
+
+/**
+ * how much to scale for a window this wide. `touch` is a touchscreen, so a tablet held wide
+ * shrinks the 13" page to fit, while a laptop window that size is left as it is.
+ */
+export function studioZoomFor(width: number, touch = false) {
+  if (!Number.isFinite(width) || width <= 0) return 1;
+  if (width < STUDIO_HANDHELD_WIDTH) return STUDIO_HANDHELD_ZOOM;
+  if (width < STUDIO_BASE_WIDTH) return touch ? round(width / STUDIO_BASE_WIDTH) : 1;
+  return Math.min(STUDIO_MAX_ZOOM, round(width / STUDIO_BASE_WIDTH));
 }
 
 let current = 1;
@@ -44,7 +57,8 @@ function scalesStandard() {
 
 function apply() {
   const root = document.documentElement;
-  const zoom = studioZoomFor(window.innerWidth);
+  const touch = window.matchMedia?.("(any-pointer: coarse)").matches ?? false;
+  const zoom = studioZoomFor(window.innerWidth, touch);
   current = zoom;
   if (zoom === 1) {
     root.classList.remove("studio-zoomed", "is-zoom-standard");

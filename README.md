@@ -176,7 +176,7 @@ Flowers for the people.
 Soft, specific, and close. A letter, not a brochure. The client's name first. Dates and places written the way you would say them, all in lowercase. Pink shows up where the eye should land. Everything else stays warm and quiet.
 
 **Size**
-The studio is laid out for a 13" laptop, about 1280 wide. On a wider screen, like a 15" laptop or a desktop, it scales up to match, so everyone sees the same page, just larger, up to one and a half times. Phones, tablets, and the client pages keep their own sizes. For developers: write viewport units in `styles.css` as `calc(100vh / var(--studio-vz, 1))`, and convert positions from `getBoundingClientRect` with `fromRect` in `src/lib/studio-zoom.ts`. A test fails on a bare `vh` or `vw`.
+The studio is laid out for a 13" macbook air, 1470 wide, and runs edge to edge. On a wider screen, like a 15" laptop or a desktop, it scales up gently to match, so everyone sees the same page, a little larger, up to 1.3 times. Phones, tablets, and the client pages keep their own sizes. For developers: write viewport units in `styles.css` as `calc(100vh / var(--studio-vz, 1))`, and convert positions from `getBoundingClientRect` with `fromRect` in `src/lib/studio-zoom.ts`. A test fails on a bare `vh` or `vw`.
 
 ---
 

@@ -2,25 +2,43 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { STUDIO_BASE_WIDTH, STUDIO_MAX_ZOOM, studioZoomFor } from "./studio-zoom";
+import {
+  STUDIO_BASE_WIDTH,
+  STUDIO_HANDHELD_ZOOM,
+  STUDIO_MAX_ZOOM,
+  studioZoomFor,
+} from "./studio-zoom";
 
 describe("studio zoom", () => {
-  it("leaves a 13-inch laptop and anything narrower as it is", () => {
+  it("leaves the 13-inch as it is", () => {
     assert.equal(studioZoomFor(STUDIO_BASE_WIDTH), 1);
-    assert.equal(studioZoomFor(1024), 1);
-    assert.equal(studioZoomFor(390), 1);
     assert.equal(studioZoomFor(Number.NaN), 1);
   });
 
-  it("scales a wider window to look like the 13-inch", () => {
+  it("leaves a laptop window narrower than the 13-inch as it is", () => {
+    assert.equal(studioZoomFor(1440), 1);
+    assert.equal(studioZoomFor(1280), 1);
+  });
+
+  it("shrinks the 13-inch page to fit a tablet held wide", () => {
+    assert.equal(studioZoomFor(1180, true), 0.803);
+    assert.equal(studioZoomFor(1366, true), 0.929);
+  });
+
+  it("shows phones and tablets held tall a touch smaller", () => {
+    assert.equal(studioZoomFor(390, true), STUDIO_HANDHELD_ZOOM);
+    assert.equal(studioZoomFor(820, true), STUDIO_HANDHELD_ZOOM);
+    assert.equal(studioZoomFor(1024), STUDIO_HANDHELD_ZOOM);
+  });
+
+  it("scales a wider window gently to look like the 13-inch", () => {
     // a 15-inch macbook air at its default size
-    assert.equal(studioZoomFor(1710), 1.336);
-    assert.equal(studioZoomFor(1440), 1.125);
+    assert.equal(studioZoomFor(1710), 1.163);
   });
 
   it("stops growing on a big monitor", () => {
     assert.equal(studioZoomFor(1920), STUDIO_MAX_ZOOM);
-    assert.equal(studioZoomFor(3840), STUDIO_MAX_ZOOM);
+    assert.equal(studioZoomFor(2560), STUDIO_MAX_ZOOM);
   });
 
   it("keeps every viewport unit in the styles corrected for chrome's scaling", () => {

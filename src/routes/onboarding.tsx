@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -15,18 +15,15 @@ import { cn } from "@/lib/utils";
 const LEAVE_MS = 260;
 /** "enter the studio": long enough for "welcome in" to land before the studio opens */
 const DEPART_MS = 1700;
-/** where the button they pressed is, so the glitter can come off it */
-function buttonCenter() {
-  const go = document.querySelector<HTMLElement>(".studio-onboard-steps .studio-onboard-go");
-  const box = go?.getBoundingClientRect();
-  return box
-    ? { x: box.left + box.width / 2, y: box.top + box.height / 2 }
-    : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-}
-
-/** the send-off: one big burst of glitter off the button, as they enter the studio */
+/** the send-off: one big burst of glitter from the middle of the screen, as they enter the studio */
 function sprinkle() {
-  glitter({ from: buttonCenter(), count: 380, speed: [4, 15], size: 1.35, ms: 4400 });
+  glitter({
+    from: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    count: 380,
+    speed: [4, 15],
+    size: 1.35,
+    ms: 4400,
+  });
 }
 
 function prefersStill() {
@@ -66,6 +63,25 @@ function OnboardingPage() {
   // the warm moments: the wordmark writes itself in, their name is said back,
   // and glitter sees them into the studio
   const given = fullName.trim().split(/\s+/)[0] ?? "";
+
+  // the welcome is shorter than the questions, which keep the same room so the wordmark holds
+  // still between them: lifted by half the difference, it sits in the very middle, and glides up
+  // into place when they begin
+  const stackRef = useRef<HTMLDivElement>(null);
+  const [lift, setLift] = useState(0);
+  useLayoutEffect(() => {
+    const stack = stackRef.current;
+    const scene = stack?.querySelector<HTMLElement>(".studio-onboard-scene");
+    const intro = scene?.querySelector<HTMLElement>(".is-intro-screen");
+    if (screen >= 0 || !scene || !intro) {
+      setLift(0);
+      return;
+    }
+    const measure = () => setLift(Math.max(0, (scene.offsetHeight - intro.offsetHeight) / 2));
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [screen]);
 
   const nameOk = fullName.trim().length >= 2;
   const passwordOk = password.length >= 8;
@@ -181,7 +197,11 @@ function OnboardingPage() {
       <div className="studio-pearl-aura-near" aria-hidden="true" />
 
       <main className="studio-onboard">
-        <div className="studio-onboard-stack">
+        <div
+          ref={stackRef}
+          className="studio-onboard-stack"
+          style={lift ? { transform: `translateY(${lift}px)` } : undefined}
+        >
           {/* the mask that writes it in sits on its own wrapper, so safari keeps the ink */}
           <span className="studio-onboard-mark-wrap">
             <Wordmark tone="ink" className="studio-onboard-mark" />
